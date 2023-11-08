@@ -1,0 +1,12 @@
+[package]
+name = "karyons"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+members = [
+    "karyons_core",
+    "karyons_net",
+    "karyons_p2p",
+]
