@@ -68,6 +68,6 @@ tmux split-window -v -t karyons_p2p
 tmux send-keys -t karyons_p2p "../../target/release/examples/peer --userid 'peer12'\
     -b 'tcp://127.0.0.1:30010' -b 'tcp://127.0.0.1:30015' -b 'tcp://127.0.0.1:30011'" Enter
 
-tmux set-window-option -t karyons_p2p synchronize-panes on
+# tmux set-window-option -t karyons_p2p synchronize-panes on
 
 tmux attach -t karyons_p2p
