@@ -135,7 +135,7 @@ on adding support for TLS connections.
 
 ### Usage
 
-You can check out the examples [here](./karyons_p2p/examples). 
+You can check out the examples [here](./p2p/examples). 
 
 If you have tmux installed, you can run the network simulation script in the 
 examples directory to run 12 peers simultaneously.
