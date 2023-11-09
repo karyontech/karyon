@@ -1,12 +1,17 @@
-[package]
-name = "karyons"
+[workspace]
+members = [
+    "core",
+    "net",
+    "p2p",
+]
+
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
-[workspace]
-
-members = [
-    "karyons_core",
-    "karyons_net",
-    "karyons_p2p",
-]
+[workspace.dependencies]
+karyons_core = { path = "core" }
+karyons_net = { path = "net" }
+karyons_p2p = { path = "p2p" }
