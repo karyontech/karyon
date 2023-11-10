@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use smol::{channel::Sender, lock::Mutex};
 
@@ -16,14 +16,14 @@ pub struct NewConn {
 
 /// Connection queue
 pub struct ConnQueue {
-    queue: Mutex<Vec<NewConn>>,
+    queue: Mutex<VecDeque<NewConn>>,
     conn_available: CondVar,
 }
 
 impl ConnQueue {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            queue: Mutex::new(Vec::new()),
+            queue: Mutex::new(VecDeque::new()),
             conn_available: CondVar::new(),
         })
     }
@@ -36,7 +36,7 @@ impl ConnQueue {
             conn,
             disconnect_signal,
         };
-        self.queue.lock().await.push(new_conn);
+        self.queue.lock().await.push_back(new_conn);
         self.conn_available.signal();
         let _ = chan.recv().await;
     }
@@ -47,6 +47,6 @@ impl ConnQueue {
         while queue.is_empty() {
             queue = self.conn_available.wait(queue).await;
         }
-        queue.pop().unwrap()
+        queue.pop_front().unwrap()
     }
 }
