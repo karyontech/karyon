@@ -77,20 +77,57 @@ impl Default for CondWait {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     #[test]
     fn test_cond_wait() {
         smol::block_on(async {
             let cond_wait = Arc::new(CondWait::new());
+            let count = Arc::new(AtomicUsize::new(0));
+
             let cond_wait_cloned = cond_wait.clone();
+            let count_cloned = count.clone();
             let task = smol::spawn(async move {
                 cond_wait_cloned.wait().await;
-                true
+                count_cloned.fetch_add(1, Ordering::Relaxed);
+                // do something
             });
 
+            // Send a signal to the waiting task
             cond_wait.signal().await;
-            assert!(task.await);
+
+            task.await;
+
+            // Reset the boolean flag
+            cond_wait.reset().await;
+
+            assert_eq!(count.load(Ordering::Relaxed), 1);
+
+            let cond_wait_cloned = cond_wait.clone();
+            let count_cloned = count.clone();
+            let task1 = smol::spawn(async move {
+                cond_wait_cloned.wait().await;
+                count_cloned.fetch_add(1, Ordering::Relaxed);
+                // do something
+            });
+
+            let cond_wait_cloned = cond_wait.clone();
+            let count_cloned = count.clone();
+            let task2 = smol::spawn(async move {
+                cond_wait_cloned.wait().await;
+                count_cloned.fetch_add(1, Ordering::Relaxed);
+                // do something
+            });
+
+            // Broadcast a signal to all waiting tasks
+            cond_wait.broadcast().await;
+
+            task1.await;
+            task2.await;
+            assert_eq!(count.load(Ordering::Relaxed), 3);
         });
     }
 }
