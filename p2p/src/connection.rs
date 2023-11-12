@@ -1,12 +1,25 @@
-use std::{collections::VecDeque, sync::Arc};
-
 use smol::{channel::Sender, lock::Mutex};
+use std::{collections::VecDeque, fmt, sync::Arc};
 
 use karyons_core::async_utils::CondVar;
 
 use karyons_net::Conn;
 
-use crate::net::ConnDirection;
+/// Defines the direction of a network connection.
+#[derive(Clone, Debug)]
+pub enum ConnDirection {
+    Inbound,
+    Outbound,
+}
+
+impl fmt::Display for ConnDirection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConnDirection::Inbound => write!(f, "Inbound"),
+            ConnDirection::Outbound => write!(f, "Outbound"),
+        }
+    }
+}
 
 pub struct NewConn {
     pub direction: ConnDirection,

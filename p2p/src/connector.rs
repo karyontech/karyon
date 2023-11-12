@@ -10,10 +10,9 @@ use karyons_net::{dial, Conn, Endpoint, NetError};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
+    slots::ConnectionSlots,
     Result,
 };
-
-use super::slots::ConnectionSlots;
 
 /// Responsible for creating outbound connections with other peers.
 pub struct Connector {

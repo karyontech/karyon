@@ -11,10 +11,9 @@ use karyons_net::{listen, Conn, Endpoint, Listener as NetListener};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
+    slots::ConnectionSlots,
     Result,
 };
-
-use super::slots::ConnectionSlots;
 
 /// Responsible for creating inbound connections with other peers.
 pub struct Listener {

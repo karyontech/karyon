@@ -1,14 +1,17 @@
 mod backend;
 mod config;
+mod connection;
+mod connector;
 mod discovery;
 mod error;
 mod io_codec;
+mod listener;
 mod message;
-mod net;
 mod peer;
 mod peer_pool;
 mod protocols;
 mod routing_table;
+mod slots;
 mod utils;
 
 /// Responsible for network and system monitoring.

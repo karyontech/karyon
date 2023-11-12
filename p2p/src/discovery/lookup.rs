@@ -10,14 +10,16 @@ use karyons_core::{async_utils::timeout, utils::decode, Executor};
 use karyons_net::{Conn, Endpoint};
 
 use crate::{
+    connector::Connector,
     io_codec::IOCodec,
+    listener::Listener,
     message::{
         get_msg_payload, FindPeerMsg, NetMsg, NetMsgCmd, PeerMsg, PeersMsg, PingMsg, PongMsg,
         ShutdownMsg,
     },
     monitor::{ConnEvent, DiscoveryEvent, Monitor},
-    net::{ConnectionSlots, Connector, Listener},
     routing_table::RoutingTable,
+    slots::ConnectionSlots,
     utils::version_match,
     Config, Error, PeerID, Result,
 };

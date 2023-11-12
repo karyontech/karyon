@@ -20,11 +20,10 @@ use karyons_net::Conn;
 
 use crate::{
     config::Config,
+    connection::{ConnDirection, ConnQueue},
     io_codec::{CodecMsg, IOCodec},
     message::{get_msg_payload, NetMsg, NetMsgCmd, VerAckMsg, VerMsg},
     monitor::{Monitor, PeerPoolEvent},
-    net::ConnDirection,
-    net::ConnQueue,
     peer::{ArcPeer, Peer, PeerID},
     protocol::{Protocol, ProtocolConstructor, ProtocolID},
     protocols::PingProtocol,

@@ -20,9 +20,9 @@ use karyons_core::{
 use karyons_net::Endpoint;
 
 use crate::{
+    connection::ConnDirection,
     io_codec::{CodecMsg, IOCodec},
     message::{NetMsgCmd, ProtocolMsg, ShutdownMsg},
-    net::ConnDirection,
     peer_pool::{ArcPeerPool, WeakPeerPool},
     protocol::{Protocol, ProtocolEvent, ProtocolID},
     Config, Error, Result,

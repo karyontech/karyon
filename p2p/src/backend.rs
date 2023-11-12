@@ -6,9 +6,9 @@ use karyons_core::{pubsub::Subscription, Executor};
 
 use crate::{
     config::Config,
+    connection::ConnQueue,
     discovery::{ArcDiscovery, Discovery},
     monitor::{Monitor, MonitorEvent},
-    net::ConnQueue,
     peer_pool::PeerPool,
     protocol::{ArcProtocol, Protocol},
     ArcPeer, PeerID, Result,

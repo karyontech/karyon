@@ -16,13 +16,15 @@ use karyons_net::{Conn, Endpoint};
 
 use crate::{
     config::Config,
+    connection::{ConnDirection, ConnQueue},
+    connector::Connector,
+    listener::Listener,
     monitor::Monitor,
-    net::ConnQueue,
-    net::{ConnDirection, ConnectionSlots, Connector, Listener},
     routing_table::{
         Entry, EntryStatusFlag, RoutingTable, CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY,
         UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
     },
+    slots::ConnectionSlots,
     Error, PeerID, Result,
 };
 
