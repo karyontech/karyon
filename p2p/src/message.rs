@@ -99,11 +99,14 @@ pub struct PeerMsg {
 pub struct PeersMsg(pub Vec<PeerMsg>);
 
 macro_rules! get_msg_payload {
-    ($a:ident, $b:expr) => {
+    ($a:ident, $b:ident) => {
         if let NetMsgCmd::$a = $b.header.command {
             $b.payload
         } else {
-            return Err(Error::InvalidMsg(format!("Unexpected msg{:?}", $b)));
+            return Err(Error::InvalidMsg(format!(
+                "Unexpected msg {:?}",
+                $b.header.command
+            )));
         }
     };
 }
