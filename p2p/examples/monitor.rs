@@ -1,12 +1,15 @@
+mod shared;
+
 use std::sync::Arc;
 
 use clap::Parser;
-use easy_parallel::Parallel;
-use smol::{channel, future, Executor};
+use smol::{channel, Executor};
 
 use karyons_net::{Endpoint, Port};
 
 use karyons_p2p::{Backend, Config, PeerID};
+
+use shared::run_executor;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -50,44 +53,39 @@ fn main() {
         ..Default::default()
     };
 
+    // Create a new Executor
+    let ex = Arc::new(Executor::new());
+
     // Create a new Backend
-    let backend = Backend::new(peer_id, config);
+    let backend = Backend::new(peer_id, config, ex.clone());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();
     ctrlc::set_handler(handle).unwrap();
 
-    let (signal, shutdown) = channel::unbounded::<()>();
+    let exc = ex.clone();
+    run_executor(
+        async {
+            let monitor = backend.monitor().await;
 
-    // Create a new Executor
-    let ex = Arc::new(Executor::new());
+            let monitor_task = exc.spawn(async move {
+                loop {
+                    let event = monitor.recv().await.unwrap();
+                    println!("{}", event);
+                }
+            });
 
-    let task = async {
-        let monitor = backend.monitor().await;
+            // Run the backend
+            backend.run().await.unwrap();
 
-        let monitor_task = ex.spawn(async move {
-            loop {
-                let event = monitor.recv().await.unwrap();
-                println!("{}", event);
-            }
-        });
+            // Wait for ctrlc signal
+            ctrlc_r.recv().await.unwrap();
 
-        // Run the backend
-        backend.run(ex.clone()).await.unwrap();
+            // Shutdown the backend
+            backend.shutdown().await;
 
-        // Wait for ctrlc signal
-        ctrlc_r.recv().await.unwrap();
-
-        // Shutdown the backend
-        backend.shutdown().await;
-
-        monitor_task.cancel().await;
-
-        drop(signal);
-    };
-
-    // Run four executor threads.
-    Parallel::new()
-        .each(0..4, |_| future::block_on(ex.run(shutdown.recv())))
-        .finish(|| future::block_on(task));
+            monitor_task.cancel().await;
+        },
+        ex,
+    );
 }

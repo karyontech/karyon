@@ -17,8 +17,8 @@ pub use {
 
 use error::{Error, Result};
 
-/// Represents Karyons's Net Error
+/// Represents karyons's Net Error
 pub use error::Error as NetError;
 
-/// Represents Karyons's Net Result
+/// Represents karyons's Net Result
 pub use error::Result as NetResult;

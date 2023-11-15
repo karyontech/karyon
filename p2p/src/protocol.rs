@@ -87,8 +87,11 @@ impl EventValue for ProtocolEvent {
 ///     let peer_id = PeerID::random();
 ///     let config = Config::default();
 ///
+///     // Create a new Executor
+///     let ex = Arc::new(Executor::new());
+///
 ///     // Create a new Backend
-///     let backend = Backend::new(peer_id, config);
+///     let backend = Backend::new(peer_id, config, ex);
 ///
 ///     // Attach the NewProtocol
 ///     let c = move |peer| NewProtocol::new(peer);

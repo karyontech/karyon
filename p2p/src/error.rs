@@ -2,7 +2,7 @@ use thiserror::Error as ThisError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Represents Karyons's p2p Error.
+/// Represents karyons's p2p Error.
 #[derive(ThisError, Debug)]
 pub enum Error {
     #[error("IO Error: {0}")]

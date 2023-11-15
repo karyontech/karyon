@@ -13,11 +13,19 @@ use karyons_net::Endpoint;
 /// # Example
 ///
 /// ```
+/// use std::sync::Arc;
+///
+/// use smol::Executor;
+///
 /// use karyons_p2p::{Config, Backend, PeerID};
+///
 /// async {
 ///     
-///     let backend = Backend::new(PeerID::random(), Config::default());
-///     
+///     // Create a new Executor
+///     let ex = Arc::new(Executor::new());
+///
+///     let backend = Backend::new(PeerID::random(), Config::default(), ex);
+///
 ///     // Create a new Subscription
 ///     let sub =  backend.monitor().await;
 ///     

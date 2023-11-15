@@ -5,7 +5,7 @@ use log::{error, trace};
 use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 use smol::lock::{Mutex, RwLock};
 
-use karyons_core::{async_utils::timeout, utils::decode, Executor};
+use karyons_core::{async_utils::timeout, utils::decode, GlobalExecutor};
 
 use karyons_net::{Conn, Endpoint};
 
@@ -59,15 +59,18 @@ impl LookupService {
         table: Arc<Mutex<RoutingTable>>,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
+        ex: GlobalExecutor,
     ) -> Self {
         let inbound_slots = Arc::new(ConnectionSlots::new(config.lookup_inbound_slots));
         let outbound_slots = Arc::new(ConnectionSlots::new(config.lookup_outbound_slots));
 
-        let listener = Listener::new(inbound_slots.clone(), monitor.clone());
+        let listener = Listener::new(inbound_slots.clone(), monitor.clone(), ex.clone());
+
         let connector = Connector::new(
             config.lookup_connect_retries,
             outbound_slots.clone(),
             monitor.clone(),
+            ex,
         );
 
         let listen_endpoint = config
@@ -88,8 +91,8 @@ impl LookupService {
     }
 
     /// Start the lookup service.
-    pub async fn start(self: &Arc<Self>, ex: Executor<'_>) -> Result<()> {
-        self.start_listener(ex).await?;
+    pub async fn start(self: &Arc<Self>) -> Result<()> {
+        self.start_listener().await?;
         Ok(())
     }
 
@@ -233,7 +236,7 @@ impl LookupService {
     }
 
     /// Start a listener.
-    async fn start_listener(self: &Arc<Self>, ex: Executor<'_>) -> Result<()> {
+    async fn start_listener(self: &Arc<Self>) -> Result<()> {
         let addr = match &self.listen_endpoint {
             Some(a) => a.read().await.addr()?.clone(),
             None => return Ok(()),
@@ -248,7 +251,7 @@ impl LookupService {
             Ok(())
         };
 
-        self.listener.start(ex, endpoint.clone(), callback).await?;
+        self.listener.start(endpoint.clone(), callback).await?;
         Ok(())
     }
 

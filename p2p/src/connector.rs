@@ -4,7 +4,7 @@ use log::{trace, warn};
 
 use karyons_core::{
     async_utils::{Backoff, TaskGroup, TaskResult},
-    Executor,
+    GlobalExecutor,
 };
 use karyons_net::{dial, Conn, Endpoint, NetError};
 
@@ -17,7 +17,7 @@ use crate::{
 /// Responsible for creating outbound connections with other peers.
 pub struct Connector {
     /// Managing spawned tasks.
-    task_group: TaskGroup,
+    task_group: TaskGroup<'static>,
 
     /// Manages available outbound slots.
     connection_slots: Arc<ConnectionSlots>,
@@ -36,9 +36,10 @@ impl Connector {
         max_retries: usize,
         connection_slots: Arc<ConnectionSlots>,
         monitor: Arc<Monitor>,
+        ex: GlobalExecutor,
     ) -> Arc<Self> {
         Arc::new(Self {
-            task_group: TaskGroup::new(),
+            task_group: TaskGroup::new(ex),
             monitor,
             connection_slots,
             max_retries,
@@ -92,14 +93,13 @@ impl Connector {
 
     /// Establish a connection to the given `endpoint`. For each new connection,
     /// it invokes the provided `callback`, and pass the connection to the callback.
-    pub async fn connect_with_cback<'a, Fut>(
+    pub async fn connect_with_cback<Fut>(
         self: &Arc<Self>,
-        ex: Executor<'a>,
         endpoint: &Endpoint,
-        callback: impl FnOnce(Conn) -> Fut + Send + 'a,
+        callback: impl FnOnce(Conn) -> Fut + Send + 'static,
     ) -> Result<()>
     where
-        Fut: Future<Output = Result<()>> + Send + 'a,
+        Fut: Future<Output = Result<()>> + Send + 'static,
     {
         let conn = self.connect(endpoint).await?;
 
@@ -116,8 +116,7 @@ impl Connector {
             selfc.connection_slots.remove().await;
         };
 
-        self.task_group
-            .spawn(ex.clone(), callback(conn), on_disconnect);
+        self.task_group.spawn(callback(conn), on_disconnect);
 
         Ok(())
     }

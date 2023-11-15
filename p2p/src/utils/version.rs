@@ -5,7 +5,7 @@ use semver::VersionReq;
 
 use crate::{Error, Result};
 
-/// Represents the network version and protocol version used in Karyons p2p.
+/// Represents the network version and protocol version used in karyons p2p.
 ///
 /// # Example
 ///

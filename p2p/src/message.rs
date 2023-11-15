@@ -12,7 +12,7 @@ pub const MSG_HEADER_SIZE: usize = 6;
 /// The maximum allowed size for a message in bytes.
 pub const MAX_ALLOWED_MSG_SIZE: u32 = 1000000;
 
-/// Defines the main message in the Karyon P2P network.
+/// Defines the main message in the karyon p2p network.
 ///
 /// This message structure consists of a header and payload, where the header
 /// typically contains essential information about the message, and the payload

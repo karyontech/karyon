@@ -1,12 +1,15 @@
+mod shared;
+
 use std::sync::Arc;
 
 use clap::Parser;
-use easy_parallel::Parallel;
-use smol::{channel, future, Executor};
+use smol::{channel, Executor};
 
 use karyons_net::{Endpoint, Port};
 
 use karyons_p2p::{Backend, Config, PeerID};
+
+use shared::run_executor;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -50,33 +53,27 @@ fn main() {
         ..Default::default()
     };
 
+    // Create a new Executor
+    let ex = Arc::new(Executor::new());
+
     // Create a new Backend
-    let backend = Backend::new(peer_id, config);
+    let backend = Backend::new(peer_id, config, ex.clone());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();
     ctrlc::set_handler(handle).unwrap();
 
-    let (signal, shutdown) = channel::unbounded::<()>();
+    run_executor(
+        async {
+            // Run the backend
+            backend.run().await.unwrap();
 
-    // Create a new Executor
-    let ex = Arc::new(Executor::new());
+            // Wait for ctrlc signal
+            ctrlc_r.recv().await.unwrap();
 
-    let task = async {
-        // Run the backend
-        backend.run(ex.clone()).await.unwrap();
-
-        // Wait for ctrlc signal
-        ctrlc_r.recv().await.unwrap();
-
-        // Shutdown the backend
-        backend.shutdown().await;
-
-        drop(signal);
-    };
-
-    // Run four executor threads.
-    Parallel::new()
-        .each(0..4, |_| future::block_on(ex.run(shutdown.recv())))
-        .finish(|| future::block_on(task));
+            // Shutdown the backend
+            backend.shutdown().await;
+        },
+        ex,
+    );
 }

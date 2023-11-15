@@ -39,7 +39,6 @@ pub struct PingProtocol {
     peer: ArcPeer,
     ping_interval: u64,
     ping_timeout: u64,
-    task_group: TaskGroup,
 }
 
 impl PingProtocol {
@@ -51,7 +50,6 @@ impl PingProtocol {
             peer,
             ping_interval,
             ping_timeout,
-            task_group: TaskGroup::new(),
         })
     }
 
@@ -130,12 +128,14 @@ impl PingProtocol {
 impl Protocol for PingProtocol {
     async fn start(self: Arc<Self>, ex: Executor<'_>) -> Result<()> {
         trace!("Start Ping protocol");
+
+        let task_group = TaskGroup::new(ex);
+
         let (pong_chan, pong_chan_recv) = channel::bounded(1);
         let (stop_signal_s, stop_signal) = channel::bounded::<Result<()>>(1);
 
         let selfc = self.clone();
-        self.task_group.spawn(
-            ex.clone(),
+        task_group.spawn(
             selfc.clone().ping_loop(pong_chan_recv.clone()),
             |res| async move {
                 if let TaskResult::Completed(result) = res {
@@ -148,7 +148,7 @@ impl Protocol for PingProtocol {
 
         let result = select(self.recv_loop(&listener, pong_chan), stop_signal.recv()).await;
         listener.cancel().await;
-        self.task_group.cancel().await;
+        task_group.cancel().await;
 
         match result {
             Either::Left(res) => {

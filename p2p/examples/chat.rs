@@ -1,9 +1,11 @@
+mod shared;
+
 use std::sync::Arc;
 
 use async_std::io;
 use async_trait::async_trait;
 use clap::Parser;
-use smol::{channel, future, Executor};
+use smol::{channel, Executor};
 
 use karyons_net::{Endpoint, Port};
 
@@ -11,6 +13,8 @@ use karyons_p2p::{
     protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
     ArcPeer, Backend, Config, P2pError, PeerID, Version,
 };
+
+use shared::run_executor;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -109,33 +113,33 @@ fn main() {
         ..Default::default()
     };
 
+    // Create a new Executor
+    let ex = Arc::new(Executor::new());
+
     // Create a new Backend
-    let backend = Backend::new(peer_id, config);
+    let backend = Backend::new(peer_id, config, ex.clone());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();
     ctrlc::set_handler(handle).unwrap();
 
-    // Create a new Executor
-    let ex = Arc::new(Executor::new());
+    run_executor(
+        async {
+            let username = cli.username;
 
-    let ex_cloned = ex.clone();
-    let task = ex.spawn(async {
-        let username = cli.username;
+            // Attach the ChatProtocol
+            let c = move |peer| ChatProtocol::new(&username, peer);
+            backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
 
-        // Attach the ChatProtocol
-        let c = move |peer| ChatProtocol::new(&username, peer);
-        backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
+            // Run the backend
+            backend.run().await.unwrap();
 
-        // Run the backend
-        backend.run(ex_cloned).await.unwrap();
+            // Wait for ctrlc signal
+            ctrlc_r.recv().await.unwrap();
 
-        // Wait for ctrlc signal
-        ctrlc_r.recv().await.unwrap();
-
-        // Shutdown the backend
-        backend.shutdown().await;
-    });
-
-    future::block_on(ex.run(task));
+            // Shutdown the backend
+            backend.shutdown().await;
+        },
+        ex,
+    );
 }

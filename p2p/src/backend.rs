@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::info;
 
-use karyons_core::{pubsub::Subscription, Executor};
+use karyons_core::{pubsub::Subscription, GlobalExecutor};
 
 use crate::{
     config::Config,
@@ -34,15 +34,16 @@ pub type ArcBackend = Arc<Backend>;
 /// // Create the configuration for the backend.
 /// let mut config = Config::default();
 ///
-/// // Create a new Backend
-/// let backend = Backend::new(peer_id, config);
 ///
 /// // Create a new Executor
 /// let ex = Arc::new(Executor::new());
 ///
+/// // Create a new Backend
+/// let backend = Backend::new(peer_id, config, ex.clone());
+///
 /// let task = async {
 ///     // Run the backend
-///     backend.run(ex.clone()).await.unwrap();
+///     backend.run().await.unwrap();
 ///
 ///     // ....
 ///
@@ -72,14 +73,14 @@ pub struct Backend {
 
 impl Backend {
     /// Creates a new Backend.
-    pub fn new(id: PeerID, config: Config) -> ArcBackend {
+    pub fn new(id: PeerID, config: Config, ex: GlobalExecutor) -> ArcBackend {
         let config = Arc::new(config);
         let monitor = Arc::new(Monitor::new());
+        let cq = ConnQueue::new();
 
-        let conn_queue = ConnQueue::new();
+        let peer_pool = PeerPool::new(&id, cq.clone(), config.clone(), monitor.clone(), ex.clone());
 
-        let peer_pool = PeerPool::new(&id, conn_queue.clone(), config.clone(), monitor.clone());
-        let discovery = Discovery::new(&id, conn_queue, config.clone(), monitor.clone());
+        let discovery = Discovery::new(&id, cq, config.clone(), monitor.clone(), ex);
 
         Arc::new(Self {
             id: id.clone(),
@@ -91,10 +92,10 @@ impl Backend {
     }
 
     /// Run the Backend, starting the PeerPool and Discovery instances.
-    pub async fn run(self: &Arc<Self>, ex: Executor<'_>) -> Result<()> {
+    pub async fn run(self: &Arc<Self>) -> Result<()> {
         info!("Run the backend {}", self.id);
-        self.peer_pool.start(ex.clone()).await?;
-        self.discovery.start(ex.clone()).await?;
+        self.peer_pool.start().await?;
+        self.discovery.start().await?;
         Ok(())
     }
 
