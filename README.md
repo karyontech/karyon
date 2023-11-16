@@ -1,6 +1,6 @@
 # karyons
 
-> :warning: **Warning: This Project is a Work in Progress**
+> **This Project is a Work in Progress**
 
 We are in the process of developing an infrastructure for peer-to-peer,
 decentralized, and collaborative software.
