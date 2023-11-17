@@ -8,7 +8,6 @@ decentralized, and collaborative software.
 Join us on:
 
 - [Discord](https://discord.gg/xuXRcrkz3p)
-- [Matrix](https://matrix.to/#/#karyons:matrix.org)
 
 ## karyons p2p
 
