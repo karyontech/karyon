@@ -210,10 +210,7 @@ impl PeerPool {
 
     /// Shuts down the peer and remove it from the peer list.
     async fn remove_peer(&self, pid: &PeerID) -> Result<()> {
-        let mut peers = self.peers.lock().await;
-        let result = peers.remove(pid);
-
-        drop(peers);
+        let result = self.peers.lock().await.remove(pid);
 
         let peer = match result {
             Some(p) => p,
