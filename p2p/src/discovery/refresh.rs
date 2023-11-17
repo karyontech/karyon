@@ -130,14 +130,12 @@ impl RefreshService {
                 .notify(&DiscoveryEvent::RefreshStarted.into())
                 .await;
 
-            let table = self.table.lock().await;
             let mut entries: Vec<BucketEntry> = vec![];
-            for bucket in table.iter() {
+            for bucket in self.table.lock().await.iter() {
                 for entry in bucket.random_iter(8) {
                     entries.push(entry.clone())
                 }
             }
-            drop(table);
 
             self.clone().do_refresh(&entries).await;
         }

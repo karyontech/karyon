@@ -140,11 +140,12 @@ impl LookupService {
             }
         }
 
+        let mut table = self.table.lock().await;
         for peer in peer_buffer.iter() {
-            let mut table = self.table.lock().await;
             let result = table.add_entry(peer.clone().into());
             trace!("Add entry {:?}", result);
         }
+        drop(table);
 
         self.monitor
             .notify(&DiscoveryEvent::LookupSucceeded(endpoint.clone(), peer_buffer.len()).into())
@@ -164,10 +165,12 @@ impl LookupService {
         for _ in 0..2 {
             let peer_id = PeerID::random();
             let peers = self.connect(&peer_id, endpoint.clone()).await?;
+
+            let table = self.table.lock().await;
             for peer in peers {
                 if random_peers.contains(&peer)
                     || peer.peer_id == self.id
-                    || self.table.lock().await.contains_key(&peer.peer_id.0)
+                    || table.contains_key(&peer.peer_id.0)
                 {
                     continue;
                 }
@@ -343,8 +346,9 @@ impl LookupService {
         trace!("Send Peers msg");
         let table = self.table.lock().await;
         let entries = table.closest_entries(&peer_id.0, MAX_PEERS_IN_PEERSMSG);
-        let peers: Vec<PeerMsg> = entries.into_iter().map(|e| e.into()).collect();
         drop(table);
+
+        let peers: Vec<PeerMsg> = entries.into_iter().map(|e| e.into()).collect();
         io_codec.write(NetMsgCmd::Peers, &PeersMsg(peers)).await?;
         Ok(())
     }
