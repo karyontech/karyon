@@ -5,7 +5,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Represents karyons's p2p Error.
 #[derive(ThisError, Debug)]
 pub enum Error {
-    #[error("IO Error: {0}")]
+    #[error(transparent)]
     IO(#[from] std::io::Error),
 
     #[error("Unsupported protocol error: {0}")]
@@ -14,7 +14,16 @@ pub enum Error {
     #[error("Invalid message error: {0}")]
     InvalidMsg(String),
 
-    #[error("Parse error: {0}")]
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    ParseFloatError(#[from] std::num::ParseFloatError),
+
+    #[error(transparent)]
+    SemverError(#[from] semver::Error),
+
+    #[error("Parse Error: {0}")]
     ParseError(String),
 
     #[error("Incompatible version error: {0}")]
@@ -41,42 +50,18 @@ pub enum Error {
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
-    #[error("Channel Receive Error: {0}")]
-    ChannelRecv(String),
+    #[error(transparent)]
+    ChannelRecv(#[from] smol::channel::RecvError),
 
-    #[error("CORE::ERROR : {0}")]
+    #[error(transparent)]
     KaryonsCore(#[from] karyons_core::error::Error),
 
-    #[error("NET::ERROR : {0}")]
+    #[error(transparent)]
     KaryonsNet(#[from] karyons_net::NetError),
 }
 
 impl<T> From<smol::channel::SendError<T>> for Error {
     fn from(error: smol::channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
-    }
-}
-
-impl From<smol::channel::RecvError> for Error {
-    fn from(error: smol::channel::RecvError) -> Self {
-        Error::ChannelRecv(error.to_string())
-    }
-}
-
-impl From<std::num::ParseIntError> for Error {
-    fn from(error: std::num::ParseIntError) -> Self {
-        Error::ParseError(error.to_string())
-    }
-}
-
-impl From<std::num::ParseFloatError> for Error {
-    fn from(error: std::num::ParseFloatError) -> Self {
-        Error::ParseError(error.to_string())
-    }
-}
-
-impl From<semver::Error> for Error {
-    fn from(error: semver::Error) -> Self {
-        Error::ParseError(error.to_string())
     }
 }

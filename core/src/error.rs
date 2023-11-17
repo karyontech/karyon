@@ -4,7 +4,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(ThisError, Debug)]
 pub enum Error {
-    #[error("IO Error: {0}")]
+    #[error(transparent)]
     IO(#[from] std::io::Error),
 
     #[error("Timeout Error")]
@@ -16,36 +16,18 @@ pub enum Error {
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
-    #[error("Channel Receive Error: {0}")]
-    ChannelRecv(String),
+    #[error(transparent)]
+    ChannelRecv(#[from] smol::channel::RecvError),
 
-    #[error("Decode Error: {0}")]
-    Decode(String),
+    #[error(transparent)]
+    BincodeDecode(#[from] bincode::error::DecodeError),
 
-    #[error("Encode Error: {0}")]
-    Encode(String),
+    #[error(transparent)]
+    BincodeEncode(#[from] bincode::error::EncodeError),
 }
 
 impl<T> From<smol::channel::SendError<T>> for Error {
     fn from(error: smol::channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
-    }
-}
-
-impl From<smol::channel::RecvError> for Error {
-    fn from(error: smol::channel::RecvError) -> Self {
-        Error::ChannelRecv(error.to_string())
-    }
-}
-
-impl From<bincode::error::DecodeError> for Error {
-    fn from(error: bincode::error::DecodeError) -> Self {
-        Error::Decode(error.to_string())
-    }
-}
-
-impl From<bincode::error::EncodeError> for Error {
-    fn from(error: bincode::error::EncodeError) -> Self {
-        Error::Encode(error.to_string())
     }
 }

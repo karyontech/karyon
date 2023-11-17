@@ -4,7 +4,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(ThisError, Debug)]
 pub enum Error {
-    #[error("IO Error: {0}")]
+    #[error(transparent)]
     IO(#[from] std::io::Error),
 
     #[error("Try from endpoint Error")]
@@ -25,21 +25,15 @@ pub enum Error {
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
-    #[error("Channel Receive Error: {0}")]
-    ChannelRecv(String),
+    #[error(transparent)]
+    ChannelRecv(#[from] smol::channel::RecvError),
 
-    #[error("Karyons core error : {0}")]
+    #[error(transparent)]
     KaryonsCore(#[from] karyons_core::error::Error),
 }
 
 impl<T> From<smol::channel::SendError<T>> for Error {
     fn from(error: smol::channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
-    }
-}
-
-impl From<smol::channel::RecvError> for Error {
-    fn from(error: smol::channel::RecvError) -> Self {
-        Error::ChannelRecv(error.to_string())
     }
 }
