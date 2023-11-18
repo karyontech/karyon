@@ -270,11 +270,11 @@ impl RefreshService {
 
         let ping_msg = PingMsg(nonce);
         let buffer = encode(&ping_msg)?;
-        conn.send(&buffer).await?;
+        conn.write(&buffer).await?;
 
         let buf = &mut [0; PINGMSG_SIZE];
         let t = Duration::from_secs(self.config.refresh_response_timeout);
-        timeout(t, conn.recv(buf)).await??;
+        timeout(t, conn.read(buf)).await??;
 
         let (pong_msg, _) = decode::<PongMsg>(buf)?;
 

@@ -10,7 +10,7 @@ use crate::{protocol::ProtocolID, routing_table::Entry, utils::VersionInt, PeerI
 pub const MSG_HEADER_SIZE: usize = 6;
 
 /// The maximum allowed size for a message in bytes.
-pub const MAX_ALLOWED_MSG_SIZE: u32 = 1000000;
+pub const MAX_ALLOWED_MSG_SIZE: u32 = 1024 * 1024; // 1MB
 
 /// Defines the main message in the karyon p2p network.
 ///

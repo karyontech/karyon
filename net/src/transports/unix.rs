@@ -6,7 +6,7 @@ use smol::{
     net::unix::{UnixListener, UnixStream},
 };
 
-use crate::{connection::Connection, endpoint::Endpoint, listener::Listener, Result};
+use crate::{connection::Connection, endpoint::Endpoint, listener::Listener, Error, Result};
 
 /// Unix domain socket implementations of the `Connection` trait.
 pub struct UnixConn {
@@ -37,14 +37,17 @@ impl Connection for UnixConn {
         Ok(Endpoint::new_unix_addr(&self.inner.local_addr()?))
     }
 
-    async fn recv(&self, buf: &mut [u8]) -> Result<usize> {
-        self.read.lock().await.read_exact(buf).await?;
-        Ok(buf.len())
+    async fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        self.read.lock().await.read(buf).await.map_err(Error::from)
     }
 
-    async fn send(&self, buf: &[u8]) -> Result<usize> {
-        self.write.lock().await.write_all(buf).await?;
-        Ok(buf.len())
+    async fn write(&self, buf: &[u8]) -> Result<usize> {
+        self.write
+            .lock()
+            .await
+            .write(buf)
+            .await
+            .map_err(Error::from)
     }
 }
 

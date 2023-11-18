@@ -6,7 +6,7 @@ use smol::net::UdpSocket;
 use crate::{
     connection::Connection,
     endpoint::{Addr, Endpoint, Port},
-    Result,
+    Error, Result,
 };
 
 /// UDP network connection implementations of the `Connection` trait.
@@ -47,14 +47,12 @@ impl Connection for UdpConn {
         Ok(Endpoint::new_udp_addr(&self.inner.local_addr()?))
     }
 
-    async fn recv(&self, buf: &mut [u8]) -> Result<usize> {
-        let size = self.inner.recv(buf).await?;
-        Ok(size)
+    async fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        self.inner.recv(buf).await.map_err(Error::from)
     }
 
-    async fn send(&self, buf: &[u8]) -> Result<usize> {
-        let size = self.inner.send(buf).await?;
-        Ok(size)
+    async fn write(&self, buf: &[u8]) -> Result<usize> {
+        self.inner.send(buf).await.map_err(Error::from)
     }
 }
 

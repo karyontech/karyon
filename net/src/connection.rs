@@ -20,10 +20,10 @@ pub trait Connection: Send + Sync {
     fn local_endpoint(&self) -> Result<Endpoint>;
 
     /// Reads data from this connection.  
-    async fn recv(&self, buf: &mut [u8]) -> Result<usize>;
+    async fn read(&self, buf: &mut [u8]) -> Result<usize>;
 
-    /// Sends data to this connection
-    async fn send(&self, buf: &[u8]) -> Result<usize>;
+    /// Writes data to this connection
+    async fn write(&self, buf: &[u8]) -> Result<usize>;
 }
 
 /// Connects to the provided endpoint.
@@ -40,10 +40,10 @@ pub trait Connection: Send + Sync {
 ///
 ///     let conn = dial(&endpoint).await.unwrap();
 ///
-///     conn.send(b"MSG").await.unwrap();
+///     conn.write(b"MSG").await.unwrap();
 ///
 ///     let mut buffer = [0;32];
-///     conn.recv(&mut buffer).await.unwrap();
+///     conn.read(&mut buffer).await.unwrap();
 /// };
 ///
 /// ```

@@ -10,7 +10,7 @@ use crate::{
     connection::Connection,
     endpoint::{Addr, Endpoint, Port},
     listener::Listener,
-    Result,
+    Error, Result,
 };
 
 /// TCP network connection implementations of the `Connection` trait.
@@ -42,14 +42,17 @@ impl Connection for TcpConn {
         Ok(Endpoint::new_tcp_addr(&self.inner.local_addr()?))
     }
 
-    async fn recv(&self, buf: &mut [u8]) -> Result<usize> {
-        self.read.lock().await.read_exact(buf).await?;
-        Ok(buf.len())
+    async fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        self.read.lock().await.read(buf).await.map_err(Error::from)
     }
 
-    async fn send(&self, buf: &[u8]) -> Result<usize> {
-        self.write.lock().await.write_all(buf).await?;
-        Ok(buf.len())
+    async fn write(&self, buf: &[u8]) -> Result<usize> {
+        self.write
+            .lock()
+            .await
+            .write(buf)
+            .await
+            .map_err(Error::from)
     }
 }
 
