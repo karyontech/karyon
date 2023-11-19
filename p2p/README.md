@@ -1,8 +1,8 @@
 # karyons p2p
 
-karyons p2p serves as the foundational stack for the karyons project. It
-offers a modular, lightweight, and customizable p2p network stack that 
-seamlessly integrates with any p2p project.
+karyons p2p serves as the foundational stack for the karyons project. It offers
+a lightweight, extensible, and customizable peer-to-peer (p2p) network stack
+that seamlessly integrates with any p2p project.
 
 ## Architecture 
 
