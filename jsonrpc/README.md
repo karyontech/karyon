@@ -1,6 +1,6 @@
 # karyons jsonrpc
 
-A fast and lightweight async [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation.
+A fast and lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation.
 
 ## Example
 
