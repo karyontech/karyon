@@ -36,11 +36,9 @@ server.attach_service(HelloWorld{});
 // Starts the server
 ex.run(server.start());
 
-
 //////////////////
 // Client
 //////////////////
-
 // Creates a new client
 let endpoint = "tcp://127.0.0.1:60000".parse().unwrap();
 let client = Client::new_with_endpoint(&endpoint, None).await.unwrap();
