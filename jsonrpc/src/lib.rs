@@ -7,7 +7,7 @@
 //!
 //! use serde_json::Value;
 //!
-//! use karyons_jsonrpc::{JsonRPCError, Server, Client, register_service};
+//! use karyons_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
 //!
 //! struct HelloWorld {}
 //!
@@ -24,7 +24,8 @@
 //!
 //!     // Creates a new server
 //!     let endpoint = "tcp://127.0.0.1:60000".parse().unwrap();
-//!     let server = Server::new_with_endpoint(&endpoint, ex.clone()).await.unwrap();
+//!     let config = ServerConfig::default();
+//!     let server = Server::new_with_endpoint(&endpoint, config, ex.clone()).await.unwrap();
 //!
 //!     // Register the HelloWorld service
 //!     register_service!(HelloWorld, say_hello);
@@ -39,7 +40,8 @@
 //!
 //!     // Creates a new client
 //!     let endpoint = "tcp://127.0.0.1:60000".parse().unwrap();
-//!     let client = Client::new_with_endpoint(&endpoint, None).await.unwrap();
+//!     let config = ClientConfig::default();
+//!     let client = Client::new_with_endpoint(&endpoint, config).await.unwrap();
 //!
 //!     let result: String = client.call("HelloWorld.say_hello", "world".to_string()).await.unwrap();
 //! };
@@ -47,17 +49,18 @@
 //! ```
 
 mod client;
+mod codec;
 mod error;
 pub mod message;
 mod server;
 mod service;
-mod utils;
 
 pub const JSONRPC_VERSION: &str = "2.0";
 
 use error::{Error, Result};
 
-pub use client::Client;
+pub use client::{Client, ClientConfig};
+pub use codec::CodecConfig;
 pub use error::Error as JsonRPCError;
-pub use server::Server;
+pub use server::{Server, ServerConfig};
 pub use service::{RPCMethod, RPCService};
