@@ -29,6 +29,12 @@ crdt and karyons store, along with major changes to the network stack,
 including TLS implementation. You can check the issues for updates on ongoing
 tasks.
 
+## Thanks
+
+Big thanks to [Ink & Switch](https://www.inkandswitch.com/) team,
+[smol](https://github.com/smol-rs/smol) async runtime, and
+[zmq.rs](https://github.com/zeromq/zmq.rs) for the inspiration!.
+
 ## Contribution
 
 Feel free to open a pull request or an issue. 
