@@ -6,7 +6,7 @@ use karyons_net::Conn;
 use crate::{Error, Result};
 
 const DEFAULT_BUFFER_SIZE: usize = 1024;
-const DEFAULT_MAX_ALLOWED_MSG_SIZE: usize = 1024 * 1024; // 1MB
+const DEFAULT_MAX_ALLOWED_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
 
 // TODO: Add unit tests for Codec's functions.
 
@@ -14,16 +14,16 @@ const DEFAULT_MAX_ALLOWED_MSG_SIZE: usize = 1024 * 1024; // 1MB
 #[derive(Clone)]
 pub struct CodecConfig {
     pub default_buffer_size: usize,
-    /// The maximum allowed size to receive a message. If set to zero, there
-    /// will be no size limit.
-    pub max_allowed_msg_size: usize,
+    /// The maximum allowed buffer size to receive a message. If set to zero,
+    /// there will be no size limit.
+    pub max_allowed_buffer_size: usize,
 }
 
 impl Default for CodecConfig {
     fn default() -> Self {
         Self {
             default_buffer_size: DEFAULT_BUFFER_SIZE,
-            max_allowed_msg_size: DEFAULT_MAX_ALLOWED_MSG_SIZE,
+            max_allowed_buffer_size: DEFAULT_MAX_ALLOWED_BUFFER_SIZE,
         }
     }
 }
@@ -67,8 +67,8 @@ impl Codec {
                 }
             }
 
-            if self.config.max_allowed_msg_size != 0
-                && buffer.len() == self.config.max_allowed_msg_size
+            if self.config.max_allowed_buffer_size != 0
+                && buffer.len() == self.config.max_allowed_buffer_size
             {
                 return Err(Error::InvalidMsg(
                     "Message exceeds the maximum allowed size",

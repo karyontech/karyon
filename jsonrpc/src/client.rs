@@ -25,7 +25,7 @@ impl Client {
     /// Creates a new RPC client.
     pub fn new(conn: Conn, config: ClientConfig) -> Self {
         let codec_config = CodecConfig {
-            max_allowed_msg_size: 0,
+            max_allowed_buffer_size: 0,
             ..Default::default()
         };
         let codec = Codec::new(conn, codec_config);
@@ -36,7 +36,7 @@ impl Client {
     pub async fn new_with_endpoint(endpoint: &Endpoint, config: ClientConfig) -> Result<Self> {
         let conn = dial(endpoint).await?;
         let codec_config = CodecConfig {
-            max_allowed_msg_size: 0,
+            max_allowed_buffer_size: 0,
             ..Default::default()
         };
         let codec = Codec::new(conn, codec_config);
