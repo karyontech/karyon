@@ -50,6 +50,7 @@ mod client;
 mod error;
 pub mod message;
 mod server;
+mod service;
 mod utils;
 
 pub const JSONRPC_VERSION: &str = "2.0";
@@ -58,4 +59,5 @@ use error::{Error, Result};
 
 pub use client::Client;
 pub use error::Error as JsonRPCError;
-pub use server::{RPCMethod, RPCService, Server};
+pub use server::Server;
+pub use service::{RPCMethod, RPCService};
