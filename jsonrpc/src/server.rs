@@ -99,7 +99,8 @@ impl<'a> Server<'a> {
                     let mut buffer = vec![];
                     codec.read_until(&mut buffer).await?;
                     let response = selfc.handle_request(&buffer).await;
-                    let payload = serde_json::to_vec(&response)?;
+                    let mut payload = serde_json::to_vec(&response)?;
+                    payload.push(b'\n');
                     codec.write_all(&payload).await?;
                     debug!("--> {response}");
                 }

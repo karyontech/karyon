@@ -15,7 +15,7 @@ req = {
     "params": {"x": 4, "y": 3},
 }
 print("Send: ", req)
-s.sendall(json.dumps(req).encode())
+s.sendall((json.dumps(req) + '\n').encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -27,7 +27,7 @@ req = {
     "params": {"x": 4, "y": 3},
 }
 print("Send: ", req)
-s.sendall(json.dumps(req).encode())
+s.sendall((json.dumps(req) + '\n').encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -39,7 +39,7 @@ req = {
     "params": None,
 }
 print("Send: ", req)
-s.sendall(json.dumps(req).encode())
+s.sendall((json.dumps(req) + '\n').encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -51,7 +51,7 @@ req = {
     "params": None,
 }
 print("Send: ", req)
-s.sendall(json.dumps(req).encode())
+s.sendall((json.dumps(req) + '\n').encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)

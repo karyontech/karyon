@@ -58,7 +58,8 @@ impl Client {
             params: serde_json::json!(params),
         };
 
-        let payload = serde_json::to_vec(&request)?;
+        let mut payload = serde_json::to_vec(&request)?;
+        payload.push(b'\n');
         self.codec.write_all(&payload).await?;
         debug!("--> {request}");
 

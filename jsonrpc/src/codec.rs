@@ -39,12 +39,12 @@ impl Codec {
         Self { conn, config }
     }
 
-    /// Read all bytes into `buffer` until the `0x0` byte or EOF is
+    /// Read all bytes into `buffer` until the `0x0A` byte or EOF is
     /// reached.
     ///
     /// If successful, this function will return the total number of bytes read.
     pub async fn read_until(&self, buffer: &mut Vec<u8>) -> Result<usize> {
-        let delim = b'\0';
+        let delim = b'\n';
 
         let mut read = 0;
 
@@ -57,8 +57,8 @@ impl Codec {
 
             match memchr(delim, &tmp_buf) {
                 Some(i) => {
-                    buffer.extend_from_slice(&tmp_buf[..i]);
-                    read += i;
+                    buffer.extend_from_slice(&tmp_buf[..=i]);
+                    read += i + 1;
                     break;
                 }
                 None => {
