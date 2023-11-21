@@ -26,8 +26,8 @@ implementation for building collaborative software.
 
 This project is a work in progress. The current focus is on shipping karyons
 crdt and karyons store, along with major changes to the network stack,
-including TLS implementation. You can check the issues for updates on ongoing
-tasks.
+including TLS implementation. You can check the 
+[issues](https://github.com/karyons/karyons/issues) for updates on ongoing tasks.
 
 ## Thanks
 
@@ -37,7 +37,7 @@ Big thanks to [Ink & Switch](https://www.inkandswitch.com/) team,
 
 ## Contribution
 
-Feel free to open a pull request or an issue. 
+Feel free to open a pull request or an [issue](https://github.com/karyons/karyons/issues/new). 
 
 ## License
 
