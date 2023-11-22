@@ -16,7 +16,7 @@ use crate::{
     Error, Result, JSONRPC_VERSION,
 };
 
-/// RPC server config 
+/// RPC server config
 #[derive(Default)]
 pub struct ServerConfig {
     codec_config: CodecConfig,

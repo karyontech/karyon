@@ -31,15 +31,13 @@ including TLS implementation. You can check the
 
 ## Docs
 
-Online documentation for the main crates:
+Online documentation for the main crates: 
+[karyons_p2p](https://karyons.github.io/karyons/karyons_p2p), 
+[karyons_jsonrpc](https://karyons.github.io/karyons/karyons_jsonrpc)
 
-- [karyons_p2p](https://karyons.github.io/karyons/karyons_p2p)
-- [karyons_jsonrpc](https://karyons.github.io/karyons/karyons_jsonrpc)
-
-For the internal crates:
-
-- [karyons_core](https://karyons.github.io/karyons/karyons_core)
-- [karyons_net](https://karyons.github.io/karyons/karyons_net)
+For the internal crates: 
+[karyons_core](https://karyons.github.io/karyons/karyons_core), 
+[karyons_net](https://karyons.github.io/karyons/karyons_net)
 
 ## Thanks
 
@@ -56,4 +54,3 @@ Feel free to open a pull request or an [issue](https://github.com/karyons/karyon
 All the code in this repository is licensed under the GNU General Public
 License, version 3 (GPL-3.0). You can find a copy of the license in the
 [LICENSE](./LICENSE) file.
-

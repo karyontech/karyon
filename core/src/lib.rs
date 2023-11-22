@@ -8,7 +8,7 @@ pub mod async_utils;
 /// Represents karyons's Core Error.
 pub mod error;
 
-/// [`event::EventSys`] Implementation 
+/// [`event::EventSys`] Implementation
 pub mod event;
 
 /// A simple publish-subscribe system [`Read More`](./pubsub/struct.Publisher.html)
