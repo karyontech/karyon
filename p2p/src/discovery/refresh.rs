@@ -148,7 +148,7 @@ impl RefreshService {
         for chunk in entries.chunks(16) {
             let mut tasks = Vec::new();
             for bucket_entry in chunk {
-                if bucket_entry.is_connected() {
+                if bucket_entry.is_connected() || bucket_entry.is_incompatible() {
                     continue;
                 }
 

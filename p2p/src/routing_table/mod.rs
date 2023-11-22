@@ -1,8 +1,8 @@
 mod bucket;
 mod entry;
 pub use bucket::{
-    Bucket, BucketEntry, EntryStatusFlag, CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY,
-    UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
+    Bucket, BucketEntry, EntryStatusFlag, CONNECTED_ENTRY, DISCONNECTED_ENTRY, INCOMPATIBLE_ENTRY,
+    PENDING_ENTRY, UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
 };
 pub use entry::{xor_distance, Entry, Key};
 
@@ -78,6 +78,14 @@ impl RoutingTable {
 
         // If the bucket has free space, add the entry and return success.
         if bucket.len() < BUCKET_SIZE {
+            bucket.add(&entry);
+            return AddEntryResult::Added;
+        }
+
+        // Replace it with an incompatible entry if one exists.
+        let incompatible_entry = bucket.iter().find(|e| e.is_incompatible()).cloned();
+        if let Some(e) = incompatible_entry {
+            bucket.remove(&e.entry.key);
             bucket.add(&entry);
             return AddEntryResult::Added;
         }

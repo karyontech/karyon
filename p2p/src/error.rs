@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Invalid message error: {0}")]
     InvalidMsg(String),
 
+    #[error("Incompatible Peer")]
+    IncompatiblePeer,
+
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
 

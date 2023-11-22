@@ -62,9 +62,14 @@ pub struct VerMsg {
     pub protocols: HashMap<ProtocolID, VersionInt>,
 }
 
-/// VerAck message acknowledging the receipt of a Version message.
+/// VerAck message acknowledges the receipt of a Version message. The message
+/// consists of the peer ID and an acknowledgment boolean value indicating
+/// whether the version is accepted.
 #[derive(Decode, Encode, Debug, Clone)]
-pub struct VerAckMsg(pub PeerID);
+pub struct VerAckMsg {
+    pub peer_id: PeerID,
+    pub ack: bool,
+}
 
 /// Shutdown message.
 #[derive(Decode, Encode, Debug, Clone)]

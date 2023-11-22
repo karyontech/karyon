@@ -6,23 +6,28 @@ use rand::{rngs::OsRng, seq::SliceRandom};
 pub type EntryStatusFlag = u16;
 
 /// The entry is connected.
-pub const CONNECTED_ENTRY: EntryStatusFlag = 0b00001;
+pub const CONNECTED_ENTRY: EntryStatusFlag = 0b000001;
 
 /// The entry is disconnected. This will increase the failure counter.
-pub const DISCONNECTED_ENTRY: EntryStatusFlag = 0b00010;
+pub const DISCONNECTED_ENTRY: EntryStatusFlag = 0b000010;
 
 /// The entry is ready to reconnect, meaning it has either been added and
 /// has no connection attempts, or it has been refreshed.
-pub const PENDING_ENTRY: EntryStatusFlag = 0b00100;
+pub const PENDING_ENTRY: EntryStatusFlag = 0b000100;
 
 /// The entry is unreachable. This will increase the failure counter.
-pub const UNREACHABLE_ENTRY: EntryStatusFlag = 0b01000;
+pub const UNREACHABLE_ENTRY: EntryStatusFlag = 0b001000;
 
 /// The entry is unstable. This will increase the failure counter.
-pub const UNSTABLE_ENTRY: EntryStatusFlag = 0b10000;
+pub const UNSTABLE_ENTRY: EntryStatusFlag = 0b010000;
+
+/// The entry is incompatible. This entry will not contribute to an increase in
+/// failure attempts, instead, it will persist in the routing table for the
+/// lookup process and will only be removed in the presence of a new entry.
+pub const INCOMPATIBLE_ENTRY: EntryStatusFlag = 0b100000;
 
 #[allow(dead_code)]
-pub const ALL_ENTRY: EntryStatusFlag = 0b11111;
+pub const ALL_ENTRY: EntryStatusFlag = 0b111111;
 
 /// A BucketEntry represents a peer in the routing table.
 #[derive(Clone, Debug)]
@@ -36,6 +41,10 @@ pub struct BucketEntry {
 impl BucketEntry {
     pub fn is_connected(&self) -> bool {
         self.status ^ CONNECTED_ENTRY == 0
+    }
+
+    pub fn is_incompatible(&self) -> bool {
+        self.status ^ INCOMPATIBLE_ENTRY == 0
     }
 
     pub fn is_unreachable(&self) -> bool {
