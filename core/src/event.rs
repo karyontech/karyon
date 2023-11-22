@@ -169,7 +169,7 @@ where
         listener
     }
 
-    /// Removes an event listener attached to the given topic.
+    /// Removes the event listener attached to the given topic.
     async fn remove(&self, topic: &T, event_id: &str, listener_id: &EventListenerID) {
         let topics = &mut self.listeners.lock().await;
         if !topics.contains_key(topic) {
@@ -190,7 +190,7 @@ where
     }
 }
 
-/// EventListener listens for and receives events from the `EventSys`.
+/// EventListener listens for and receives events from the [`EventSys`].
 pub struct EventListener<T, E> {
     id: EventListenerID,
     recv_chan: Receiver<Event>,
@@ -260,7 +260,7 @@ where
     }
 }
 
-/// An event within the `EventSys`.
+/// An event within the [`EventSys`].
 #[derive(Clone, Debug)]
 pub struct Event {
     /// The time at which the event was created.

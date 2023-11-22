@@ -1,16 +1,17 @@
 /// A set of helper tools and functions.
 pub mod utils;
 
-/// A module containing async utilities that work with the `smol` async runtime.
+/// A module containing async utilities that work with the
+/// [`smol`](https://github.com/smol-rs/smol) async runtime.
 pub mod async_utils;
 
 /// Represents karyons's Core Error.
 pub mod error;
 
-/// [`EventSys`](./event/struct.EventSys.html) Implementation
+/// [`event::EventSys`] Implementation 
 pub mod event;
 
-/// A simple publish-subscribe system.[`Read More`](./pubsub/struct.Publisher.html)
+/// A simple publish-subscribe system [`Read More`](./pubsub/struct.Publisher.html)
 pub mod pubsub;
 
 use smol::Executor as SmolEx;

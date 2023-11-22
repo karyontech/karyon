@@ -18,8 +18,6 @@ pub type ArcBackend = Arc<Backend>;
 
 /// Backend serves as the central entry point for initiating and managing
 /// the P2P network.
-///
-///
 pub struct Backend {
     /// The Configuration for the P2P network.
     config: Arc<Config>,

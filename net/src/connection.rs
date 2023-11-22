@@ -7,10 +7,10 @@ use crate::transports::{tcp, udp, unix};
 pub type Conn = Box<dyn Connection>;
 
 /// Connection is a generic network connection interface for
-/// `UdpConn`, `TcpConn`, and `UnixConn`.
+/// [`udp::UdpConn`], [`tcp::TcpConn`], and [`unix::UnixConn`].
 ///
-/// If you are familiar with the Go language, this is similar to the `Conn`
-/// interface <https://pkg.go.dev/net#Conn>
+/// If you are familiar with the Go language, this is similar to the 
+/// [Conn](https://pkg.go.dev/net#Conn) interface 
 #[async_trait]
 pub trait Connection: Send + Sync {
     /// Returns the remote peer endpoint of this connection

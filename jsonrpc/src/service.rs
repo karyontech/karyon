@@ -13,7 +13,7 @@ pub trait RPCService: Sync + Send {
     fn name(&self) -> String;
 }
 
-/// Implements the `RPCService` trait for a provided type.
+/// Implements the [`RPCService`] trait for a provided type.
 ///
 /// # Example
 ///

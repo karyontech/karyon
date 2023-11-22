@@ -42,7 +42,7 @@ pin_project! {
     }
 }
 
-/// The return value from the `select` function, indicating which future
+/// The return value from the [`select`] function, indicating which future
 /// completed first.
 #[derive(Debug)]
 pub enum Either<T1, T2> {

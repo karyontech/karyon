@@ -8,7 +8,7 @@ use smol::{
 
 use crate::{connection::Connection, endpoint::Endpoint, listener::Listener, Error, Result};
 
-/// Unix domain socket implementations of the `Connection` trait.
+/// Unix domain socket implementations of the [`Connection`] trait.
 pub struct UnixConn {
     inner: UnixStream,
     read: Mutex<ReadHalf<UnixStream>>,

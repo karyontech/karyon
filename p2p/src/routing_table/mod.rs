@@ -39,7 +39,7 @@ pub enum AddEntryResult {
 }
 
 /// This is a modified version of the Kademlia Distributed Hash Table (DHT).
-/// https://en.wikipedia.org/wiki/Kademlia
+/// <https://en.wikipedia.org/wiki/Kademlia>
 #[derive(Debug)]
 pub struct RoutingTable {
     key: Key,
