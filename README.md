@@ -31,11 +31,15 @@ including TLS implementation. You can check the
 
 ## Docs
 
-To generate karyons Rust API Documentation, run the following command:
+Online documentation for the main crates:
 
-```bash
-$ cargo doc --no-deps --all --document-private-items --open
-```
+- [karyons_p2p](https://karyons.github.io/karyons/karyons_p2p)
+- [karyons_jsonrpc](https://karyons.github.io/karyons/karyons_jsonrpc)
+
+For the internal crates:
+
+- [karyons_core](https://karyons.github.io/karyons/karyons_core)
+- [karyons_net](https://karyons.github.io/karyons/karyons_net)
 
 ## Thanks
 

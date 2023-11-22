@@ -3,11 +3,10 @@ name: Build and Deploy Rust API Docs
 on:
   push:
     branches:
-      - test-ci-docs   
+      - main   
 
 jobs:
    docs:
-    name: build karyons rust api docs 
     runs-on: ubuntu-latest
     permissions:
       contents: write
