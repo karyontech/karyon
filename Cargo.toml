@@ -5,7 +5,6 @@ members = [
     "p2p",
     "jsonrpc",
 ]
-
 resolver = "2"
 
 [workspace.package]
@@ -17,3 +16,4 @@ karyons_core = { path = "core" }
 karyons_net = { path = "net" }
 karyons_p2p = { path = "p2p" }
 karyons_jsonrpc = { path = "jsonrpc" }
+

@@ -20,40 +20,6 @@ pub type ArcBackend = Arc<Backend>;
 /// the P2P network.
 ///
 ///
-/// # Example
-/// ```
-/// use std::sync::Arc;
-///
-/// use easy_parallel::Parallel;
-/// use smol::{channel as smol_channel, future, Executor};
-///
-/// use karyons_p2p::{Backend, Config, PeerID};
-///
-/// let peer_id = PeerID::random();
-///
-/// // Create the configuration for the backend.
-/// let mut config = Config::default();
-///
-///
-/// // Create a new Executor
-/// let ex = Arc::new(Executor::new());
-///
-/// // Create a new Backend
-/// let backend = Backend::new(peer_id, config, ex.clone());
-///
-/// let task = async {
-///     // Run the backend
-///     backend.run().await.unwrap();
-///
-///     // ....
-///
-///     // Shutdown the backend
-///     backend.shutdown().await;
-/// };
-///
-/// future::block_on(ex.run(task));
-///
-/// ```
 pub struct Backend {
     /// The Configuration for the P2P network.
     config: Arc<Config>,

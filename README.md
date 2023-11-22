@@ -16,7 +16,7 @@ Join us on:
   along with common network functionality. 
 - [karyons p2p](./p2p): A lightweight, extensible, and customizable
   peer-to-peer (p2p) network stack.
-- [karyons jsonrpc](./jsonrpc): A fast and lightweight async
+- [karyons jsonrpc](./jsonrpc): A fast and small async
   [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation.
 - karyons crdt: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
 implementation for building collaborative software. 
@@ -28,6 +28,14 @@ This project is a work in progress. The current focus is on shipping karyons
 crdt and karyons store, along with major changes to the network stack,
 including TLS implementation. You can check the 
 [issues](https://github.com/karyons/karyons/issues) for updates on ongoing tasks.
+
+## Docs
+
+To generate karyons Rust API Documentation, run the following command:
+
+```bash
+$ cargo doc --no-deps --all --document-private-items --open
+```
 
 ## Thanks
 
