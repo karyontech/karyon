@@ -3,7 +3,7 @@ name: Build and Deploy Rust API Docs
 on:
   push:
     branches:
-      - main   
+      - master   
 
 jobs:
    docs:
