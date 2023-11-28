@@ -36,9 +36,9 @@ differences and optimizations. Some of the main changes:
 > efforts to mitigate most of its vulnerabilities. Several projects, including
 > BitTorrent, Ethereum, IPFS, and Storj, still rely on Kademlia.
 
-### Peer IDs
+### Peer ID
 
-Peers in the karyons p2p network are identified by their 256-bit (32-byte) Peer IDs.
+In the karyons p2p network, each peer is identified by a 256-bit (32-byte) Peer ID.
 
 ### Seeding
 
@@ -51,11 +51,19 @@ continues until all outbound slots are occupied.
 The client can optionally provide a listening endpoint to accept inbound 
 connections.
 
+### Refreshing
+
+The routing table undergoes periodic refreshment to validate the peers. This
+process involves opening a UDP connection with the peers listed in the routing
+table and sending a `PING` message. If the peer responds with a `PONG` message,
+it means that the peer is still alive. Otherwise, the peer will be removed from
+the routing table.
+
 ### Handshake
 
 When an inbound or outbound connection is established, the client initiates a
 handshake with that connection. If the handshake is successful, the connection
-is added to the PeerPool.
+is added to the `PeerPool`.
 
 ### Protocols
 
@@ -112,8 +120,8 @@ impl Protocol for NewProtocol {
 
 ```
 
-Whenever a new peer is added to the PeerPool, all the protocols, including 
-your custom protocols, will automatically start running with the newly connected peer.
+Whenever a new peer is added to the `PeerPool`, all the protocols, including 
+the custom protocols, will automatically start running with the newly connected peer.
 
 ## Network Security 
 
