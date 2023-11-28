@@ -44,23 +44,25 @@ struct Cli {
 pub struct ChatProtocol {
     username: String,
     peer: ArcPeer,
+    executor: Arc<Executor<'static>>,
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: ArcPeer) -> ArcProtocol {
+    fn new(username: &str, peer: ArcPeer, executor: Arc<Executor<'static>>) -> ArcProtocol {
         Arc::new(Self {
             peer,
             username: username.to_string(),
+            executor,
         })
     }
 }
 
 #[async_trait]
 impl Protocol for ChatProtocol {
-    async fn start(self: Arc<Self>, ex: Arc<Executor<'_>>) -> Result<(), P2pError> {
+    async fn start(self: Arc<Self>) -> Result<(), P2pError> {
         let selfc = self.clone();
         let stdin = io::stdin();
-        let task = ex.spawn(async move {
+        let task = self.executor.spawn(async move {
             loop {
                 let mut input = String::new();
                 stdin.read_line(&mut input).await.unwrap();
@@ -111,6 +113,7 @@ fn main() {
         peer_endpoints: cli.peer_endpoints,
         bootstrap_peers: cli.bootstrap_peers,
         discovery_port: cli.discovery_port.unwrap_or(0),
+        enable_tls: true,
         ..Default::default()
     };
 
@@ -124,12 +127,13 @@ fn main() {
     let handle = move || ctrlc_s.try_send(()).unwrap();
     ctrlc::set_handler(handle).unwrap();
 
+    let ex_cloned = ex.clone();
     run_executor(
         async {
             let username = cli.username;
 
             // Attach the ChatProtocol
-            let c = move |peer| ChatProtocol::new(&username, peer);
+            let c = move |peer| ChatProtocol::new(&username, peer, ex_cloned.clone());
             backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
 
             // Run the backend

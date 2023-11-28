@@ -189,8 +189,7 @@ impl PeerPool {
             }
         };
 
-        self.task_group
-            .spawn(peer.run(self.executor.clone()), on_disconnect);
+        self.task_group.spawn(peer.run(), on_disconnect);
 
         info!("Add new peer {pid}, direction: {conn_direction}, endpoint: {endpoint}");
 
@@ -230,8 +229,9 @@ impl PeerPool {
 
     /// Attach the core protocols.
     async fn setup_protocols(&self) -> Result<()> {
-        self.attach_protocol::<PingProtocol>(Box::new(PingProtocol::new))
-            .await
+        let executor = self.executor.clone();
+        let c = move |peer| PingProtocol::new(peer, executor.clone());
+        self.attach_protocol::<PingProtocol>(Box::new(c)).await
     }
 
     /// Initiate a handshake with a connection.

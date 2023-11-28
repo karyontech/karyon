@@ -90,7 +90,7 @@ impl NewProtocol {
 
 #[async_trait]
 impl Protocol for NewProtocol {
-    async fn start(self: Arc<Self>, ex: Arc<Executor<'_>>) -> Result<(), P2pError> {
+    async fn start(self: Arc<Self>) -> Result<(), P2pError> {
         let listener = self.peer.register_listener::<Self>().await;
         loop {
             let event = listener.recv().await.unwrap();

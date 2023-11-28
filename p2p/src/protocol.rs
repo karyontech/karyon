@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyons_core::{event::EventValue, Executor};
+use karyons_core::event::EventValue;
 
 use crate::{peer::ArcPeer, version::Version, Result};
 
@@ -56,7 +56,7 @@ impl EventValue for ProtocolEvent {
 ///
 /// #[async_trait]
 /// impl Protocol for NewProtocol {
-///     async fn start(self: Arc<Self>, ex: Arc<Executor<'_>>) -> Result<(), P2pError> {
+///     async fn start(self: Arc<Self>) -> Result<(), P2pError> {
 ///         let listener = self.peer.register_listener::<Self>().await;
 ///         loop {
 ///             let event = listener.recv().await.unwrap();
@@ -103,7 +103,7 @@ impl EventValue for ProtocolEvent {
 #[async_trait]
 pub trait Protocol: Send + Sync {
     /// Start the protocol
-    async fn start(self: Arc<Self>, ex: Executor<'_>) -> Result<()>;
+    async fn start(self: Arc<Self>) -> Result<()>;
 
     /// Returns the version of the protocol.
     fn version() -> Result<Version>

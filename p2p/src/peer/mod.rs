@@ -83,8 +83,8 @@ impl Peer {
     }
 
     /// Run the peer
-    pub async fn run(self: Arc<Self>, ex: GlobalExecutor) -> Result<()> {
-        self.start_protocols(ex).await;
+    pub async fn run(self: Arc<Self>) -> Result<()> {
+        self.start_protocols().await;
         self.read_loop().await
     }
 
@@ -203,7 +203,7 @@ impl Peer {
     }
 
     /// Start running the protocols for this peer connection.
-    async fn start_protocols(self: &Arc<Self>, ex: GlobalExecutor) {
+    async fn start_protocols(self: &Arc<Self>) {
         for (protocol_id, constructor) in self.peer_pool().protocols.read().await.iter() {
             trace!("peer {} start protocol {protocol_id}", self.id);
             let protocol = constructor(self.clone());
@@ -223,8 +223,7 @@ impl Peer {
                 }
             };
 
-            self.task_group
-                .spawn(protocol.start(ex.clone()), on_failure);
+            self.task_group.spawn(protocol.start(), on_failure);
         }
     }
 
