@@ -11,7 +11,7 @@ karyons_core.workspace = true
 smol = "1.3.0"
 async-trait = "0.1.73"
 log = "0.4.20"
-bincode = "2.0.0-rc.3"
+bincode = { version="2.0.0-rc.3", features = ["derive"]}
 thiserror = "1.0.47"
 url = "2.4.1"
 async-rustls = { version = "0.4.1", features = ["dangerous_configuration"] }

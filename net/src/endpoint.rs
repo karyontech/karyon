@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use bincode::{impl_borrow_decode, Decode, Encode};
+use bincode::{Decode, Encode};
 use url::Url;
 
 use crate::{Error, Result};
@@ -177,46 +177,11 @@ impl Endpoint {
 }
 
 /// Addr defines a type for an address, either IP or domain.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum Addr {
     Ip(IpAddr),
     Domain(String),
 }
-
-impl Encode for Addr {
-    fn encode<E: bincode::enc::Encoder>(
-        &self,
-        encoder: &mut E,
-    ) -> std::result::Result<(), bincode::error::EncodeError> {
-        match self {
-            Addr::Ip(addr) => {
-                0u32.encode(encoder)?;
-                addr.encode(encoder)
-            }
-            Addr::Domain(domain) => {
-                1u32.encode(encoder)?;
-                domain.encode(encoder)
-            }
-        }
-    }
-}
-
-impl Decode for Addr {
-    fn decode<D: bincode::de::Decoder>(
-        decoder: &mut D,
-    ) -> std::result::Result<Self, bincode::error::DecodeError> {
-        match u32::decode(decoder)? {
-            0 => Ok(Addr::Ip(IpAddr::decode(decoder)?)),
-            1 => Ok(Addr::Domain(String::decode(decoder)?)),
-            found => Err(bincode::error::DecodeError::UnexpectedVariant {
-                allowed: &bincode::error::AllowedEnumVariants::Range { min: 0, max: 1 },
-                found,
-                type_name: core::any::type_name::<Addr>(),
-            }),
-        }
-    }
-}
-impl_borrow_decode!(Addr);
 
 impl TryFrom<Addr> for IpAddr {
     type Error = Error;
