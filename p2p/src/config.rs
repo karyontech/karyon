@@ -1,6 +1,6 @@
 use karyons_net::{Endpoint, Port};
 
-use crate::utils::Version;
+use crate::Version;
 
 /// the Configuration for the P2P network.
 pub struct Config {
@@ -71,6 +71,9 @@ pub struct Config {
     /// The maximum number of retries for outbound connection establishment
     /// during the refresh process.
     pub refresh_connect_retries: usize,
+
+    /// Enables TLS for all connections.
+    pub enable_tls: bool,
 }
 
 impl Default for Config {
@@ -100,6 +103,8 @@ impl Default for Config {
             refresh_interval: 1800,
             refresh_response_timeout: 1,
             refresh_connect_retries: 3,
+
+            enable_tls: false,
         }
     }
 }

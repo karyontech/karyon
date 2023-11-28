@@ -7,11 +7,17 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
+    #[error("TryInto Error: {0}")]
+    TryInto(&'static str),
+
     #[error("Timeout Error")]
     Timeout,
 
     #[error("Path Not Found Error: {0}")]
     PathNotFound(&'static str),
+
+    #[error(transparent)]
+    Ed25519(#[from] ed25519_dalek::ed25519::Error),
 
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),

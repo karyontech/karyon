@@ -25,9 +25,9 @@ implementation for building collaborative software.
 ## Status
 
 This project is a work in progress. The current focus is on shipping karyons
-crdt and karyons store, along with major changes to the network stack,
-including TLS implementation. You can check the 
-[issues](https://github.com/karyons/karyons/issues) for updates on ongoing tasks.
+crdt and karyons store, along with major changes to the network stack. You can
+check the [issues](https://github.com/karyons/karyons/issues) for updates on
+ongoing tasks.
 
 ## Docs
 

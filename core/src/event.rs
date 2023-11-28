@@ -12,7 +12,7 @@ use smol::{
     lock::Mutex,
 };
 
-use crate::{utils::random_16, Result};
+use crate::{util::random_16, Result};
 
 pub type ArcEventSys<T> = Arc<EventSys<T>>;
 pub type WeakEventSys<T> = Weak<EventSys<T>>;

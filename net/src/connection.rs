@@ -1,7 +1,9 @@
-use crate::{Endpoint, Result};
 use async_trait::async_trait;
 
-use crate::transports::{tcp, udp, unix};
+use crate::{
+    transports::{tcp, udp, unix},
+    Endpoint, Error, Result,
+};
 
 /// Alias for `Box<dyn Connection>`
 pub type Conn = Box<dyn Connection>;
@@ -28,7 +30,7 @@ pub trait Connection: Send + Sync {
 
 /// Connects to the provided endpoint.
 ///
-/// it only supports `tcp4/6`, `udp4/6` and `unix`.
+/// it only supports `tcp4/6`, `udp4/6`, and `unix`.
 ///
 /// #Example
 ///
@@ -53,5 +55,6 @@ pub async fn dial(endpoint: &Endpoint) -> Result<Conn> {
         Endpoint::Tcp(addr, port) => Ok(Box::new(tcp::dial_tcp(addr, port).await?)),
         Endpoint::Udp(addr, port) => Ok(Box::new(udp::dial_udp(addr, port).await?)),
         Endpoint::Unix(addr) => Ok(Box::new(unix::dial_unix(addr).await?)),
+        _ => Err(Error::InvalidEndpoint(endpoint.to_string())),
     }
 }

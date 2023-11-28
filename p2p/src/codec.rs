@@ -3,8 +3,8 @@ use std::time::Duration;
 use bincode::{Decode, Encode};
 
 use karyons_core::{
-    async_utils::timeout,
-    utils::{decode, encode, encode_into_slice},
+    async_util::timeout,
+    util::{decode, encode, encode_into_slice},
 };
 
 use karyons_net::{Connection, NetError};
@@ -17,16 +17,16 @@ use crate::{
 pub trait CodecMsg: Decode + Encode + std::fmt::Debug {}
 impl<T: Encode + Decode + std::fmt::Debug> CodecMsg for T {}
 
-/// I/O codec working with generic network connections.
+/// A Codec working with generic network connections.
 ///
 /// It is responsible for both decoding data received from the network and
 /// encoding data before sending it.
-pub struct IOCodec {
+pub struct Codec {
     conn: Box<dyn Connection>,
 }
 
-impl IOCodec {
-    /// Creates a new IOCodec.
+impl Codec {
+    /// Creates a new Codec.
     pub fn new(conn: Box<dyn Connection>) -> Self {
         Self { conn }
     }
@@ -84,18 +84,6 @@ impl IOCodec {
     /// Reads a message of type `NetMsg` with the given timeout.
     pub async fn read_timeout(&self, duration: Duration) -> Result<NetMsg> {
         timeout(duration, self.read())
-            .await
-            .map_err(|_| NetError::Timeout)?
-    }
-
-    /// Writes a message of type `T` with the given timeout.
-    pub async fn write_timeout<T: CodecMsg>(
-        &self,
-        command: NetMsgCmd,
-        msg: &T,
-        duration: Duration,
-    ) -> Result<()> {
-        timeout(duration, self.write(command, msg))
             .await
             .map_err(|_| NetError::Timeout)?
     }

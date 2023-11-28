@@ -5,9 +5,10 @@ use std::sync::Arc;
 use clap::Parser;
 use smol::{channel, Executor};
 
+use karyons_core::key_pair::{KeyPair, KeyPairType};
 use karyons_net::{Endpoint, Port};
 
-use karyons_p2p::{Backend, Config, PeerID};
+use karyons_p2p::{Backend, Config};
 
 use shared::run_executor;
 
@@ -29,20 +30,13 @@ struct Cli {
     /// Optional TCP/UDP port for the discovery service.
     #[arg(short)]
     discovery_port: Option<Port>,
-
-    /// Optional user id
-    #[arg(long)]
-    userid: Option<String>,
 }
 
 fn main() {
     env_logger::init();
     let cli = Cli::parse();
 
-    let peer_id = match cli.userid {
-        Some(userid) => PeerID::new(userid.as_bytes()),
-        None => PeerID::random(),
-    };
+    let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
     // Create the configuration for the backend.
     let config = Config {
@@ -57,7 +51,7 @@ fn main() {
     let ex = Arc::new(Executor::new());
 
     // Create a new Backend
-    let backend = Backend::new(peer_id, config, ex.clone());
+    let backend = Backend::new(&key_pair, config, ex.clone());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();

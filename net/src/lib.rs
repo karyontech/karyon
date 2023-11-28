@@ -10,6 +10,7 @@ pub use {
     listener::{listen, Listener},
     transports::{
         tcp::{dial_tcp, listen_tcp, TcpConn},
+        tls,
         udp::{dial_udp, listen_udp, UdpConn},
         unix::{dial_unix, listen_unix, UnixConn},
     },

@@ -9,7 +9,7 @@ use crate::{
     Error, Result,
 };
 
-/// UDP network connection implementations of the [`Connection`] trait.
+/// UDP network connection implementation of the [`Connection`] trait.
 pub struct UdpConn {
     inner: UdpSocket,
 }

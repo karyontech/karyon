@@ -8,7 +8,7 @@ pub enum Error {
     IO(#[from] std::io::Error),
 
     #[error("Try from endpoint Error")]
-    TryFromEndpointError,
+    TryFromEndpoint,
 
     #[error("invalid address {0}")]
     InvalidAddress(String),
@@ -27,6 +27,12 @@ pub enum Error {
 
     #[error(transparent)]
     ChannelRecv(#[from] smol::channel::RecvError),
+
+    #[error("Tls Error: {0}")]
+    Rustls(#[from] async_rustls::rustls::Error),
+
+    #[error("Invalid DNS Name: {0}")]
+    InvalidDnsNameError(#[from] async_rustls::rustls::client::InvalidDnsNameError),
 
     #[error(transparent)]
     KaryonsCore(#[from] karyons_core::error::Error),

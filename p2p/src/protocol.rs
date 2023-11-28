@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use karyons_core::{event::EventValue, Executor};
 
-use crate::{peer::ArcPeer, utils::Version, Result};
+use crate::{peer::ArcPeer, version::Version, Result};
 
 pub type ArcProtocol = Arc<dyn Protocol>;
 
@@ -37,6 +37,7 @@ impl EventValue for ProtocolEvent {
 /// use async_trait::async_trait;
 /// use smol::Executor;
 ///
+/// use karyons_core::key_pair::{KeyPair, KeyPairType};
 /// use karyons_p2p::{
 ///     protocol::{ArcProtocol, Protocol, ProtocolID, ProtocolEvent},
 ///     Backend, PeerID, Config, Version, P2pError, ArcPeer};
@@ -84,14 +85,14 @@ impl EventValue for ProtocolEvent {
 /// }
 ///
 ///  async {
-///     let peer_id = PeerID::random();
+///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 ///     let config = Config::default();
 ///
 ///     // Create a new Executor
 ///     let ex = Arc::new(Executor::new());
 ///
 ///     // Create a new Backend
-///     let backend = Backend::new(peer_id, config, ex);
+///     let backend = Backend::new(&key_pair, config, ex);
 ///
 ///     // Attach the NewProtocol
 ///     let c = move |peer| NewProtocol::new(peer);

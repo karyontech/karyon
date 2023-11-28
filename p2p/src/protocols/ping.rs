@@ -12,9 +12,9 @@ use smol::{
 };
 
 use karyons_core::{
-    async_utils::{select, timeout, Either, TaskGroup, TaskResult},
+    async_util::{select, timeout, Either, TaskGroup, TaskResult},
     event::EventListener,
-    utils::decode,
+    util::decode,
     Executor,
 };
 
@@ -23,7 +23,7 @@ use karyons_net::NetError;
 use crate::{
     peer::ArcPeer,
     protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
-    utils::Version,
+    version::Version,
     Result,
 };
 

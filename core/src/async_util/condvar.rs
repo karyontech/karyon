@@ -8,7 +8,7 @@ use std::{
 
 use smol::lock::MutexGuard;
 
-use crate::utils::random_16;
+use crate::util::random_16;
 
 /// CondVar is an async version of <https://doc.rust-lang.org/std/sync/struct.Condvar.html>
 ///
@@ -19,7 +19,7 @@ use crate::utils::random_16;
 ///
 /// use smol::lock::Mutex;
 ///
-/// use karyons_core::async_utils::CondVar;
+/// use karyons_core::async_util::CondVar;
 ///
 ///  async {
 ///     

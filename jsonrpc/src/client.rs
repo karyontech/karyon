@@ -1,7 +1,7 @@
 use log::debug;
 use serde::{de::DeserializeOwned, Serialize};
 
-use karyons_core::utils::random_32;
+use karyons_core::util::random_32;
 use karyons_net::{dial, Conn, Endpoint};
 
 use crate::{

@@ -7,11 +7,12 @@ use async_trait::async_trait;
 use clap::Parser;
 use smol::{channel, Executor};
 
+use karyons_core::key_pair::{KeyPair, KeyPairType};
 use karyons_net::{Endpoint, Port};
 
 use karyons_p2p::{
     protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
-    ArcPeer, Backend, Config, P2pError, PeerID, Version,
+    ArcPeer, Backend, Config, P2pError, Version,
 };
 
 use shared::run_executor;
@@ -102,7 +103,7 @@ fn main() {
     let cli = Cli::parse();
 
     // Create a PeerID based on the username.
-    let peer_id = PeerID::new(cli.username.as_bytes());
+    let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
     // Create the configuration for the backend.
     let config = Config {
@@ -117,7 +118,7 @@ fn main() {
     let ex = Arc::new(Executor::new());
 
     // Create a new Backend
-    let backend = Backend::new(peer_id, config, ex.clone());
+    let backend = Backend::new(&key_pair, config, ex.clone());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();

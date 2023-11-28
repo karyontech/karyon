@@ -4,7 +4,7 @@ use bincode::{Decode, Encode};
 
 use karyons_net::{Addr, Port};
 
-use crate::{protocol::ProtocolID, routing_table::Entry, utils::VersionInt, PeerID};
+use crate::{protocol::ProtocolID, routing_table::Entry, version::VersionInt, PeerID};
 
 /// The size of the message header, in bytes.
 pub const MSG_HEADER_SIZE: usize = 6;

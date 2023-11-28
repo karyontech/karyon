@@ -9,7 +9,7 @@ use super::CondVar;
 ///```
 /// use std::sync::Arc;
 ///
-/// use karyons_core::async_utils::CondWait;
+/// use karyons_core::async_util::CondWait;
 ///
 ///  async {
 ///     let cond_wait = Arc::new(CondWait::new());

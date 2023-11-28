@@ -1,5 +1,8 @@
+use std::net::IpAddr;
+
 mod bucket;
 mod entry;
+
 pub use bucket::{
     Bucket, BucketEntry, EntryStatusFlag, CONNECTED_ENTRY, DISCONNECTED_ENTRY, INCOMPATIBLE_ENTRY,
     PENDING_ENTRY, UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
@@ -8,7 +11,7 @@ pub use entry::{xor_distance, Entry, Key};
 
 use rand::{rngs::OsRng, seq::SliceRandom};
 
-use crate::utils::subnet_match;
+use karyons_net::Addr;
 
 use bucket::BUCKET_SIZE;
 use entry::KEY_SIZE;
@@ -259,6 +262,20 @@ impl RoutingTable {
 
         // If no subnet restrictions are encountered, return false.
         false
+    }
+}
+
+/// Check if two addresses belong to the same subnet.
+pub fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
+    match (addr, other_addr) {
+        (Addr::Ip(IpAddr::V4(ip)), Addr::Ip(IpAddr::V4(other_ip))) => {
+            // TODO: Consider moving this to a different place
+            if other_ip.is_loopback() && ip.is_loopback() {
+                return false;
+            }
+            ip.octets()[0..3] == other_ip.octets()[0..3]
+        }
+        _ => false,
     }
 }
 

@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use log::error;
 use smol::lock::Mutex;
 
-use crate::{utils::random_16, Result};
+use crate::{util::random_16, Result};
 
 pub type ArcPublisher<T> = Arc<Publisher<T>>;
 pub type SubscriptionID = u16;

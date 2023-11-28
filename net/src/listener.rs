@@ -1,9 +1,8 @@
-use crate::{Endpoint, Error, Result};
 use async_trait::async_trait;
 
 use crate::{
     transports::{tcp, unix},
-    Conn,
+    Conn, Endpoint, Error, Result,
 };
 
 /// Listener is a generic network listener.
@@ -15,7 +14,7 @@ pub trait Listener: Send + Sync {
 
 /// Listens to the provided endpoint.
 ///
-/// it only supports `tcp4/6` and `unix`.
+/// it only supports `tcp4/6`, and `unix`.
 ///
 /// #Example
 ///

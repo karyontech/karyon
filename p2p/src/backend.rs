@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::info;
 
-use karyons_core::{pubsub::Subscription, GlobalExecutor};
+use karyons_core::{key_pair::KeyPair, pubsub::Subscription, GlobalExecutor};
 
 use crate::{
     config::Config,
@@ -22,8 +22,8 @@ pub struct Backend {
     /// The Configuration for the P2P network.
     config: Arc<Config>,
 
-    /// Peer ID.
-    id: PeerID,
+    /// Identity Key pair
+    key_pair: KeyPair,
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
@@ -37,17 +37,34 @@ pub struct Backend {
 
 impl Backend {
     /// Creates a new Backend.
-    pub fn new(id: PeerID, config: Config, ex: GlobalExecutor) -> ArcBackend {
+    pub fn new(key_pair: &KeyPair, config: Config, ex: GlobalExecutor) -> ArcBackend {
         let config = Arc::new(config);
         let monitor = Arc::new(Monitor::new());
-        let cq = ConnQueue::new();
+        let conn_queue = ConnQueue::new();
 
-        let peer_pool = PeerPool::new(&id, cq.clone(), config.clone(), monitor.clone(), ex.clone());
+        let peer_id = PeerID::try_from(key_pair.public())
+            .expect("Derive a peer id from the provided key pair.");
+        info!("PeerID: {}", peer_id);
 
-        let discovery = Discovery::new(&id, cq, config.clone(), monitor.clone(), ex);
+        let peer_pool = PeerPool::new(
+            &peer_id,
+            conn_queue.clone(),
+            config.clone(),
+            monitor.clone(),
+            ex.clone(),
+        );
+
+        let discovery = Discovery::new(
+            key_pair,
+            &peer_id,
+            conn_queue,
+            config.clone(),
+            monitor.clone(),
+            ex,
+        );
 
         Arc::new(Self {
-            id: id.clone(),
+            key_pair: key_pair.clone(),
             monitor,
             discovery,
             config,
@@ -57,7 +74,6 @@ impl Backend {
 
     /// Run the Backend, starting the PeerPool and Discovery instances.
     pub async fn run(self: &Arc<Self>) -> Result<()> {
-        info!("Run the backend {}", self.id);
         self.peer_pool.start().await?;
         self.discovery.start().await?;
         Ok(())
@@ -79,6 +95,11 @@ impl Backend {
     /// Returns the `Config`.
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
+    }
+
+    /// Returns the `KeyPair`.
+    pub async fn key_pair(&self) -> &KeyPair {
+        &self.key_pair
     }
 
     /// Returns the number of occupied inbound slots.

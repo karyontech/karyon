@@ -13,7 +13,7 @@ use crate::{
     Error, Result,
 };
 
-/// TCP network connection implementations of the [`Connection`] trait.
+/// TCP network connection implementation of the [`Connection`] trait.
 pub struct TcpConn {
     inner: TcpStream,
     read: Mutex<ReadHalf<TcpStream>>,

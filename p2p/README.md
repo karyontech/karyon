@@ -115,11 +115,12 @@ impl Protocol for NewProtocol {
 Whenever a new peer is added to the PeerPool, all the protocols, including 
 your custom protocols, will automatically start running with the newly connected peer.
 
-## Network Security
+## Network Security 
 
-It's obvious that connections in karyons p2p are not secure at the moment, as
-it currently only supports TCP connections. However, we are currently working
-on adding support for TLS connections.
+Using TLS is possible for all inbound and outbound connections by enabling the
+boolean `enable_tls` field in the configuration. However, implementing TLS for
+a P2P network is not trivial and is still unstable, requiring a comprehensive
+audit.
 
 ## Usage
 
@@ -129,5 +130,5 @@ If you have tmux installed, you can run the network simulation script in the
 examples directory to run 12 peers simultaneously.
 
 ```bash
-$ RUST_LOG=karyons=debug ./net_simulation.sh
+$ RUST_LOG=karyons=info ./net_simulation.sh
 ```

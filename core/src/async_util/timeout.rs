@@ -13,7 +13,7 @@ use crate::{error::Error, Result};
 /// ```
 /// use std::{future, time::Duration};
 ///
-/// use karyons_core::async_utils::timeout;
+/// use karyons_core::async_util::timeout;
 ///
 /// async {
 ///     let fut = future::pending::<()>();

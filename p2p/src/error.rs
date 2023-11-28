@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Unsupported protocol error: {0}")]
     UnsupportedProtocol(String),
 
+    #[error("Try from public key Error: {0}")]
+    TryFromPublicKey(&'static str),
+
     #[error("Invalid message error: {0}")]
     InvalidMsg(String),
 
@@ -49,6 +52,21 @@ pub enum Error {
 
     #[error("Peer already connected")]
     PeerAlreadyConnected,
+
+    #[error("Yasna Error: {0}")]
+    Yasna(#[from] yasna::ASN1Error),
+
+    #[error("X509 Parser Error: {0}")]
+    X509Parser(#[from] x509_parser::error::X509Error),
+
+    #[error("Rcgen Error: {0}")]
+    Rcgen(#[from] rcgen::RcgenError),
+
+    #[error("Tls Error: {0}")]
+    Rustls(#[from] async_rustls::rustls::Error),
+
+    #[error("Invalid DNS Name: {0}")]
+    InvalidDnsNameError(#[from] async_rustls::rustls::client::InvalidDnsNameError),
 
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),

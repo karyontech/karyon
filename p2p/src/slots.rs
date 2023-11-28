@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use karyons_core::async_utils::CondWait;
+use karyons_core::async_util::CondWait;
 
 /// Manages available inbound and outbound slots.
 pub struct ConnectionSlots {

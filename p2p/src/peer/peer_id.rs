@@ -2,6 +2,10 @@ use bincode::{Decode, Encode};
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Digest, Sha256};
 
+use karyons_core::key_pair::PublicKey;
+
+use crate::Error;
+
 /// Represents a unique identifier for a peer.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Decode, Encode)]
 pub struct PeerID(pub [u8; 32]);
@@ -37,5 +41,18 @@ impl PeerID {
 impl From<[u8; 32]> for PeerID {
     fn from(b: [u8; 32]) -> Self {
         PeerID(b)
+    }
+}
+
+impl TryFrom<PublicKey> for PeerID {
+    type Error = Error;
+
+    fn try_from(pk: PublicKey) -> Result<Self, Self::Error> {
+        let pk: [u8; 32] = pk
+            .as_bytes()
+            .try_into()
+            .map_err(|_| Error::TryFromPublicKey("Failed to convert public key to [u8;32]"))?;
+
+        Ok(PeerID(pk))
     }
 }

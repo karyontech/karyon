@@ -10,8 +10,8 @@ use smol::{
 };
 
 use karyons_core::{
-    async_utils::{timeout, Backoff, TaskGroup, TaskResult},
-    utils::{decode, encode},
+    async_util::{timeout, Backoff, TaskGroup, TaskResult},
+    util::{decode, encode},
     GlobalExecutor,
 };
 

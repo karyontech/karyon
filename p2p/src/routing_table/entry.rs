@@ -20,7 +20,7 @@ pub struct Entry {
 
 impl PartialEq for Entry {
     fn eq(&self, other: &Self) -> bool {
-        // XXX this should also compare both addresses (the self.addr == other.addr)
+        // TODO: this should also compare both addresses (the self.addr == other.addr)
         self.key == other.key
     }
 }

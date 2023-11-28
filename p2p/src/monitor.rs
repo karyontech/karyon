@@ -17,6 +17,7 @@ use karyons_net::Endpoint;
 ///
 /// use smol::Executor;
 ///
+/// use karyons_core::key_pair::{KeyPair, KeyPairType};
 /// use karyons_p2p::{Config, Backend, PeerID};
 ///
 /// async {
@@ -24,7 +25,8 @@ use karyons_net::Endpoint;
 ///     // Create a new Executor
 ///     let ex = Arc::new(Executor::new());
 ///
-///     let backend = Backend::new(PeerID::random(), Config::default(), ex);
+///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
+///     let backend = Backend::new(&key_pair, Config::default(), ex);
 ///
 ///     // Create a new Subscription
 ///     let sub =  backend.monitor().await;
