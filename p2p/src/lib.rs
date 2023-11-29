@@ -7,7 +7,7 @@
 //! use easy_parallel::Parallel;
 //! use smol::{channel as smol_channel, future, Executor};
 //!
-//! use karyons_core::key_pair::{KeyPair, KeyPairType};
+//! use karyons_core::crypto::{KeyPair, KeyPairType};
 //! use karyons_p2p::{Backend, Config, PeerID};
 //!
 //! let key_pair = KeyPair::generate(&KeyPairType::Ed25519);

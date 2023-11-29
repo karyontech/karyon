@@ -16,7 +16,12 @@ rand = "0.8.5"
 thiserror = "1.0.47"
 dirs = "5.0.1"
 async-task = "4.5.0"
-ed25519-dalek = { version = "2.1.0", features = ["rand_core"]}
 
+ed25519-dalek = { version = "2.1.0", features = ["rand_core"], optional = true}
+
+
+[features]
+default = []
+crypto = ["dep:ed25519-dalek"]
 
 

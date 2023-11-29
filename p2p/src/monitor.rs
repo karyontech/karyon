@@ -17,7 +17,7 @@ use karyons_net::Endpoint;
 ///
 /// use smol::Executor;
 ///
-/// use karyons_core::key_pair::{KeyPair, KeyPairType};
+/// use karyons_core::crypto::{KeyPair, KeyPairType};
 /// use karyons_p2p::{Config, Backend, PeerID};
 ///
 /// async {

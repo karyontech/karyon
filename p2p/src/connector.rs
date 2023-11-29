@@ -4,7 +4,7 @@ use log::{error, trace, warn};
 
 use karyons_core::{
     async_util::{Backoff, TaskGroup, TaskResult},
-    key_pair::KeyPair,
+    crypto::KeyPair,
     GlobalExecutor,
 };
 use karyons_net::{dial, tls, Conn, Endpoint, NetError};

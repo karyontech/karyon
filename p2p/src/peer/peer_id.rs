@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Digest, Sha256};
 
-use karyons_core::key_pair::PublicKey;
+use karyons_core::crypto::PublicKey;
 
 use crate::Error;
 

@@ -5,7 +5,7 @@ use log::{error, trace};
 use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 use smol::lock::{Mutex, RwLock};
 
-use karyons_core::{async_util::timeout, key_pair::KeyPair, util::decode, GlobalExecutor};
+use karyons_core::{async_util::timeout, crypto::KeyPair, util::decode, GlobalExecutor};
 
 use karyons_net::{Conn, Endpoint};
 

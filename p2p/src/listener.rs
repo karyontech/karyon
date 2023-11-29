@@ -4,7 +4,7 @@ use log::{debug, error, info};
 
 use karyons_core::{
     async_util::{TaskGroup, TaskResult},
-    key_pair::KeyPair,
+    crypto::KeyPair,
     GlobalExecutor,
 };
 

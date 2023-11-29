@@ -8,52 +8,41 @@ pub enum KeyPairType {
     Ed25519,
 }
 
-/// A Public key
-pub struct PublicKey(PublicKeyInner);
-
 /// A Secret key
 pub struct SecretKey(Vec<u8>);
 
-impl PublicKey {
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    /// Verify a signature on a message with this public key.
-    pub fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()> {
-        self.0.verify(msg, signature)
-    }
-}
-
-impl PublicKey {
-    pub fn from_bytes(kp_type: &KeyPairType, pk: &[u8]) -> Result<Self> {
-        Ok(Self(PublicKeyInner::from_bytes(kp_type, pk)?))
-    }
-}
-
-/// A KeyPair.
 #[derive(Clone)]
-pub struct KeyPair(KeyPairInner);
+pub enum KeyPair {
+    Ed25519(Ed25519KeyPair),
+}
 
 impl KeyPair {
     /// Generate a new random keypair.
     pub fn generate(kp_type: &KeyPairType) -> Self {
-        Self(KeyPairInner::generate(kp_type))
+        match kp_type {
+            KeyPairType::Ed25519 => Self::Ed25519(Ed25519KeyPair::generate()),
+        }
     }
 
     /// Sign a message using the private key.
     pub fn sign(&self, msg: &[u8]) -> Vec<u8> {
-        self.0.sign(msg)
+        match self {
+            KeyPair::Ed25519(kp) => kp.sign(msg),
+        }
     }
 
     /// Get the public key of this keypair.
     pub fn public(&self) -> PublicKey {
-        self.0.public()
+        match self {
+            KeyPair::Ed25519(kp) => kp.public(),
+        }
     }
 
     /// Get the secret key of this keypair.
     pub fn secret(&self) -> SecretKey {
-        self.0.secret()
+        match self {
+            KeyPair::Ed25519(kp) => kp.secret(),
+        }
     }
 }
 
@@ -70,40 +59,7 @@ trait KeyPairExt {
 }
 
 #[derive(Clone)]
-enum KeyPairInner {
-    Ed25519(Ed25519KeyPair),
-}
-
-impl KeyPairInner {
-    fn generate(kp_type: &KeyPairType) -> Self {
-        match kp_type {
-            KeyPairType::Ed25519 => Self::Ed25519(Ed25519KeyPair::generate()),
-        }
-    }
-}
-
-impl KeyPairExt for KeyPairInner {
-    fn sign(&self, msg: &[u8]) -> Vec<u8> {
-        match self {
-            KeyPairInner::Ed25519(kp) => kp.sign(msg),
-        }
-    }
-
-    fn public(&self) -> PublicKey {
-        match self {
-            KeyPairInner::Ed25519(kp) => kp.public(),
-        }
-    }
-
-    fn secret(&self) -> SecretKey {
-        match self {
-            KeyPairInner::Ed25519(kp) => kp.secret(),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct Ed25519KeyPair(ed25519_dalek::SigningKey);
+pub struct Ed25519KeyPair(ed25519_dalek::SigningKey);
 
 impl Ed25519KeyPair {
     fn generate() -> Self {
@@ -117,13 +73,36 @@ impl KeyPairExt for Ed25519KeyPair {
     }
 
     fn public(&self) -> PublicKey {
-        PublicKey(PublicKeyInner::Ed25519(Ed25519PublicKey(
-            self.0.verifying_key(),
-        )))
+        PublicKey::Ed25519(Ed25519PublicKey(self.0.verifying_key()))
     }
 
     fn secret(&self) -> SecretKey {
         SecretKey(self.0.to_bytes().to_vec())
+    }
+}
+
+pub enum PublicKey {
+    Ed25519(Ed25519PublicKey),
+}
+
+impl PublicKey {
+    pub fn from_bytes(kp_type: &KeyPairType, pk: &[u8]) -> Result<Self> {
+        match kp_type {
+            KeyPairType::Ed25519 => Ok(Self::Ed25519(Ed25519PublicKey::from_bytes(pk)?)),
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Ed25519(pk) => pk.as_bytes(),
+        }
+    }
+
+    /// Verify a signature on a message with this public key.
+    pub fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()> {
+        match self {
+            Self::Ed25519(pk) => pk.verify(msg, signature),
+        }
     }
 }
 
@@ -135,33 +114,7 @@ trait PublicKeyExt {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()>;
 }
 
-enum PublicKeyInner {
-    Ed25519(Ed25519PublicKey),
-}
-
-impl PublicKeyInner {
-    pub fn from_bytes(kp_type: &KeyPairType, pk: &[u8]) -> Result<Self> {
-        match kp_type {
-            KeyPairType::Ed25519 => Ok(Self::Ed25519(Ed25519PublicKey::from_bytes(pk)?)),
-        }
-    }
-}
-
-impl PublicKeyExt for PublicKeyInner {
-    fn as_bytes(&self) -> &[u8] {
-        match self {
-            Self::Ed25519(pk) => pk.as_bytes(),
-        }
-    }
-
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()> {
-        match self {
-            Self::Ed25519(pk) => pk.verify(msg, signature),
-        }
-    }
-}
-
-struct Ed25519PublicKey(ed25519_dalek::VerifyingKey);
+pub struct Ed25519PublicKey(ed25519_dalek::VerifyingKey);
 
 impl Ed25519PublicKey {
     pub fn from_bytes(pk: &[u8]) -> Result<Self> {

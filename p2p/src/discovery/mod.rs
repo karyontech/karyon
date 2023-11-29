@@ -9,7 +9,7 @@ use smol::lock::Mutex;
 
 use karyons_core::{
     async_util::{Backoff, TaskGroup, TaskResult},
-    key_pair::KeyPair,
+    crypto::KeyPair,
     GlobalExecutor,
 };
 

@@ -14,8 +14,9 @@ pub mod event;
 /// A simple publish-subscribe system [`Read More`](./pubsub/struct.Publisher.html)
 pub mod pubsub;
 
-/// A cryptographic key pair
-pub mod key_pair;
+#[cfg(feature = "crypto")]
+/// Collects common cryptographic tools
+pub mod crypto;
 
 use smol::Executor as SmolEx;
 use std::sync::Arc;

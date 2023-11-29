@@ -16,6 +16,7 @@ pub enum Error {
     #[error("Path Not Found Error: {0}")]
     PathNotFound(&'static str),
 
+    #[cfg(feature = "crypto")]
     #[error(transparent)]
     Ed25519(#[from] ed25519_dalek::ed25519::Error),
 

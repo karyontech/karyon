@@ -8,7 +8,7 @@ use async_rustls::rustls::{
 use log::error;
 use x509_parser::{certificate::X509Certificate, parse_x509_certificate};
 
-use karyons_core::key_pair::{KeyPair, KeyPairType, PublicKey};
+use karyons_core::crypto::{KeyPair, KeyPairType, PublicKey};
 
 use crate::{PeerID, Result};
 
