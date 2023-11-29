@@ -212,3 +212,20 @@ impl ClientCertVerifier for CliCertVerifier {
         &[]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_generated_certificate() {
+        let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
+        let (cert, _) = generate_cert(&key_pair).unwrap();
+
+        let result = verify_cert(&cert);
+        assert!(result.is_ok());
+        let peer_id = result.unwrap();
+        assert_eq!(peer_id, PeerID::try_from(key_pair.public()).unwrap());
+        assert_eq!(peer_id.0, key_pair.public().as_bytes());
+    }
+}

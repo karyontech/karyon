@@ -81,6 +81,7 @@ impl KeyPairExt for Ed25519KeyPair {
     }
 }
 
+#[derive(Debug)]
 pub enum PublicKey {
     Ed25519(Ed25519PublicKey),
 }
@@ -114,6 +115,7 @@ trait PublicKeyExt {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()>;
 }
 
+#[derive(Debug)]
 pub struct Ed25519PublicKey(ed25519_dalek::VerifyingKey);
 
 impl Ed25519PublicKey {
