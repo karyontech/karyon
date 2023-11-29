@@ -118,8 +118,8 @@ impl RefreshService {
     }
 
     /// Initiates periodic refreshing of the routing table. This function will
-    /// select 8 random entries from each bucket in the routing table and start
-    /// sending Ping messages to the entries.
+    /// selects the first 8 entries (oldest entries) from each bucket in the
+    /// routing table and starts sending Ping messages to the collected entries.
     async fn refresh_loop(self: Arc<Self>) -> Result<()> {
         let mut timer = Timer::interval(Duration::from_secs(self.config.refresh_interval));
         loop {
@@ -132,7 +132,11 @@ impl RefreshService {
 
             let mut entries: Vec<BucketEntry> = vec![];
             for bucket in self.table.lock().await.iter() {
-                for entry in bucket.random_iter(8) {
+                for entry in bucket
+                    .iter()
+                    .filter(|e| !e.is_connected() && !e.is_incompatible())
+                    .take(8)
+                {
                     entries.push(entry.clone())
                 }
             }
@@ -142,22 +146,19 @@ impl RefreshService {
     }
 
     /// Iterates over the entries and spawns a new task for each entry to
-    /// initiate a connection attempt to that entry.
+    /// initiate a connection attempt.
     async fn do_refresh(self: Arc<Self>, entries: &[BucketEntry]) {
         let ex = &self.executor;
+        // Enforce a maximum of 16 concurrent connections.
         for chunk in entries.chunks(16) {
             let mut tasks = Vec::new();
             for bucket_entry in chunk {
-                if bucket_entry.is_connected() || bucket_entry.is_incompatible() {
-                    continue;
-                }
-
                 if bucket_entry.failures >= MAX_FAILURES {
                     self.table
                         .lock()
                         .await
                         .remove_entry(&bucket_entry.entry.key);
-                    return;
+                    continue;
                 }
 
                 tasks.push(ex.spawn(self.clone().refresh_entry(bucket_entry.clone())))
