@@ -83,3 +83,15 @@ pub async fn listen_tcp(addr: &Addr, port: &Port) -> Result<TcpListener> {
     let listener = TcpListener::bind(address).await?;
     Ok(listener)
 }
+
+impl From<TcpStream> for Box<dyn Connection> {
+    fn from(conn: TcpStream) -> Self {
+        Box::new(TcpConn::new(conn))
+    }
+}
+
+impl From<TcpListener> for Box<dyn Listener> {
+    fn from(listener: TcpListener) -> Self {
+        Box::new(listener)
+    }
+}

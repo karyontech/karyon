@@ -73,3 +73,9 @@ pub async fn listen_udp(addr: &Addr, port: &Port) -> Result<UdpConn> {
     let udp_conn = UdpConn::new(conn);
     Ok(udp_conn)
 }
+
+impl From<UdpSocket> for Box<dyn Connection> {
+    fn from(conn: UdpSocket) -> Self {
+        Box::new(UdpConn::new(conn))
+    }
+}

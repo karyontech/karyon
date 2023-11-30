@@ -7,13 +7,14 @@ use karyons_core::{
     async_util::{TaskGroup, TaskResult},
     Executor,
 };
-use karyons_net::{listen, Conn, Endpoint, Listener};
+
+use karyons_net::{Conn, Listener};
 
 use crate::{
     codec::{Codec, CodecConfig},
     message,
     service::RPCService,
-    Error, Result, JSONRPC_VERSION,
+    Endpoint, Error, Result, JSONRPC_VERSION,
 };
 
 /// RPC server config
@@ -31,7 +32,7 @@ pub struct Server<'a> {
 }
 
 impl<'a> Server<'a> {
-    /// Creates a new RPC server.
+    /// Creates a new RPC server by passing a listener. It supports Tcp, Unix, and Tls.
     pub fn new(listener: Box<dyn Listener>, config: ServerConfig, ex: Executor<'a>) -> Arc<Self> {
         Arc::new(Self {
             listener,
@@ -41,19 +42,9 @@ impl<'a> Server<'a> {
         })
     }
 
-    /// Creates a new RPC server using the provided endpoint.
-    pub async fn new_with_endpoint(
-        endpoint: &Endpoint,
-        config: ServerConfig,
-        ex: Executor<'a>,
-    ) -> Result<Arc<Self>> {
-        let listener = listen(endpoint).await?;
-        Ok(Arc::new(Self {
-            listener,
-            services: RwLock::new(HashMap::new()),
-            task_group: TaskGroup::new(ex),
-            config,
-        }))
+    /// Returns the local endpoint.
+    pub fn local_endpoint(&self) -> Result<Endpoint> {
+        self.listener.local_endpoint().map_err(Error::KaryonsNet)
     }
 
     /// Starts the RPC server

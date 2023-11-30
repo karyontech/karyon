@@ -74,3 +74,15 @@ pub fn listen_unix(path: &String) -> Result<UnixListener> {
     let listener = UnixListener::bind(path)?;
     Ok(listener)
 }
+
+impl From<UnixStream> for Box<dyn Connection> {
+    fn from(conn: UnixStream) -> Self {
+        Box::new(UnixConn::new(conn))
+    }
+}
+
+impl From<UnixListener> for Box<dyn Listener> {
+    fn from(listener: UnixListener) -> Self {
+        Box::new(listener)
+    }
+}

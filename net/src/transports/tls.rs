@@ -138,3 +138,15 @@ pub async fn listen(
         .await
         .map(|l| Box::new(l) as Box<dyn Listener>)
 }
+
+impl From<TlsStream<TcpStream>> for Box<dyn Connection> {
+    fn from(conn: TlsStream<TcpStream>) -> Self {
+        Box::new(TlsConn::new(conn.get_ref().0.clone(), conn))
+    }
+}
+
+impl From<TlsListener> for Box<dyn Listener> {
+    fn from(listener: TlsListener) -> Self {
+        Box::new(listener)
+    }
+}

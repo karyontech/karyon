@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::net::TcpListener;
 
 use karyons_jsonrpc::{register_service, JsonRPCError, Server, ServerConfig};
 
@@ -43,11 +44,9 @@ fn main() {
     let ex = Arc::new(smol::Executor::new());
     smol::block_on(ex.clone().run(async {
         // Creates a new server
-        let endpoint = "tcp://127.0.0.1:60000".parse().unwrap();
+        let listener = TcpListener::bind("127.0.0.1:60000").await.unwrap();
         let config = ServerConfig::default();
-        let server = Server::new_with_endpoint(&endpoint, config, ex)
-            .await
-            .unwrap();
+        let server = Server::new(listener.into(), config, ex);
 
         // Register the Calc service
         register_service!(Calc, ping, add, sub, version);

@@ -2,7 +2,7 @@ use log::debug;
 use serde::{de::DeserializeOwned, Serialize};
 
 use karyons_core::util::random_32;
-use karyons_net::{dial, Conn, Endpoint};
+use karyons_net::Conn;
 
 use crate::{
     codec::{Codec, CodecConfig},
@@ -22,7 +22,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Creates a new RPC client.
+    /// Creates a new RPC client by passing a Tcp, Unix, or Tls connection.
     pub fn new(conn: Conn, config: ClientConfig) -> Self {
         let codec_config = CodecConfig {
             max_allowed_buffer_size: 0,
@@ -30,17 +30,6 @@ impl Client {
         };
         let codec = Codec::new(conn, codec_config);
         Self { codec, config }
-    }
-
-    /// Creates a new RPC client using the provided endpoint.
-    pub async fn new_with_endpoint(endpoint: &Endpoint, config: ClientConfig) -> Result<Self> {
-        let conn = dial(endpoint).await?;
-        let codec_config = CodecConfig {
-            max_allowed_buffer_size: 0,
-            ..Default::default()
-        };
-        let codec = Codec::new(conn, codec_config);
-        Ok(Self { codec, config })
     }
 
     /// Calls the named method, waits for the response, and returns the result.
