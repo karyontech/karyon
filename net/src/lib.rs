@@ -5,9 +5,9 @@ mod listener;
 mod transports;
 
 pub use {
-    connection::{dial, Conn, Connection},
+    connection::{dial, Conn, Connection, ToConn},
     endpoint::{Addr, Endpoint, Port},
-    listener::{listen, ConnListener, Listener},
+    listener::{listen, ConnListener, Listener, ToListener},
     transports::{
         tcp::{dial_tcp, listen_tcp, TcpConn},
         tls,

@@ -2,7 +2,7 @@ use log::debug;
 use serde::{de::DeserializeOwned, Serialize};
 
 use karyons_core::util::random_32;
-use karyons_net::Conn;
+use karyons_net::ToConn;
 
 use crate::{
     codec::{Codec, CodecConfig},
@@ -23,12 +23,12 @@ pub struct Client {
 
 impl Client {
     /// Creates a new RPC client by passing a Tcp, Unix, or Tls connection.
-    pub fn new(conn: Conn, config: ClientConfig) -> Self {
+    pub fn new<C: ToConn>(conn: C, config: ClientConfig) -> Self {
         let codec_config = CodecConfig {
             max_allowed_buffer_size: 0,
             ..Default::default()
         };
-        let codec = Codec::new(conn, codec_config);
+        let codec = Codec::new(conn.to_conn(), codec_config);
         Self { codec, config }
     }
 

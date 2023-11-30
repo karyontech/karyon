@@ -7,9 +7,9 @@ use smol::{
 };
 
 use crate::{
-    connection::Connection,
+    connection::{Connection, ToConn},
     endpoint::{Addr, Endpoint, Port},
-    listener::ConnListener,
+    listener::{ConnListener, ToListener},
     Error, Result,
 };
 
@@ -93,5 +93,23 @@ impl From<TcpStream> for Box<dyn Connection> {
 impl From<TcpListener> for Box<dyn ConnListener> {
     fn from(listener: TcpListener) -> Self {
         Box::new(listener)
+    }
+}
+
+impl ToConn for TcpStream {
+    fn to_conn(self) -> Box<dyn Connection> {
+        self.into()
+    }
+}
+
+impl ToConn for TcpConn {
+    fn to_conn(self) -> Box<dyn Connection> {
+        Box::new(self)
+    }
+}
+
+impl ToListener for TcpListener {
+    fn to_listener(self) -> Box<dyn ConnListener> {
+        self.into()
     }
 }

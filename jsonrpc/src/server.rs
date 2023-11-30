@@ -8,7 +8,7 @@ use karyons_core::{
     Executor,
 };
 
-use karyons_net::{Conn, Listener};
+use karyons_net::{Conn, Listener, ToListener};
 
 use crate::{
     codec::{Codec, CodecConfig},
@@ -33,9 +33,9 @@ pub struct Server<'a> {
 
 impl<'a> Server<'a> {
     /// Creates a new RPC server by passing a listener. It supports Tcp, Unix, and Tls.
-    pub fn new(listener: Listener, config: ServerConfig, ex: Executor<'a>) -> Arc<Self> {
+    pub fn new<T: ToListener>(listener: T, config: ServerConfig, ex: Executor<'a>) -> Arc<Self> {
         Arc::new(Self {
-            listener,
+            listener: listener.to_listener(),
             services: RwLock::new(HashMap::new()),
             task_group: TaskGroup::new(ex),
             config,

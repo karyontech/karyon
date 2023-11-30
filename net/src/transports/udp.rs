@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use smol::net::UdpSocket;
 
 use crate::{
-    connection::Connection,
+    connection::{Connection, ToConn},
     endpoint::{Addr, Endpoint, Port},
     Error, Result,
 };
@@ -77,5 +77,17 @@ pub async fn listen_udp(addr: &Addr, port: &Port) -> Result<UdpConn> {
 impl From<UdpSocket> for Box<dyn Connection> {
     fn from(conn: UdpSocket) -> Self {
         Box::new(UdpConn::new(conn))
+    }
+}
+
+impl ToConn for UdpSocket {
+    fn to_conn(self) -> Box<dyn Connection> {
+        self.into()
+    }
+}
+
+impl ToConn for UdpConn {
+    fn to_conn(self) -> Box<dyn Connection> {
+        Box::new(self)
     }
 }

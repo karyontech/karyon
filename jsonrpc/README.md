@@ -30,7 +30,7 @@ let ex = Arc::new(smol::Executor::new());
 // Creates a new server
 let listener = TcpListener::bind("127.0.0.1:60000").await.unwrap();
 let config = ServerConfig::default();
-let server = Server::new(listener.into(), config, ex.clone());
+let server = Server::new(listener, config, ex.clone());
 
 // Register the HelloWorld service
 register_service!(HelloWorld, say_hello);
@@ -45,7 +45,7 @@ ex.run(server.start());
 // Creates a new client
 let conn = TcpStream::connect("127.0.0.1:60000").await.unwrap();
 let config = ClientConfig::default();
-let client = Client::new(conn.into(), config);
+let client = Client::new(conn, config);
 
 let result: String = client.call("HelloWorld.say_hello", "world".to_string()).await.unwrap();
 

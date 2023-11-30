@@ -9,9 +9,9 @@ use smol::{
 };
 
 use crate::{
-    connection::Connection,
+    connection::{Connection, ToConn},
     endpoint::{Addr, Endpoint, Port},
-    listener::ConnListener,
+    listener::{ConnListener, ToListener},
     Error, Result,
 };
 
@@ -148,5 +148,23 @@ impl From<TlsStream<TcpStream>> for Box<dyn Connection> {
 impl From<TlsListener> for Box<dyn ConnListener> {
     fn from(listener: TlsListener) -> Self {
         Box::new(listener)
+    }
+}
+
+impl ToConn for TlsStream<TcpStream> {
+    fn to_conn(self) -> Box<dyn Connection> {
+        self.into()
+    }
+}
+
+impl ToConn for TlsConn {
+    fn to_conn(self) -> Box<dyn Connection> {
+        Box::new(self)
+    }
+}
+
+impl ToListener for TlsListener {
+    fn to_listener(self) -> Box<dyn ConnListener> {
+        self.into()
     }
 }

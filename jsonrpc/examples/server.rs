@@ -46,7 +46,7 @@ fn main() {
         // Creates a new server
         let listener = TcpListener::bind("127.0.0.1:60000").await.unwrap();
         let config = ServerConfig::default();
-        let server = Server::new(listener.into(), config, ex);
+        let server = Server::new(listener, config, ex);
 
         // Register the Calc service
         register_service!(Calc, ping, add, sub, version);

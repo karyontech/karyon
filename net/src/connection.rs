@@ -8,6 +8,11 @@ use crate::{
 /// Alias for `Box<dyn Connection>`
 pub type Conn = Box<dyn Connection>;
 
+/// A trait for objects which can be converted to [`Conn`].
+pub trait ToConn {
+    fn to_conn(self) -> Conn;
+}
+
 /// Connection is a generic network connection interface for
 /// [`udp::UdpConn`], [`tcp::TcpConn`], and [`unix::UnixConn`].
 ///

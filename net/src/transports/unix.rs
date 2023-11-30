@@ -6,7 +6,12 @@ use smol::{
     net::unix::{UnixListener, UnixStream},
 };
 
-use crate::{connection::Connection, endpoint::Endpoint, listener::ConnListener, Error, Result};
+use crate::{
+    connection::{Connection, ToConn},
+    endpoint::Endpoint,
+    listener::{ConnListener, ToListener},
+    Error, Result,
+};
 
 /// Unix domain socket implementation of the [`Connection`] trait.
 pub struct UnixConn {
@@ -84,5 +89,23 @@ impl From<UnixStream> for Box<dyn Connection> {
 impl From<UnixListener> for Box<dyn ConnListener> {
     fn from(listener: UnixListener) -> Self {
         Box::new(listener)
+    }
+}
+
+impl ToConn for UnixStream {
+    fn to_conn(self) -> Box<dyn Connection> {
+        self.into()
+    }
+}
+
+impl ToConn for UnixConn {
+    fn to_conn(self) -> Box<dyn Connection> {
+        Box::new(self)
+    }
+}
+
+impl ToListener for UnixListener {
+    fn to_listener(self) -> Box<dyn ConnListener> {
+        self.into()
     }
 }

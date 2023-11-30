@@ -17,7 +17,7 @@ fn main() {
     smol::future::block_on(async {
         let conn = TcpStream::connect("127.0.0.1:60000").await.unwrap();
         let config = ClientConfig::default();
-        let client = Client::new(conn.into(), config);
+        let client = Client::new(conn, config);
 
         let params = Req { x: 10, y: 7 };
         let result: u32 = client.call("Calc.add", params).await.unwrap();

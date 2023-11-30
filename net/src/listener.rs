@@ -8,6 +8,11 @@ use crate::{
 /// Alias for `Box<dyn ConnListener>`
 pub type Listener = Box<dyn ConnListener>;
 
+/// A trait for objects which can be converted to [`Listener`].
+pub trait ToListener {
+    fn to_listener(self) -> Listener;
+}
+
 /// ConnListener is a generic network listener.
 #[async_trait]
 pub trait ConnListener: Send + Sync {
