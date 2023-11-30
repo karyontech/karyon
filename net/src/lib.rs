@@ -7,7 +7,7 @@ mod transports;
 pub use {
     connection::{dial, Conn, Connection},
     endpoint::{Addr, Endpoint, Port},
-    listener::{listen, Listener},
+    listener::{listen, ConnListener, Listener},
     transports::{
         tcp::{dial_tcp, listen_tcp, TcpConn},
         tls,

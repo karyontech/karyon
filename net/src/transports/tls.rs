@@ -11,7 +11,7 @@ use smol::{
 use crate::{
     connection::Connection,
     endpoint::{Addr, Endpoint, Port},
-    listener::Listener,
+    listener::ConnListener,
     Error, Result,
 };
 
@@ -92,14 +92,14 @@ pub async fn dial(
         .await
         .map(|c| Box::new(c) as Box<dyn Connection>)
 }
-/// Tls network listener implementation of the [`Listener`] trait.
+/// Tls network listener implementation of the `Listener` [`ConnListener`] trait.
 pub struct TlsListener {
     acceptor: TlsAcceptor,
     listener: TcpListener,
 }
 
 #[async_trait]
-impl Listener for TlsListener {
+impl ConnListener for TlsListener {
     fn local_endpoint(&self) -> Result<Endpoint> {
         Ok(Endpoint::new_tls_addr(&self.listener.local_addr()?))
     }
@@ -124,11 +124,11 @@ pub async fn listen_tls(
     Ok(TlsListener { acceptor, listener })
 }
 
-/// Listens on the given TLS endpoint, returns [`Listener`].
+/// Listens on the given TLS endpoint, returns `Listener` [`ConnListener`].
 pub async fn listen(
     endpoint: &Endpoint,
     config: rustls::ServerConfig,
-) -> Result<Box<dyn Listener>> {
+) -> Result<Box<dyn ConnListener>> {
     match endpoint {
         Endpoint::Tcp(..) | Endpoint::Tls(..) => {}
         _ => return Err(Error::InvalidEndpoint(endpoint.to_string())),
@@ -136,7 +136,7 @@ pub async fn listen(
 
     listen_tls(endpoint.addr()?, endpoint.port()?, config)
         .await
-        .map(|l| Box::new(l) as Box<dyn Listener>)
+        .map(|l| Box::new(l) as Box<dyn ConnListener>)
 }
 
 impl From<TlsStream<TcpStream>> for Box<dyn Connection> {
@@ -145,7 +145,7 @@ impl From<TlsStream<TcpStream>> for Box<dyn Connection> {
     }
 }
 
-impl From<TlsListener> for Box<dyn Listener> {
+impl From<TlsListener> for Box<dyn ConnListener> {
     fn from(listener: TlsListener) -> Self {
         Box::new(listener)
     }

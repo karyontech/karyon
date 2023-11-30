@@ -9,7 +9,7 @@ use smol::{
 use crate::{
     connection::Connection,
     endpoint::{Addr, Endpoint, Port},
-    listener::Listener,
+    listener::ConnListener,
     Error, Result,
 };
 
@@ -57,7 +57,7 @@ impl Connection for TcpConn {
 }
 
 #[async_trait]
-impl Listener for TcpListener {
+impl ConnListener for TcpListener {
     fn local_endpoint(&self) -> Result<Endpoint> {
         Ok(Endpoint::new_tcp_addr(&self.local_addr()?))
     }
@@ -90,7 +90,7 @@ impl From<TcpStream> for Box<dyn Connection> {
     }
 }
 
-impl From<TcpListener> for Box<dyn Listener> {
+impl From<TcpListener> for Box<dyn ConnListener> {
     fn from(listener: TcpListener) -> Self {
         Box::new(listener)
     }

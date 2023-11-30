@@ -8,7 +8,7 @@ use karyons_core::{
     GlobalExecutor,
 };
 
-use karyons_net::{listen, tls, Conn, Endpoint, Listener as NetListener};
+use karyons_net::{listen, tls, Conn, ConnListener, Endpoint};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
@@ -100,7 +100,7 @@ impl Listener {
 
     async fn listen_loop<Fut>(
         self: Arc<Self>,
-        listener: Box<dyn NetListener>,
+        listener: Box<dyn ConnListener>,
         callback: impl FnOnce(Conn) -> Fut + Clone + Send + 'static,
     ) where
         Fut: Future<Output = Result<()>> + Send + 'static,
@@ -152,7 +152,7 @@ impl Listener {
         }
     }
 
-    async fn listend(&self, endpoint: &Endpoint) -> Result<Box<dyn NetListener>> {
+    async fn listend(&self, endpoint: &Endpoint) -> Result<Box<dyn ConnListener>> {
         if self.enable_tls {
             let tls_config = tls_server_config(&self.key_pair)?;
             tls::listen(endpoint, tls_config).await

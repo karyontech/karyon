@@ -5,9 +5,12 @@ use crate::{
     Conn, Endpoint, Error, Result,
 };
 
-/// Listener is a generic network listener.
+/// Alias for `Box<dyn ConnListener>`
+pub type Listener = Box<dyn ConnListener>;
+
+/// ConnListener is a generic network listener.
 #[async_trait]
-pub trait Listener: Send + Sync {
+pub trait ConnListener: Send + Sync {
     fn local_endpoint(&self) -> Result<Endpoint>;
     async fn accept(&self) -> Result<Conn>;
 }
@@ -29,7 +32,7 @@ pub trait Listener: Send + Sync {
 /// };
 ///
 /// ```
-pub async fn listen(endpoint: &Endpoint) -> Result<Box<dyn Listener>> {
+pub async fn listen(endpoint: &Endpoint) -> Result<Box<dyn ConnListener>> {
     match endpoint {
         Endpoint::Tcp(addr, port) => Ok(Box::new(tcp::listen_tcp(addr, port).await?)),
         Endpoint::Unix(addr) => Ok(Box::new(unix::listen_unix(addr)?)),

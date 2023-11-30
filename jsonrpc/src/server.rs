@@ -25,7 +25,7 @@ pub struct ServerConfig {
 
 /// Represents an RPC server
 pub struct Server<'a> {
-    listener: Box<dyn Listener>,
+    listener: Listener,
     services: RwLock<HashMap<String, Box<dyn RPCService + 'a>>>,
     task_group: TaskGroup<'a>,
     config: ServerConfig,
@@ -33,7 +33,7 @@ pub struct Server<'a> {
 
 impl<'a> Server<'a> {
     /// Creates a new RPC server by passing a listener. It supports Tcp, Unix, and Tls.
-    pub fn new(listener: Box<dyn Listener>, config: ServerConfig, ex: Executor<'a>) -> Arc<Self> {
+    pub fn new(listener: Listener, config: ServerConfig, ex: Executor<'a>) -> Arc<Self> {
         Arc::new(Self {
             listener,
             services: RwLock::new(HashMap::new()),
