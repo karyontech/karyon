@@ -26,18 +26,18 @@ implementation for building collaborative software.
 
 This project is a work in progress. The current focus is on shipping `karyon
 crdt` and `karyon store`, along with major changes to the network stack. You can
-check the [issues](https://github.com/karyons/karyons/issues) for updates on
+check the [issues](https://github.com/karyons/karyon/issues) for updates on
 ongoing tasks.
 
 ## Docs
 
 Online documentation for the main crates: 
-[karyon_p2p](https://karyons.github.io/karyons/karyon_p2p), 
-[karyon_jsonrpc](https://karyons.github.io/karyons/karyon_jsonrpc)
+[karyon_p2p](https://karyons.github.io/karyon/karyon_p2p), 
+[karyon_jsonrpc](https://karyons.github.io/karyon/karyon_jsonrpc)
 
 For the internal crates: 
-[karyon_core](https://karyons.github.io/karyons/karyon_core), 
-[karyon_net](https://karyons.github.io/karyons/karyon_net)
+[karyon_core](https://karyons.github.io/karyon/karyon_core), 
+[karyon_net](https://karyons.github.io/karyon/karyon_net)
 
 ## Thanks
 
@@ -47,7 +47,7 @@ Big thanks to [Ink & Switch](https://www.inkandswitch.com/) team,
 
 ## Contribution
 
-Feel free to open a pull request or an [issue](https://github.com/karyons/karyons/issues/new). 
+Feel free to open a pull request or an [issue](https://github.com/karyons/karyon/issues/new). 
 
 ## License
 
