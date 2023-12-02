@@ -9,13 +9,13 @@ use smol::{
     Timer,
 };
 
-use karyons_core::{
+use karyon_core::{
     async_util::{timeout, Backoff, TaskGroup, TaskResult},
     util::{decode, encode},
     GlobalExecutor,
 };
 
-use karyons_net::{dial_udp, listen_udp, Addr, Connection, Endpoint, NetError, Port, UdpConn};
+use karyon_net::{dial_udp, listen_udp, Addr, Connection, Endpoint, NetError, Port, UdpConn};
 
 /// Maximum failures for an entry before removing it from the routing table.
 pub const MAX_FAILURES: u32 = 3;
@@ -200,7 +200,7 @@ impl RefreshService {
         while retry < self.config.refresh_connect_retries {
             match self.send_ping_msg(&conn).await {
                 Ok(()) => return Ok(()),
-                Err(Error::KaryonsNet(NetError::Timeout)) => {
+                Err(Error::KaryonNet(NetError::Timeout)) => {
                     retry += 1;
                     backoff.sleep().await;
                 }

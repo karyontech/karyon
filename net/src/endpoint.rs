@@ -13,14 +13,14 @@ use crate::{Error, Result};
 /// Port defined as a u16.
 pub type Port = u16;
 
-/// Endpoint defines generic network endpoints for karyons.
+/// Endpoint defines generic network endpoints for karyon.
 ///
 /// # Example
 ///
 /// ```
 /// use std::net::SocketAddr;
 ///
-/// use karyons_net::Endpoint;
+/// use karyon_net::Endpoint;
 ///
 /// let endpoint: Endpoint = "tcp://127.0.0.1:3000".parse().unwrap();
 ///

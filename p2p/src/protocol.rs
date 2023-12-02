@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyons_core::event::EventValue;
+use karyon_core::event::EventValue;
 
 use crate::{peer::ArcPeer, version::Version, Result};
 
@@ -37,8 +37,8 @@ impl EventValue for ProtocolEvent {
 /// use async_trait::async_trait;
 /// use smol::Executor;
 ///
-/// use karyons_core::crypto::{KeyPair, KeyPairType};
-/// use karyons_p2p::{
+/// use karyon_core::crypto::{KeyPair, KeyPairType};
+/// use karyon_p2p::{
 ///     protocol::{ArcProtocol, Protocol, ProtocolID, ProtocolEvent},
 ///     Backend, PeerID, Config, Version, P2pError, ArcPeer};
 ///

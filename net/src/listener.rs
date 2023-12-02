@@ -27,7 +27,7 @@ pub trait ConnListener: Send + Sync {
 /// #Example
 ///
 /// ```
-/// use karyons_net::{Endpoint, listen};
+/// use karyon_net::{Endpoint, listen};
 ///
 /// async {
 ///     let endpoint: Endpoint = "tcp://127.0.0.1:3000".parse().unwrap();

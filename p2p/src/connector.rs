@@ -2,12 +2,12 @@ use std::{future::Future, sync::Arc};
 
 use log::{error, trace, warn};
 
-use karyons_core::{
+use karyon_core::{
     async_util::{Backoff, TaskGroup, TaskResult},
     crypto::KeyPair,
     GlobalExecutor,
 };
-use karyons_net::{dial, tls, Conn, Endpoint, NetError};
+use karyon_net::{dial, tls, Conn, Endpoint, NetError};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
@@ -146,6 +146,6 @@ impl Connector {
         } else {
             dial(endpoint).await
         }
-        .map_err(Error::KaryonsNet)
+        .map_err(Error::KaryonNet)
     }
 }

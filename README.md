@@ -1,4 +1,4 @@
-# karyons
+# karyon
 
 An infrastructure for peer-to-peer, decentralized, and collaborative software.
 
@@ -11,33 +11,33 @@ Join us on:
 
 ## Crates 
 
-- [karyons core](./core):  Essential utilities and core functionality.
-- [karyons net](./net): Provides a network interface for TCP, UDP, and Unix,
+- [karyon core](./core):  Essential utilities and core functionality.
+- [karyon net](./net): Provides a network interface for TCP, UDP, and Unix,
   along with common network functionality. 
-- [karyons p2p](./p2p): A lightweight, extensible, and customizable
+- [karyon p2p](./p2p): A lightweight, extensible, and customizable
   peer-to-peer (p2p) network stack.
-- [karyons jsonrpc](./jsonrpc): A fast and small async
+- [karyon jsonrpc](./jsonrpc): A fast and small async
   [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation.
-- karyons crdt: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
+- karyon crdt: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
 implementation for building collaborative software. 
-- karyons base: A lightweight, extensible database that operates with karyons crdt.
+- karyon base: A lightweight, extensible database that operates with karyon crdt.
 
 ## Status
 
-This project is a work in progress. The current focus is on shipping karyons
-crdt and karyons store, along with major changes to the network stack. You can
+This project is a work in progress. The current focus is on shipping `karyon
+crdt` and `karyon store`, along with major changes to the network stack. You can
 check the [issues](https://github.com/karyons/karyons/issues) for updates on
 ongoing tasks.
 
 ## Docs
 
 Online documentation for the main crates: 
-[karyons_p2p](https://karyons.github.io/karyons/karyons_p2p), 
-[karyons_jsonrpc](https://karyons.github.io/karyons/karyons_jsonrpc)
+[karyon_p2p](https://karyons.github.io/karyons/karyon_p2p), 
+[karyon_jsonrpc](https://karyons.github.io/karyons/karyon_jsonrpc)
 
 For the internal crates: 
-[karyons_core](https://karyons.github.io/karyons/karyons_core), 
-[karyons_net](https://karyons.github.io/karyons/karyons_net)
+[karyon_core](https://karyons.github.io/karyons/karyon_core), 
+[karyon_net](https://karyons.github.io/karyons/karyon_net)
 
 ## Thanks
 

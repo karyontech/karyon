@@ -11,7 +11,7 @@ pub use entry::{xor_distance, Entry, Key};
 
 use rand::{rngs::OsRng, seq::SliceRandom};
 
-use karyons_net::Addr;
+use karyon_net::Addr;
 
 use bucket::BUCKET_SIZE;
 use entry::KEY_SIZE;
@@ -284,7 +284,7 @@ mod tests {
     use super::bucket::ALL_ENTRY;
     use super::*;
 
-    use karyons_net::Addr;
+    use karyon_net::Addr;
 
     struct Setup {
         local_key: Key,

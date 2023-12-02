@@ -10,13 +10,13 @@ use smol::{
     lock::{Mutex, RwLock},
 };
 
-use karyons_core::{
+use karyon_core::{
     async_util::{TaskGroup, TaskResult},
     util::decode,
     GlobalExecutor,
 };
 
-use karyons_net::Conn;
+use karyon_net::Conn;
 
 use crate::{
     codec::{Codec, CodecMsg},

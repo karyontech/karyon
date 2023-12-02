@@ -11,14 +11,14 @@ use smol::{
     Timer,
 };
 
-use karyons_core::{
+use karyon_core::{
     async_util::{select, timeout, Either, TaskGroup, TaskResult},
     event::EventListener,
     util::decode,
     GlobalExecutor,
 };
 
-use karyons_net::NetError;
+use karyon_net::NetError;
 
 use crate::{
     peer::ArcPeer,

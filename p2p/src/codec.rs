@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use bincode::{Decode, Encode};
 
-use karyons_core::{
+use karyon_core::{
     async_util::timeout,
     util::{decode, encode, encode_into_slice},
 };
 
-use karyons_net::{Connection, NetError};
+use karyon_net::{Connection, NetError};
 
 use crate::{
     message::{NetMsg, NetMsgCmd, NetMsgHeader, MAX_ALLOWED_MSG_SIZE, MSG_HEADER_SIZE},

@@ -24,7 +24,7 @@ type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<E
 /// # Example
 ///
 /// ```
-/// use karyons_core::event::{EventSys, EventValueTopic, EventValue};
+/// use karyon_core::event::{EventSys, EventValueTopic, EventValue};
 ///
 ///  async {
 ///     let event_sys = EventSys::new();

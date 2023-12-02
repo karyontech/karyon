@@ -1,4 +1,4 @@
-use karyons_net::{Endpoint, Port};
+use karyon_net::{Endpoint, Port};
 
 use crate::Version;
 

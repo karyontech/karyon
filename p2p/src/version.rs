@@ -5,12 +5,12 @@ use semver::VersionReq;
 
 use crate::{Error, Result};
 
-/// Represents the network version and protocol version used in karyons p2p.
+/// Represents the network version and protocol version used in karyon p2p.
 ///
 /// # Example
 ///
 /// ```
-/// use karyons_p2p::Version;
+/// use karyon_p2p::Version;
 ///
 /// let version: Version = "0.2.0, >0.1.0".parse().unwrap();
 ///

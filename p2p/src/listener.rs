@@ -2,13 +2,13 @@ use std::{future::Future, sync::Arc};
 
 use log::{debug, error, info};
 
-use karyons_core::{
+use karyon_core::{
     async_util::{TaskGroup, TaskResult},
     crypto::KeyPair,
     GlobalExecutor,
 };
 
-use karyons_net::{listen, tls, Conn, ConnListener, Endpoint};
+use karyon_net::{listen, tls, Conn, ConnListener, Endpoint};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
@@ -159,6 +159,6 @@ impl Listener {
         } else {
             listen(endpoint).await
         }
-        .map_err(Error::KaryonsNet)
+        .map_err(Error::KaryonNet)
     }
 }

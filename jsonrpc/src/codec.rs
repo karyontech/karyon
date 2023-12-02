@@ -1,7 +1,7 @@
 use memchr::memchr;
 
-use karyons_core::async_util::timeout;
-use karyons_net::Conn;
+use karyon_core::async_util::timeout;
+use karyon_net::Conn;
 
 use crate::{Error, Result};
 

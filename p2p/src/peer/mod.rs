@@ -10,14 +10,14 @@ use smol::{
     lock::RwLock,
 };
 
-use karyons_core::{
+use karyon_core::{
     async_util::{select, Either, TaskGroup, TaskResult},
     event::{ArcEventSys, EventListener, EventSys},
     util::{decode, encode},
     GlobalExecutor,
 };
 
-use karyons_net::Endpoint;
+use karyon_net::Endpoint;
 
 use crate::{
     codec::{Codec, CodecMsg},

@@ -9,7 +9,7 @@
 //! use serde_json::Value;
 //! use smol::net::{TcpStream, TcpListener};
 //!
-//! use karyons_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
+//! use karyon_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
 //!
 //! struct HelloWorld {}
 //!
@@ -63,7 +63,7 @@ pub use error::Error as JsonRPCError;
 pub use server::{Server, ServerConfig};
 pub use service::{RPCMethod, RPCService};
 
-pub use karyons_net::Endpoint;
+pub use karyon_net::Endpoint;
 
 const JSONRPC_VERSION: &str = "2.0";
 use error::{Error, Result};

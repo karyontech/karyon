@@ -2,7 +2,7 @@ use thiserror::Error as ThisError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Represents karyons's p2p Error.
+/// Represents karyon's p2p Error.
 #[derive(ThisError, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -75,10 +75,10 @@ pub enum Error {
     ChannelRecv(#[from] smol::channel::RecvError),
 
     #[error(transparent)]
-    KaryonsCore(#[from] karyons_core::error::Error),
+    KaryonCore(#[from] karyon_core::error::Error),
 
     #[error(transparent)]
-    KaryonsNet(#[from] karyons_net::NetError),
+    KaryonNet(#[from] karyon_net::NetError),
 }
 
 impl<T> From<smol::channel::SendError<T>> for Error {

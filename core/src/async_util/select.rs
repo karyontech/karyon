@@ -12,7 +12,7 @@ use smol::future::Future;
 /// ```
 /// use std::future;
 ///
-/// use karyons_core::async_util::{select, Either};
+/// use karyon_core::async_util::{select, Either};
 ///
 ///  async {
 ///     let fut1 = future::pending::<String>();

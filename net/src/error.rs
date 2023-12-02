@@ -35,7 +35,7 @@ pub enum Error {
     InvalidDnsNameError(#[from] async_rustls::rustls::client::InvalidDnsNameError),
 
     #[error(transparent)]
-    KaryonsCore(#[from] karyons_core::error::Error),
+    KaryonCore(#[from] karyon_core::error::Error),
 }
 
 impl<T> From<smol::channel::SendError<T>> for Error {

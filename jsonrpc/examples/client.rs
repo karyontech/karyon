@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use smol::net::TcpStream;
 
-use karyons_jsonrpc::{Client, ClientConfig};
+use karyon_jsonrpc::{Client, ClientConfig};
 
 #[derive(Deserialize, Serialize)]
 struct Req {

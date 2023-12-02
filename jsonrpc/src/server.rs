@@ -3,12 +3,12 @@ use std::{collections::HashMap, sync::Arc};
 use log::{debug, error, warn};
 use smol::lock::RwLock;
 
-use karyons_core::{
+use karyon_core::{
     async_util::{TaskGroup, TaskResult},
     Executor,
 };
 
-use karyons_net::{Conn, Listener, ToListener};
+use karyon_net::{Conn, Listener, ToListener};
 
 use crate::{
     codec::{Codec, CodecConfig},
@@ -44,7 +44,7 @@ impl<'a> Server<'a> {
 
     /// Returns the local endpoint.
     pub fn local_endpoint(&self) -> Result<Endpoint> {
-        self.listener.local_endpoint().map_err(Error::KaryonsNet)
+        self.listener.local_endpoint().map_err(Error::KaryonNet)
     }
 
     /// Starts the RPC server

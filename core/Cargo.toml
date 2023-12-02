@@ -1,5 +1,5 @@
 [package]
-name = "karyons_core"
+name = "karyon_core"
 version.workspace = true 
 edition.workspace = true
 

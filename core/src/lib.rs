@@ -5,7 +5,7 @@ pub mod util;
 /// [`smol`](https://github.com/smol-rs/smol) async runtime.
 pub mod async_util;
 
-/// Represents karyons's Core Error.
+/// Represents karyon's Core Error.
 pub mod error;
 
 /// [`event::EventSys`] implementation.

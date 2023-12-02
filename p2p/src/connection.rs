@@ -2,8 +2,8 @@ use std::{collections::VecDeque, fmt, sync::Arc};
 
 use smol::{channel::Sender, lock::Mutex};
 
-use karyons_core::async_util::CondVar;
-use karyons_net::Conn;
+use karyon_core::async_util::CondVar;
+use karyon_net::Conn;
 
 use crate::Result;
 

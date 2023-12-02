@@ -12,8 +12,8 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-karyons_core = { path = "core" }
-karyons_net = { path = "net" }
-karyons_p2p = { path = "p2p" }
-karyons_jsonrpc = { path = "jsonrpc" }
+karyon_core = { path = "core" }
+karyon_net = { path = "net" }
+karyon_p2p = { path = "p2p" }
+karyon_jsonrpc = { path = "jsonrpc" }
 

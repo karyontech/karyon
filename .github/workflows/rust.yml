@@ -9,7 +9,7 @@ env:
 
 jobs:
   build_and_test:
-    name: karyons - latest
+    name: karyon - latest
     runs-on: ubuntu-latest
     strategy:
       matrix:

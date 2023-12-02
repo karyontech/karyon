@@ -7,13 +7,13 @@ use log::{error, info};
 use rand::{rngs::OsRng, seq::SliceRandom};
 use smol::lock::Mutex;
 
-use karyons_core::{
+use karyon_core::{
     async_util::{Backoff, TaskGroup, TaskResult},
     crypto::KeyPair,
     GlobalExecutor,
 };
 
-use karyons_net::{Conn, Endpoint};
+use karyon_net::{Conn, Endpoint};
 
 use crate::{
     config::Config,

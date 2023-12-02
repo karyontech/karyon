@@ -1,11 +1,11 @@
 [package]
-name = "karyons_jsonrpc"
+name = "karyon_jsonrpc"
 version.workspace = true 
 edition.workspace = true
 
 [dependencies]
-karyons_core.workspace = true
-karyons_net.workspace = true
+karyon_core.workspace = true
+karyon_net.workspace = true
 
 smol = "1.3.0"
 log = "0.4.20"

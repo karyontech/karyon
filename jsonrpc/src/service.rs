@@ -20,7 +20,7 @@ pub trait RPCService: Sync + Send {
 /// ```
 /// use serde_json::Value;
 ///
-/// use karyons_jsonrpc::{JsonRPCError, register_service};
+/// use karyon_jsonrpc::{JsonRPCError, register_service};
 ///
 /// struct Hello {}
 ///
@@ -36,11 +36,11 @@ pub trait RPCService: Sync + Send {
 #[macro_export]
 macro_rules! register_service {
     ($t:ty, $($m:ident),*) => {
-        impl karyons_jsonrpc::RPCService for $t {
+        impl karyon_jsonrpc::RPCService for $t {
             fn get_method<'a>(
                 &'a self,
                 name: &'a str
-            ) -> Option<karyons_jsonrpc::RPCMethod> {
+            ) -> Option<karyon_jsonrpc::RPCMethod> {
                 match name {
                 $(
                     stringify!($m) => {

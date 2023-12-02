@@ -19,7 +19,7 @@ use crate::util::random_16;
 ///
 /// use smol::lock::Mutex;
 ///
-/// use karyons_core::async_util::CondVar;
+/// use karyon_core::async_util::CondVar;
 ///
 ///  async {
 ///     

@@ -12,7 +12,7 @@ use smol::Timer;
 /// # Examples
 ///
 /// ```
-/// use karyons_core::async_util::Backoff;
+/// use karyon_core::async_util::Backoff;
 ///
 ///  async {
 ///     let backoff = Backoff::new(300, 3000);

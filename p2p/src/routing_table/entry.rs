@@ -1,6 +1,6 @@
 use bincode::{Decode, Encode};
 
-use karyons_net::{Addr, Port};
+use karyon_net::{Addr, Port};
 
 /// Specifies the size of the key, in bytes.
 pub const KEY_SIZE: usize = 32;

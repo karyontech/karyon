@@ -1,4 +1,4 @@
-# karyons jsonrpc
+# karyon jsonrpc
 
 A fast and lightweight async implementation of [JSON-RPC
 2.0](https://www.jsonrpc.org/specification), supporting the Tcp and Unix protocols.
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use smol::net::{TcpStream, TcpListener};
 
-use karyons_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
+use karyon_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
 
 struct HelloWorld {}
 

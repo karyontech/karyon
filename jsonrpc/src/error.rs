@@ -2,7 +2,7 @@ use thiserror::Error as ThisError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Represents karyons's jsonrpc Error.
+/// Represents karyon's jsonrpc Error.
 #[derive(ThisError, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -27,8 +27,8 @@ pub enum Error {
     InvalidMsg(&'static str),
 
     #[error(transparent)]
-    KaryonsCore(#[from] karyons_core::error::Error),
+    KaryonCore(#[from] karyon_core::error::Error),
 
     #[error(transparent)]
-    KaryonsNet(#[from] karyons_net::NetError),
+    KaryonNet(#[from] karyon_net::NetError),
 }

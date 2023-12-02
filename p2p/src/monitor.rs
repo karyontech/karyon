@@ -2,9 +2,9 @@ use std::fmt;
 
 use crate::PeerID;
 
-use karyons_core::pubsub::{ArcPublisher, Publisher, Subscription};
+use karyon_core::pubsub::{ArcPublisher, Publisher, Subscription};
 
-use karyons_net::Endpoint;
+use karyon_net::Endpoint;
 
 /// Responsible for network and system monitoring.
 ///
@@ -17,8 +17,8 @@ use karyons_net::Endpoint;
 ///
 /// use smol::Executor;
 ///
-/// use karyons_core::crypto::{KeyPair, KeyPairType};
-/// use karyons_p2p::{Config, Backend, PeerID};
+/// use karyon_core::crypto::{KeyPair, KeyPairType};
+/// use karyon_p2p::{Config, Backend, PeerID};
 ///
 /// async {
 ///     

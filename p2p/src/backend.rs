@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::info;
 
-use karyons_core::{crypto::KeyPair, pubsub::Subscription, GlobalExecutor};
+use karyon_core::{crypto::KeyPair, pubsub::Subscription, GlobalExecutor};
 
 use crate::{
     config::Config,

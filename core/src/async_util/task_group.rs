@@ -14,7 +14,7 @@ use super::{select, CondWait, Either};
 ///
 /// use std::sync::Arc;
 ///
-/// use karyons_core::async_util::TaskGroup;
+/// use karyon_core::async_util::TaskGroup;
 ///
 /// async {
 ///

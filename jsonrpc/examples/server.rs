@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smol::net::TcpListener;
 
-use karyons_jsonrpc::{register_service, JsonRPCError, Server, ServerConfig};
+use karyon_jsonrpc::{register_service, JsonRPCError, Server, ServerConfig};
 
 struct Calc {
     version: String,

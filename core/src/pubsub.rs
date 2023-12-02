@@ -12,7 +12,7 @@ pub type SubscriptionID = u16;
 // # Example
 ///
 /// ```
-/// use karyons_core::pubsub::{Publisher};
+/// use karyon_core::pubsub::{Publisher};
 ///
 ///  async {
 ///     let publisher = Publisher::new();

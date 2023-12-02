@@ -1,6 +1,6 @@
-# karyons p2p
+# karyon p2p
 
-karyons p2p serves as the foundational stack for the karyons project. It offers
+karyon p2p serves as the foundational stack for the karyon project. It offers
 a lightweight, extensible, and customizable peer-to-peer (p2p) network stack
 that seamlessly integrates with any p2p project.
 
@@ -8,11 +8,11 @@ that seamlessly integrates with any p2p project.
 
 ### Discovery 
 
-karyons p2p uses a customized version of the Kademlia for discovering new peers 
+karyon p2p uses a customized version of the Kademlia for discovering new peers 
 in the network. This approach is based on Kademlia but with several significant 
 differences and optimizations. Some of the main changes:
 
-1. karyons p2p uses TCP for the lookup process, while UDP is used for
+1. karyon p2p uses TCP for the lookup process, while UDP is used for
    validating and refreshing the routing table. The reason for this choice is
    that the lookup process is infrequent, and the work required to manage
    messages with UDP is largely equivalent to using TCP for this purpose.
@@ -21,11 +21,11 @@ differences and optimizations. Some of the main changes:
    use UDP.  
 
 2. In contrast to traditional Kademlia, which often employs 160 buckets,
-   karyons p2p reduces the number of buckets to 32. This optimization is a
+   karyon p2p reduces the number of buckets to 32. This optimization is a
    result of the observation that most nodes tend to map into the last few
    buckets, with the majority of other buckets remaining empty.
 
-3. While Kademlia typically uses a 160-bit key to identify a peer, karyons p2p
+3. While Kademlia typically uses a 160-bit key to identify a peer, karyon p2p
    uses a 256-bit key.
 
 > Despite criticisms of Kademlia's vulnerabilities, particularly concerning
@@ -38,7 +38,7 @@ differences and optimizations. Some of the main changes:
 
 ### Peer ID
 
-In the karyons p2p network, each peer is identified by a 256-bit (32-byte) Peer ID.
+In the karyon p2p network, each peer is identified by a 256-bit (32-byte) Peer ID.
 
 ### Seeding
 
@@ -67,8 +67,8 @@ is added to the `PeerPool`.
 
 ### Protocols
 
-In the karyons p2p network, we have two types of protocols: core protocols and
-custom protocols. Core protocols are prebuilt into karyons p2p, such as the
+In the karyon p2p network, we have two types of protocols: core protocols and
+custom protocols. Core protocols are prebuilt into karyon p2p, such as the
 Ping protocol used to maintain connections. Custom protocols, on the other
 hand, are protocols that you define for your application to provide its core
 functionality.
@@ -138,5 +138,5 @@ If you have tmux installed, you can run the network simulation script in the
 examples directory to run 12 peers simultaneously.
 
 ```bash
-$ RUST_LOG=karyons=info ./net_simulation.sh
+$ RUST_LOG=karyon=info ./net_simulation.sh
 ```
