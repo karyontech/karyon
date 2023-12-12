@@ -58,8 +58,8 @@ fn generate_cert(key_pair: &KeyPair) -> Result<(Certificate, PrivateKey)> {
     let private_key = rustls::PrivateKey(cert_key_pair.serialize_der());
 
     // Add a custom extension to the certificate:
-    //   - Sign the certificate's public key with the provided key pair's public key
-    //   - Append both the signature and the key pair's public key to the extension
+    //   - Sign the certificate's public key with the provided key pair's private key
+    //   - Append both the computed signature and the key pair's public key to the extension
     let signature = key_pair.sign(&cert_key_pair.public_key_der());
     let ext_content = yasna::encode_der(&(key_pair.public().as_bytes().to_vec(), signature));
     // XXX: Not sure about the oid number ???
