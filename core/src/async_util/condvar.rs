@@ -135,7 +135,7 @@ impl<'a, T> Future for CondVarAwait<'a, T> {
                     Some(wk) => {
                         // This will prevent cloning again
                         if !wk.will_wake(cx.waker()) {
-                            *wk = cx.waker().clone();
+                            wk.clone_from(cx.waker());
                         }
                         Poll::Pending
                     }
