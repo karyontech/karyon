@@ -32,7 +32,7 @@ impl Client {
         Self { codec, config }
     }
 
-    /// Calls the named method, waits for the response, and returns the result.
+    /// Calls the provided method, waits for the response, and returns the result.
     pub async fn call<T: Serialize + DeserializeOwned, V: DeserializeOwned>(
         &self,
         method: &str,

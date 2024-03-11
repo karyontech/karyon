@@ -25,12 +25,16 @@ pub trait RPCService: Sync + Send {
 /// struct Hello {}
 ///
 /// impl Hello {
-///     async fn say_hello(&self, params: Value) -> Result<Value, JsonRPCError> {
-///         Ok(serde_json::json!("hello!"))
+///     async fn foo(&self, params: Value) -> Result<Value, JsonRPCError> {
+///         Ok(serde_json::json!("foo!"))
+///     }
+///
+///     async fn bar(&self, params: Value) -> Result<Value, JsonRPCError> {
+///         Ok(serde_json::json!("bar!"))
 ///     }
 /// }
 ///
-/// register_service!(Hello, say_hello);
+/// register_service!(Hello, foo, bar);
 ///
 /// ```
 #[macro_export]

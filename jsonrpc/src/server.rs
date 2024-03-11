@@ -17,6 +17,26 @@ use crate::{
     Endpoint, Error, Result, JSONRPC_VERSION,
 };
 
+pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
+pub const FAILED_TO_PARSE_ERROR_MSG: &str = "Failed to parse";
+pub const METHOD_NOT_FOUND_ERROR_MSG: &str = "Method not found";
+pub const INTERNAL_ERROR_MSG: &str = "Internal error";
+
+fn pack_err_res(code: i32, msg: &str, id: Option<serde_json::Value>) -> message::Response {
+    let err = message::Error {
+        code,
+        message: msg.to_string(),
+        data: None,
+    };
+
+    message::Response {
+        jsonrpc: JSONRPC_VERSION.to_string(),
+        error: Some(err),
+        result: None,
+        id,
+    }
+}
+
 /// RPC server config
 #[derive(Default)]
 pub struct ServerConfig {
@@ -51,7 +71,9 @@ impl<'a> Server<'a> {
     pub async fn start(self: Arc<Self>) -> Result<()> {
         loop {
             let conn = self.listener.accept().await?;
-            self.handle_conn(conn).await?;
+            if let Err(err) = self.handle_conn(conn).await {
+                error!("Failed to handle a new conn: {err}")
+            }
         }
     }
 
@@ -107,7 +129,7 @@ impl<'a> Server<'a> {
         let rpc_msg = match serde_json::from_slice::<message::Request>(buffer) {
             Ok(m) => m,
             Err(_) => {
-                return self.pack_err_res(message::PARSE_ERROR_CODE, "Failed to parse", None);
+                return pack_err_res(message::PARSE_ERROR_CODE, FAILED_TO_PARSE_ERROR_MSG, None);
             }
         };
 
@@ -115,9 +137,9 @@ impl<'a> Server<'a> {
 
         let srvc_method: Vec<&str> = rpc_msg.method.split('.').collect();
         if srvc_method.len() != 2 {
-            return self.pack_err_res(
+            return pack_err_res(
                 message::INVALID_REQUEST_ERROR_CODE,
-                "Invalid request",
+                INVALID_REQUEST_ERROR_MSG,
                 Some(rpc_msg.id),
             );
         }
@@ -130,9 +152,9 @@ impl<'a> Server<'a> {
         let service = match services.get(srvc_name) {
             Some(s) => s,
             None => {
-                return self.pack_err_res(
+                return pack_err_res(
                     message::METHOD_NOT_FOUND_ERROR_CODE,
-                    "Method not found",
+                    METHOD_NOT_FOUND_ERROR_MSG,
                     Some(rpc_msg.id),
                 );
             }
@@ -141,9 +163,9 @@ impl<'a> Server<'a> {
         let method = match service.get_method(method_name) {
             Some(m) => m,
             None => {
-                return self.pack_err_res(
+                return pack_err_res(
                     message::METHOD_NOT_FOUND_ERROR_CODE,
-                    "Method not found",
+                    METHOD_NOT_FOUND_ERROR_MSG,
                     Some(rpc_msg.id),
                 );
             }
@@ -152,33 +174,25 @@ impl<'a> Server<'a> {
         let result = match method(rpc_msg.params.clone()).await {
             Ok(res) => res,
             Err(Error::ParseJSON(_)) => {
-                return self.pack_err_res(
+                return pack_err_res(
                     message::PARSE_ERROR_CODE,
-                    "Failed to parse",
+                    FAILED_TO_PARSE_ERROR_MSG,
                     Some(rpc_msg.id),
                 );
             }
             Err(Error::InvalidParams(msg)) => {
-                return self.pack_err_res(
-                    message::INVALID_PARAMS_ERROR_CODE,
-                    msg,
-                    Some(rpc_msg.id),
-                );
+                return pack_err_res(message::INVALID_PARAMS_ERROR_CODE, msg, Some(rpc_msg.id));
             }
             Err(Error::InvalidRequest(msg)) => {
-                return self.pack_err_res(
-                    message::INVALID_REQUEST_ERROR_CODE,
-                    msg,
-                    Some(rpc_msg.id),
-                );
+                return pack_err_res(message::INVALID_REQUEST_ERROR_CODE, msg, Some(rpc_msg.id));
             }
             Err(Error::RPCMethodError(code, msg)) => {
-                return self.pack_err_res(code, msg, Some(rpc_msg.id));
+                return pack_err_res(code, msg, Some(rpc_msg.id));
             }
             Err(_) => {
-                return self.pack_err_res(
+                return pack_err_res(
                     message::INTERNAL_ERROR_CODE,
-                    "Internal error",
+                    INTERNAL_ERROR_MSG,
                     Some(rpc_msg.id),
                 );
             }
@@ -189,26 +203,6 @@ impl<'a> Server<'a> {
             error: None,
             result: Some(result),
             id: Some(rpc_msg.id),
-        }
-    }
-
-    fn pack_err_res(
-        &self,
-        code: i32,
-        msg: &str,
-        id: Option<serde_json::Value>,
-    ) -> message::Response {
-        let err = message::Error {
-            code,
-            message: msg.to_string(),
-            data: None,
-        };
-
-        message::Response {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            error: Some(err),
-            result: None,
-            id,
         }
     }
 }
