@@ -29,10 +29,10 @@ pub enum Error {
     ChannelRecv(#[from] smol::channel::RecvError),
 
     #[error("Tls Error: {0}")]
-    Rustls(#[from] async_rustls::rustls::Error),
+    Rustls(#[from] futures_rustls::rustls::Error),
 
     #[error("Invalid DNS Name: {0}")]
-    InvalidDnsNameError(#[from] async_rustls::rustls::client::InvalidDnsNameError),
+    InvalidDnsNameError(#[from] futures_rustls::pki_types::InvalidDnsNameError),
 
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),

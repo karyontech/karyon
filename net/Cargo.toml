@@ -14,4 +14,4 @@ log = "0.4.20"
 bincode = { version="2.0.0-rc.3", features = ["derive"]}
 thiserror = "1.0.47"
 url = "2.4.1"
-async-rustls = { version = "0.4.1", features = ["dangerous_configuration"] }
+futures-rustls = "0.25.1"

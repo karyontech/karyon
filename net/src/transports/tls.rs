@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use async_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
 use async_trait::async_trait;
+use futures_rustls::{pki_types, rustls, TlsAcceptor, TlsConnector, TlsStream};
 use smol::{
     io::{split, AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     lock::Mutex,
@@ -63,7 +63,7 @@ pub async fn dial_tls(
     addr: &Addr,
     port: &Port,
     config: rustls::ClientConfig,
-    dns_name: &str,
+    dns_name: &'static str,
 ) -> Result<TlsConn> {
     let address = format!("{}:{}", addr, port);
 
@@ -72,7 +72,7 @@ pub async fn dial_tls(
     let sock = TcpStream::connect(&address).await?;
     sock.set_nodelay(true)?;
 
-    let altname = rustls::ServerName::try_from(dns_name)?;
+    let altname = pki_types::ServerName::try_from(dns_name)?;
     let conn = connector.connect(altname, sock.clone()).await?;
     Ok(TlsConn::new(sock, TlsStream::Client(conn)))
 }
@@ -81,7 +81,7 @@ pub async fn dial_tls(
 pub async fn dial(
     endpoint: &Endpoint,
     config: rustls::ClientConfig,
-    dns_name: &str,
+    dns_name: &'static str,
 ) -> Result<Box<dyn Connection>> {
     match endpoint {
         Endpoint::Tcp(..) | Endpoint::Tls(..) => {}
