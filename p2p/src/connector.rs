@@ -16,7 +16,7 @@ use crate::{
     Error, PeerID, Result,
 };
 
-static DNS_NAME: &str = "karyons.org";
+static DNS_NAME: &str = "karyontech.net";
 
 /// Responsible for creating outbound connections with other peers.
 pub struct Connector {
