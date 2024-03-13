@@ -25,7 +25,7 @@ implementation for building collaborative software.
 ## Status
 
 This project is a work in progress. The current focus is on shipping `karyon
-crdt` and `karyon store`, along with major changes to the network stack. You can
+crdt` and `karyon base`, along with major changes to the network stack. You can
 check the [issues](https://github.com/karyontech/karyon/issues) for updates on
 ongoing tasks.
 
