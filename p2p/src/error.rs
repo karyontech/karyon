@@ -60,7 +60,7 @@ pub enum Error {
     X509Parser(#[from] x509_parser::error::X509Error),
 
     #[error("Rcgen Error: {0}")]
-    Rcgen(#[from] rcgen::RcgenError),
+    Rcgen(#[from] rcgen::Error),
 
     #[error("Tls Error: {0}")]
     Rustls(#[from] futures_rustls::rustls::Error),
