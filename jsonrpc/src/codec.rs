@@ -94,7 +94,7 @@ impl Codec {
         Ok(())
     }
 
-    pub async fn read_until_timeout(&self, buffer: &mut Vec<u8>, t: u64) -> Result<usize> {
+    pub async fn read_until_with_timeout(&self, buffer: &mut Vec<u8>, t: u64) -> Result<usize> {
         timeout(std::time::Duration::from_secs(t), self.read_until(buffer)).await?
     }
 }

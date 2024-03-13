@@ -54,7 +54,7 @@ impl Client {
 
         let mut buffer = vec![];
         if let Some(t) = self.config.timeout {
-            self.codec.read_until_timeout(&mut buffer, t).await?;
+            self.codec.read_until_with_timeout(&mut buffer, t).await?;
         } else {
             self.codec.read_until(&mut buffer).await?;
         };

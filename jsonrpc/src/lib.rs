@@ -18,6 +18,14 @@
 //!         let msg: String = serde_json::from_value(params)?;
 //!         Ok(serde_json::json!(format!("Hello {msg}!")))
 //!     }
+//!
+//!     async fn foo(&self, params: Value) -> Result<Value, JsonRPCError> {
+//!         Ok(serde_json::json!("foo!"))
+//!     }
+//!
+//!     async fn bar(&self, params: Value) -> Result<Value, JsonRPCError> {
+//!         Ok(serde_json::json!("bar!"))
+//!     }
 //! }
 //!
 //! // Server
@@ -30,7 +38,7 @@
 //!     let server = Server::new(listener, config, ex.clone());
 //!
 //!     // Register the HelloWorld service
-//!     register_service!(HelloWorld, say_hello);
+//!     register_service!(HelloWorld, say_hello, foo, bar);
 //!     server.attach_service(HelloWorld{});
 //!
 //!     // Starts the server
