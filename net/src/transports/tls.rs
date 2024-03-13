@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
 use futures_rustls::{pki_types, rustls, TlsAcceptor, TlsConnector, TlsStream};
@@ -10,7 +10,7 @@ use smol::{
 
 use crate::{
     connection::{Connection, ToConn},
-    endpoint::{Addr, Endpoint, Port},
+    endpoint::Endpoint,
     listener::{ConnListener, ToListener},
     Error, Result,
 };
@@ -60,16 +60,15 @@ impl Connection for TlsConn {
 
 /// Connects to the given TLS address and port.
 pub async fn dial_tls(
-    addr: &Addr,
-    port: &Port,
+    endpoint: &Endpoint,
     config: rustls::ClientConfig,
     dns_name: &'static str,
 ) -> Result<TlsConn> {
-    let address = format!("{}:{}", addr, port);
+    let addr = SocketAddr::try_from(endpoint.clone())?;
 
     let connector = TlsConnector::from(Arc::new(config));
 
-    let sock = TcpStream::connect(&address).await?;
+    let sock = TcpStream::connect(addr).await?;
     sock.set_nodelay(true)?;
 
     let altname = pki_types::ServerName::try_from(dns_name)?;
@@ -88,10 +87,11 @@ pub async fn dial(
         _ => return Err(Error::InvalidEndpoint(endpoint.to_string())),
     }
 
-    dial_tls(endpoint.addr()?, endpoint.port()?, config, dns_name)
+    dial_tls(endpoint, config, dns_name)
         .await
         .map(|c| Box::new(c) as Box<dyn Connection>)
 }
+
 /// Tls network listener implementation of the `Listener` [`ConnListener`] trait.
 pub struct TlsListener {
     acceptor: TlsAcceptor,
@@ -113,30 +113,11 @@ impl ConnListener for TlsListener {
 }
 
 /// Listens on the given TLS address and port.
-pub async fn listen_tls(
-    addr: &Addr,
-    port: &Port,
-    config: rustls::ServerConfig,
-) -> Result<TlsListener> {
-    let address = format!("{}:{}", addr, port);
+pub async fn listen_tls(endpoint: &Endpoint, config: rustls::ServerConfig) -> Result<TlsListener> {
+    let addr = SocketAddr::try_from(endpoint.clone())?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
-    let listener = TcpListener::bind(&address).await?;
+    let listener = TcpListener::bind(addr).await?;
     Ok(TlsListener { acceptor, listener })
-}
-
-/// Listens on the given TLS endpoint, returns `Listener` [`ConnListener`].
-pub async fn listen(
-    endpoint: &Endpoint,
-    config: rustls::ServerConfig,
-) -> Result<Box<dyn ConnListener>> {
-    match endpoint {
-        Endpoint::Tcp(..) | Endpoint::Tls(..) => {}
-        _ => return Err(Error::InvalidEndpoint(endpoint.to_string())),
-    }
-
-    listen_tls(endpoint.addr()?, endpoint.port()?, config)
-        .await
-        .map(|l| Box::new(l) as Box<dyn ConnListener>)
 }
 
 impl From<TlsStream<TcpStream>> for Box<dyn Connection> {

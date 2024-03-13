@@ -195,7 +195,8 @@ impl RefreshService {
     /// specified in the Config, with backoff between each retry.
     async fn connect(&self, entry: &Entry) -> Result<()> {
         let mut retry = 0;
-        let conn = dial_udp(&entry.addr, &entry.discovery_port).await?;
+        let endpoint = Endpoint::Ws(entry.addr.clone(), entry.discovery_port);
+        let conn = dial_udp(&endpoint).await?;
         let backoff = Backoff::new(100, 5000);
         while retry < self.config.refresh_connect_retries {
             match self.send_ping_msg(&conn).await {
@@ -217,7 +218,7 @@ impl RefreshService {
     /// peers.
     async fn listen_loop(self: Arc<Self>, addr: Addr, port: Port) -> Result<()> {
         let endpoint = Endpoint::Udp(addr.clone(), port);
-        let conn = match listen_udp(&addr, &port).await {
+        let conn = match listen_udp(&endpoint).await {
             Ok(c) => {
                 self.monitor
                     .notify(&ConnEvent::Listening(endpoint.clone()).into())

@@ -34,6 +34,7 @@ pub enum Endpoint {
     Udp(Addr, Port),
     Tcp(Addr, Port),
     Tls(Addr, Port),
+    Ws(Addr, Port),
     Unix(String),
 }
 
@@ -48,6 +49,9 @@ impl std::fmt::Display for Endpoint {
             }
             Endpoint::Tls(ip, port) => {
                 write!(f, "tls://{}:{}", ip, port)
+            }
+            Endpoint::Ws(ip, port) => {
+                write!(f, "ws://{}:{}", ip, port)
             }
             Endpoint::Unix(path) => {
                 if path.is_empty() {
@@ -64,9 +68,10 @@ impl TryFrom<Endpoint> for SocketAddr {
     type Error = Error;
     fn try_from(endpoint: Endpoint) -> std::result::Result<SocketAddr, Self::Error> {
         match endpoint {
-            Endpoint::Udp(ip, port) | Endpoint::Tcp(ip, port) | Endpoint::Tls(ip, port) => {
-                Ok(SocketAddr::new(ip.try_into()?, port))
-            }
+            Endpoint::Udp(ip, port)
+            | Endpoint::Tcp(ip, port)
+            | Endpoint::Tls(ip, port)
+            | Endpoint::Ws(ip, port) => Ok(SocketAddr::new(ip.try_into()?, port)),
             Endpoint::Unix(_) => Err(Error::TryFromEndpoint),
         }
     }
@@ -118,6 +123,7 @@ impl FromStr for Endpoint {
                 "tcp" => Ok(Endpoint::Tcp(addr, port)),
                 "udp" => Ok(Endpoint::Udp(addr, port)),
                 "tls" => Ok(Endpoint::Tls(addr, port)),
+                "ws" => Ok(Endpoint::Ws(addr, port)),
                 _ => Err(Error::InvalidEndpoint(s.to_string())),
             }
         } else {
@@ -139,14 +145,19 @@ impl Endpoint {
         Endpoint::Tcp(Addr::Ip(addr.ip()), addr.port())
     }
 
+    /// Creates a new UDP endpoint from a `SocketAddr`.
+    pub fn new_udp_addr(addr: &SocketAddr) -> Endpoint {
+        Endpoint::Udp(Addr::Ip(addr.ip()), addr.port())
+    }
+
     /// Creates a new TLS endpoint from a `SocketAddr`.
     pub fn new_tls_addr(addr: &SocketAddr) -> Endpoint {
         Endpoint::Tls(Addr::Ip(addr.ip()), addr.port())
     }
 
-    /// Creates a new UDP endpoint from a `SocketAddr`.
-    pub fn new_udp_addr(addr: &SocketAddr) -> Endpoint {
-        Endpoint::Udp(Addr::Ip(addr.ip()), addr.port())
+    /// Creates a new WS endpoint from a `SocketAddr`.
+    pub fn new_ws_addr(addr: &SocketAddr) -> Endpoint {
+        Endpoint::Ws(Addr::Ip(addr.ip()), addr.port())
     }
 
     /// Creates a new Unix endpoint from a `UnixSocketAddress`.
@@ -162,7 +173,10 @@ impl Endpoint {
     /// Returns the `Port` of the endpoint.
     pub fn port(&self) -> Result<&Port> {
         match self {
-            Endpoint::Udp(_, port) | Endpoint::Tcp(_, port) | Endpoint::Tls(_, port) => Ok(port),
+            Endpoint::Tcp(_, port)
+            | Endpoint::Udp(_, port)
+            | Endpoint::Tls(_, port)
+            | Endpoint::Ws(_, port) => Ok(port),
             _ => Err(Error::TryFromEndpoint),
         }
     }
@@ -170,7 +184,10 @@ impl Endpoint {
     /// Returns the `Addr` of the endpoint.
     pub fn addr(&self) -> Result<&Addr> {
         match self {
-            Endpoint::Udp(addr, _) | Endpoint::Tcp(addr, _) | Endpoint::Tls(addr, _) => Ok(addr),
+            Endpoint::Tcp(addr, _)
+            | Endpoint::Udp(addr, _)
+            | Endpoint::Tls(addr, _)
+            | Endpoint::Ws(addr, _) => Ok(addr),
             _ => Err(Error::TryFromEndpoint),
         }
     }

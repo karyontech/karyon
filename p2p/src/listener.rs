@@ -155,7 +155,9 @@ impl Listener {
     async fn listend(&self, endpoint: &Endpoint) -> Result<Box<dyn ConnListener>> {
         if self.enable_tls {
             let tls_config = tls_server_config(&self.key_pair)?;
-            tls::listen(endpoint, tls_config).await
+            tls::listen_tls(endpoint, tls_config)
+                .await
+                .map(|l| Box::new(l) as Box<dyn ConnListener>)
         } else {
             listen(endpoint).await
         }

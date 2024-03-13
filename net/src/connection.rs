@@ -57,8 +57,8 @@ pub trait Connection: Send + Sync {
 ///
 pub async fn dial(endpoint: &Endpoint) -> Result<Conn> {
     match endpoint {
-        Endpoint::Tcp(addr, port) => Ok(Box::new(tcp::dial_tcp(addr, port).await?)),
-        Endpoint::Udp(addr, port) => Ok(Box::new(udp::dial_udp(addr, port).await?)),
+        Endpoint::Tcp(_, _) => Ok(Box::new(tcp::dial_tcp(endpoint).await?)),
+        Endpoint::Udp(_, _) => Ok(Box::new(udp::dial_udp(endpoint).await?)),
         Endpoint::Unix(addr) => Ok(Box::new(unix::dial_unix(addr).await?)),
         _ => Err(Error::InvalidEndpoint(endpoint.to_string())),
     }

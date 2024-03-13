@@ -5,7 +5,7 @@ use smol::net::UdpSocket;
 
 use crate::{
     connection::{Connection, ToConn},
-    endpoint::{Addr, Endpoint, Port},
+    endpoint::Endpoint,
     Error, Result,
 };
 
@@ -57,19 +57,19 @@ impl Connection for UdpConn {
 }
 
 /// Connects to the given UDP address and port.
-pub async fn dial_udp(addr: &Addr, port: &Port) -> Result<UdpConn> {
-    let address = format!("{}:{}", addr, port);
+pub async fn dial_udp(endpoint: &Endpoint) -> Result<UdpConn> {
+    let addr = SocketAddr::try_from(endpoint.clone())?;
 
     // Let the operating system assign an available port to this socket
     let conn = UdpSocket::bind("[::]:0").await?;
-    conn.connect(address).await?;
+    conn.connect(addr).await?;
     Ok(UdpConn::new(conn))
 }
 
 /// Listens on the given UDP address and port.
-pub async fn listen_udp(addr: &Addr, port: &Port) -> Result<UdpConn> {
-    let address = format!("{}:{}", addr, port);
-    let conn = UdpSocket::bind(address).await?;
+pub async fn listen_udp(endpoint: &Endpoint) -> Result<UdpConn> {
+    let addr = SocketAddr::try_from(endpoint.clone())?;
+    let conn = UdpSocket::bind(addr).await?;
     let udp_conn = UdpConn::new(conn);
     Ok(udp_conn)
 }

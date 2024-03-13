@@ -1,5 +1,6 @@
-use async_trait::async_trait;
+use std::net::SocketAddr;
 
+use async_trait::async_trait;
 use smol::{
     io::{split, AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     lock::Mutex,
@@ -8,7 +9,7 @@ use smol::{
 
 use crate::{
     connection::{Connection, ToConn},
-    endpoint::{Addr, Endpoint, Port},
+    endpoint::Endpoint,
     listener::{ConnListener, ToListener},
     Error, Result,
 };
@@ -70,17 +71,17 @@ impl ConnListener for TcpListener {
 }
 
 /// Connects to the given TCP address and port.
-pub async fn dial_tcp(addr: &Addr, port: &Port) -> Result<TcpConn> {
-    let address = format!("{}:{}", addr, port);
-    let conn = TcpStream::connect(address).await?;
+pub async fn dial_tcp(endpoint: &Endpoint) -> Result<TcpConn> {
+    let addr = SocketAddr::try_from(endpoint.clone())?;
+    let conn = TcpStream::connect(addr).await?;
     conn.set_nodelay(true)?;
     Ok(TcpConn::new(conn))
 }
 
 /// Listens on the given TCP address and port.
-pub async fn listen_tcp(addr: &Addr, port: &Port) -> Result<TcpListener> {
-    let address = format!("{}:{}", addr, port);
-    let listener = TcpListener::bind(address).await?;
+pub async fn listen_tcp(endpoint: &Endpoint) -> Result<TcpListener> {
+    let addr = SocketAddr::try_from(endpoint.clone())?;
+    let listener = TcpListener::bind(addr).await?;
     Ok(listener)
 }
 
