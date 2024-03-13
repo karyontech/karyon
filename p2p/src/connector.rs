@@ -7,7 +7,7 @@ use karyon_core::{
     crypto::KeyPair,
     GlobalExecutor,
 };
-use karyon_net::{dial, tls, Conn, Endpoint, NetError};
+use karyon_net::{tcp, tls, Conn, Endpoint, NetError};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
@@ -142,9 +142,11 @@ impl Connector {
     async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<Conn> {
         if self.enable_tls {
             let tls_config = tls_client_config(&self.key_pair, peer_id.clone())?;
-            tls::dial(endpoint, tls_config, DNS_NAME).await
+            tls::dial(endpoint, tls_config, DNS_NAME)
+                .await
+                .map(|l| Box::new(l) as Conn)
         } else {
-            dial(endpoint).await
+            tcp::dial(endpoint).await.map(|l| Box::new(l) as Conn)
         }
         .map_err(Error::KaryonNet)
     }

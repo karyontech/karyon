@@ -69,13 +69,13 @@ impl ConnListener for UnixListener {
 }
 
 /// Connects to the given Unix socket path.
-pub async fn dial_unix(path: &String) -> Result<UnixConn> {
+pub async fn dial(path: &String) -> Result<UnixConn> {
     let conn = UnixStream::connect(path).await?;
     Ok(UnixConn::new(conn))
 }
 
 /// Listens on the given Unix socket path.
-pub fn listen_unix(path: &String) -> Result<UnixListener> {
+pub fn listen(path: &String) -> Result<UnixListener> {
     let listener = UnixListener::bind(path)?;
     Ok(listener)
 }

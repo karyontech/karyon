@@ -71,7 +71,7 @@ impl ConnListener for TcpListener {
 }
 
 /// Connects to the given TCP address and port.
-pub async fn dial_tcp(endpoint: &Endpoint) -> Result<TcpConn> {
+pub async fn dial(endpoint: &Endpoint) -> Result<TcpConn> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let conn = TcpStream::connect(addr).await?;
     conn.set_nodelay(true)?;
@@ -79,7 +79,7 @@ pub async fn dial_tcp(endpoint: &Endpoint) -> Result<TcpConn> {
 }
 
 /// Listens on the given TCP address and port.
-pub async fn listen_tcp(endpoint: &Endpoint) -> Result<TcpListener> {
+pub async fn listen(endpoint: &Endpoint) -> Result<TcpListener> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let listener = TcpListener::bind(addr).await?;
     Ok(listener)

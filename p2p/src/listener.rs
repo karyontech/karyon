@@ -8,7 +8,7 @@ use karyon_core::{
     GlobalExecutor,
 };
 
-use karyon_net::{listen, tls, Conn, ConnListener, Endpoint};
+use karyon_net::{tcp, tls, Conn, ConnListener, Endpoint};
 
 use crate::{
     monitor::{ConnEvent, Monitor},
@@ -67,7 +67,7 @@ impl Listener {
     where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        let listener = match self.listend(&endpoint).await {
+        let listener = match self.listen(&endpoint).await {
             Ok(listener) => {
                 self.monitor
                     .notify(&ConnEvent::Listening(endpoint.clone()).into())
@@ -152,14 +152,16 @@ impl Listener {
         }
     }
 
-    async fn listend(&self, endpoint: &Endpoint) -> Result<Box<dyn ConnListener>> {
+    async fn listen(&self, endpoint: &Endpoint) -> Result<karyon_net::Listener> {
         if self.enable_tls {
             let tls_config = tls_server_config(&self.key_pair)?;
-            tls::listen_tls(endpoint, tls_config)
+            tls::listen(endpoint, tls_config)
                 .await
-                .map(|l| Box::new(l) as Box<dyn ConnListener>)
+                .map(|l| Box::new(l) as karyon_net::Listener)
         } else {
-            listen(endpoint).await
+            tcp::listen(endpoint)
+                .await
+                .map(|l| Box::new(l) as karyon_net::Listener)
         }
         .map_err(Error::KaryonNet)
     }

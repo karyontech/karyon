@@ -39,8 +39,8 @@ pub trait ConnListener: Send + Sync {
 /// ```
 pub async fn listen(endpoint: &Endpoint) -> Result<Box<dyn ConnListener>> {
     match endpoint {
-        Endpoint::Tcp(_, _) => Ok(Box::new(tcp::listen_tcp(endpoint).await?)),
-        Endpoint::Unix(addr) => Ok(Box::new(unix::listen_unix(addr)?)),
+        Endpoint::Tcp(_, _) => Ok(Box::new(tcp::listen(endpoint).await?)),
+        Endpoint::Unix(addr) => Ok(Box::new(unix::listen(addr)?)),
         _ => Err(Error::InvalidEndpoint(endpoint.to_string())),
     }
 }

@@ -57,7 +57,7 @@ impl Connection for UdpConn {
 }
 
 /// Connects to the given UDP address and port.
-pub async fn dial_udp(endpoint: &Endpoint) -> Result<UdpConn> {
+pub async fn dial(endpoint: &Endpoint) -> Result<UdpConn> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
 
     // Let the operating system assign an available port to this socket
@@ -67,7 +67,7 @@ pub async fn dial_udp(endpoint: &Endpoint) -> Result<UdpConn> {
 }
 
 /// Listens on the given UDP address and port.
-pub async fn listen_udp(endpoint: &Endpoint) -> Result<UdpConn> {
+pub async fn listen(endpoint: &Endpoint) -> Result<UdpConn> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let conn = UdpSocket::bind(addr).await?;
     let udp_conn = UdpConn::new(conn);

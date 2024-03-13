@@ -59,7 +59,7 @@ impl Connection for TlsConn {
 }
 
 /// Connects to the given TLS address and port.
-pub async fn dial_tls(
+pub async fn dial(
     endpoint: &Endpoint,
     config: rustls::ClientConfig,
     dns_name: &'static str,
@@ -76,36 +76,20 @@ pub async fn dial_tls(
     Ok(TlsConn::new(sock, TlsStream::Client(conn)))
 }
 
-/// Connects to the given TLS endpoint, returns `Conn` ([`Connection`]).
-pub async fn dial(
-    endpoint: &Endpoint,
-    config: rustls::ClientConfig,
-    dns_name: &'static str,
-) -> Result<Box<dyn Connection>> {
-    match endpoint {
-        Endpoint::Tcp(..) | Endpoint::Tls(..) => {}
-        _ => return Err(Error::InvalidEndpoint(endpoint.to_string())),
-    }
-
-    dial_tls(endpoint, config, dns_name)
-        .await
-        .map(|c| Box::new(c) as Box<dyn Connection>)
-}
-
 /// Tls network listener implementation of the `Listener` [`ConnListener`] trait.
 pub struct TlsListener {
+    inner: TcpListener,
     acceptor: TlsAcceptor,
-    listener: TcpListener,
 }
 
 #[async_trait]
 impl ConnListener for TlsListener {
     fn local_endpoint(&self) -> Result<Endpoint> {
-        Ok(Endpoint::new_tls_addr(&self.listener.local_addr()?))
+        Ok(Endpoint::new_tls_addr(&self.inner.local_addr()?))
     }
 
     async fn accept(&self) -> Result<Box<dyn Connection>> {
-        let (sock, _) = self.listener.accept().await?;
+        let (sock, _) = self.inner.accept().await?;
         sock.set_nodelay(true)?;
         let conn = self.acceptor.accept(sock.clone()).await?;
         Ok(Box::new(TlsConn::new(sock, TlsStream::Server(conn))))
@@ -113,11 +97,14 @@ impl ConnListener for TlsListener {
 }
 
 /// Listens on the given TLS address and port.
-pub async fn listen_tls(endpoint: &Endpoint, config: rustls::ServerConfig) -> Result<TlsListener> {
+pub async fn listen(endpoint: &Endpoint, config: rustls::ServerConfig) -> Result<TlsListener> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
     let listener = TcpListener::bind(addr).await?;
-    Ok(TlsListener { acceptor, listener })
+    Ok(TlsListener {
+        acceptor,
+        inner: listener,
+    })
 }
 
 impl From<TlsStream<TcpStream>> for Box<dyn Connection> {
