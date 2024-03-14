@@ -15,3 +15,5 @@ bincode = { version="2.0.0-rc.3", features = ["derive"]}
 thiserror = "1.0.58"
 url = "2.5.0"
 futures-rustls = "0.25.1"
+async-tungstenite = "0.25.0"
+ws_stream_tungstenite = "0.13.0"

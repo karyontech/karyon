@@ -8,7 +8,7 @@ pub use {
     connection::{dial, Conn, Connection, ToConn},
     endpoint::{Addr, Endpoint, Port},
     listener::{listen, ConnListener, Listener, ToListener},
-    transports::{tcp, tls, udp, unix},
+    transports::{tcp, tls, udp, unix, ws},
 };
 
 use error::{Error, Result};

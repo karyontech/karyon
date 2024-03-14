@@ -28,6 +28,9 @@ pub enum Error {
     #[error(transparent)]
     ChannelRecv(#[from] smol::channel::RecvError),
 
+    #[error("Ws Error: {0}")]
+    WsError(#[from] async_tungstenite::tungstenite::Error),
+
     #[error("Tls Error: {0}")]
     Rustls(#[from] futures_rustls::rustls::Error),
 
