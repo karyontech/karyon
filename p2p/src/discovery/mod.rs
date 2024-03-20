@@ -8,9 +8,8 @@ use rand::{rngs::OsRng, seq::SliceRandom};
 use smol::lock::Mutex;
 
 use karyon_core::{
-    async_util::{Backoff, TaskGroup, TaskResult},
+    async_util::{Backoff, Executor, TaskGroup, TaskResult},
     crypto::KeyPair,
-    GlobalExecutor,
 };
 
 use karyon_net::{Conn, Endpoint};
@@ -72,7 +71,7 @@ impl Discovery {
         conn_queue: Arc<ConnQueue>,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
-        ex: GlobalExecutor,
+        ex: Executor<'static>,
     ) -> ArcDiscovery {
         let inbound_slots = Arc::new(ConnectionSlots::new(config.inbound_slots));
         let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));

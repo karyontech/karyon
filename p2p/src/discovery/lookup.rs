@@ -5,7 +5,11 @@ use log::{error, trace};
 use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 use smol::lock::{Mutex, RwLock};
 
-use karyon_core::{async_util::timeout, crypto::KeyPair, util::decode, GlobalExecutor};
+use karyon_core::{
+    async_util::{timeout, Executor},
+    crypto::KeyPair,
+    util::decode,
+};
 
 use karyon_net::{Conn, Endpoint};
 
@@ -60,7 +64,7 @@ impl LookupService {
         table: Arc<Mutex<RoutingTable>>,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
-        ex: GlobalExecutor,
+        ex: Executor<'static>,
     ) -> Self {
         let inbound_slots = Arc::new(ConnectionSlots::new(config.lookup_inbound_slots));
         let outbound_slots = Arc::new(ConnectionSlots::new(config.lookup_outbound_slots));

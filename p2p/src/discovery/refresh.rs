@@ -10,9 +10,8 @@ use smol::{
 };
 
 use karyon_core::{
-    async_util::{timeout, Backoff, TaskGroup, TaskResult},
+    async_util::{timeout, Backoff, Executor, TaskGroup, TaskResult},
     util::{decode, encode},
-    GlobalExecutor,
 };
 
 use karyon_net::{udp, Connection, Endpoint, NetError};
@@ -46,7 +45,7 @@ pub struct RefreshService {
     task_group: TaskGroup<'static>,
 
     /// A global executor
-    executor: GlobalExecutor,
+    executor: Executor<'static>,
 
     /// Holds the configuration for the P2P network.
     config: Arc<Config>,
@@ -61,7 +60,7 @@ impl RefreshService {
         config: Arc<Config>,
         table: Arc<Mutex<RoutingTable>>,
         monitor: Arc<Monitor>,
-        executor: GlobalExecutor,
+        executor: Executor<'static>,
     ) -> Self {
         let listen_endpoint = config
             .listen_endpoint

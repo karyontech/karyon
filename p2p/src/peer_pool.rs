@@ -11,9 +11,8 @@ use smol::{
 };
 
 use karyon_core::{
-    async_util::{TaskGroup, TaskResult},
+    async_util::{Executor, TaskGroup, TaskResult},
     util::decode,
-    GlobalExecutor,
 };
 
 use karyon_net::Conn;
@@ -54,7 +53,7 @@ pub struct PeerPool {
     task_group: TaskGroup<'static>,
 
     /// A global Executor
-    executor: GlobalExecutor,
+    executor: Executor<'static>,
 
     /// The Configuration for the P2P network.
     pub(crate) config: Arc<Config>,
@@ -70,7 +69,7 @@ impl PeerPool {
         conn_queue: Arc<ConnQueue>,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
-        executor: GlobalExecutor,
+        executor: Executor<'static>,
     ) -> Arc<Self> {
         let protocols = RwLock::new(HashMap::new());
         let protocol_versions = Arc::new(RwLock::new(HashMap::new()));

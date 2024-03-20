@@ -2,9 +2,7 @@ use std::{future::Future, sync::Arc, sync::Mutex};
 
 use async_task::FallibleTask;
 
-use crate::Executor;
-
-use super::{select, CondWait, Either};
+use super::{executor::global_executor, select, CondWait, Either, Executor};
 
 /// TaskGroup is a group of spawned tasks.
 ///
@@ -33,6 +31,19 @@ pub struct TaskGroup<'a> {
     tasks: Mutex<Vec<TaskHandler>>,
     stop_signal: Arc<CondWait>,
     executor: Executor<'a>,
+}
+
+impl TaskGroup<'static> {
+    /// Creates a new task group without providing an executor
+    ///
+    /// This will Spawn a task onto a global executor (single-threaded by default).
+    pub fn new_without_executor() -> Self {
+        Self {
+            tasks: Mutex::new(Vec::new()),
+            stop_signal: Arc::new(CondWait::new()),
+            executor: global_executor(),
+        }
+    }
 }
 
 impl<'a> TaskGroup<'a> {
@@ -190,5 +201,36 @@ mod tests {
             smol::Timer::after(std::time::Duration::from_millis(50)).await;
             group.cancel().await;
         }));
+    }
+
+    #[test]
+    fn test_task_group_without_executor() {
+        smol::block_on(async {
+            let group = Arc::new(TaskGroup::new_without_executor());
+
+            group.spawn(future::ready(0), |res| async move {
+                assert!(matches!(res, TaskResult::Completed(0)));
+            });
+
+            group.spawn(future::pending::<()>(), |res| async move {
+                assert!(matches!(res, TaskResult::Cancelled));
+            });
+
+            let groupc = group.clone();
+            group.spawn(
+                async move {
+                    groupc.spawn(future::pending::<()>(), |res| async move {
+                        assert!(matches!(res, TaskResult::Cancelled));
+                    });
+                },
+                |res| async move {
+                    assert!(matches!(res, TaskResult::Completed(_)));
+                },
+            );
+
+            // Do something
+            smol::Timer::after(std::time::Duration::from_millis(50)).await;
+            group.cancel().await;
+        });
     }
 }

@@ -3,10 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use log::{debug, error, warn};
 use smol::lock::RwLock;
 
-use karyon_core::{
-    async_util::{TaskGroup, TaskResult},
-    Executor,
-};
+use karyon_core::async_util::{Executor, TaskGroup, TaskResult};
 
 use karyon_net::{Conn, Listener, ToListener};
 

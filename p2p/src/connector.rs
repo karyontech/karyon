@@ -3,9 +3,8 @@ use std::{future::Future, sync::Arc};
 use log::{error, trace, warn};
 
 use karyon_core::{
-    async_util::{Backoff, TaskGroup, TaskResult},
+    async_util::{Backoff, Executor, TaskGroup, TaskResult},
     crypto::KeyPair,
-    GlobalExecutor,
 };
 use karyon_net::{tcp, tls, Conn, Endpoint, NetError};
 
@@ -48,7 +47,7 @@ impl Connector {
         connection_slots: Arc<ConnectionSlots>,
         enable_tls: bool,
         monitor: Arc<Monitor>,
-        ex: GlobalExecutor,
+        ex: Executor<'static>,
     ) -> Arc<Self> {
         Arc::new(Self {
             key_pair: key_pair.clone(),

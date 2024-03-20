@@ -2,6 +2,7 @@
 name = "karyon_jsonrpc"
 version.workspace = true 
 edition.workspace = true
+autoexamples = false
 
 [dependencies]
 karyon_core.workspace = true

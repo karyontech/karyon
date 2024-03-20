@@ -18,13 +18,4 @@ pub mod pubsub;
 /// Collects common cryptographic tools
 pub mod crypto;
 
-use smol::Executor as SmolEx;
-use std::sync::Arc;
-
-/// A pointer to an Executor
-pub type Executor<'a> = Arc<SmolEx<'a>>;
-
-/// A Global Executor
-pub type GlobalExecutor = Arc<SmolEx<'static>>;
-
 use error::Result;

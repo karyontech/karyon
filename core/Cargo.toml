@@ -16,6 +16,8 @@ rand = "0.8.5"
 thiserror = "1.0.58"
 dirs = "5.0.1"
 async-task = "4.7.0"
+async-lock = "3.3.0"
+async-process = "2.1.0"
 
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"], optional = true}
 

@@ -1228,6 +1228,8 @@ dependencies = [
 name = "karyon_core"
 version = "0.1.0"
 dependencies = [
+ "async-lock 3.3.0",
+ "async-process",
  "async-task",
  "bincode",
  "chrono",

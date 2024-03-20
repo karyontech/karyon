@@ -12,10 +12,9 @@ use smol::{
 };
 
 use karyon_core::{
-    async_util::{select, timeout, Either, TaskGroup, TaskResult},
+    async_util::{select, timeout, Either, Executor, TaskGroup, TaskResult},
     event::EventListener,
     util::decode,
-    GlobalExecutor,
 };
 
 use karyon_net::NetError;
@@ -44,7 +43,7 @@ pub struct PingProtocol {
 
 impl PingProtocol {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(peer: ArcPeer, executor: GlobalExecutor) -> ArcProtocol {
+    pub fn new(peer: ArcPeer, executor: Executor<'static>) -> ArcProtocol {
         let ping_interval = peer.config().ping_interval;
         let ping_timeout = peer.config().ping_timeout;
         Arc::new(Self {

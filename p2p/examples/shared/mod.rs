@@ -3,7 +3,7 @@ use std::{num::NonZeroUsize, thread};
 use easy_parallel::Parallel;
 use smol::{channel, future, future::Future};
 
-use karyon_core::Executor;
+use karyon_core::async_util::Executor;
 
 /// Returns an estimate of the default amount of parallelism a program should use.
 /// see `std::thread::available_parallelism`

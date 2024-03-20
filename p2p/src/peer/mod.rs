@@ -11,10 +11,9 @@ use smol::{
 };
 
 use karyon_core::{
-    async_util::{select, Either, TaskGroup, TaskResult},
+    async_util::{select, Either, Executor, TaskGroup, TaskResult},
     event::{ArcEventSys, EventListener, EventSys},
     util::{decode, encode},
-    GlobalExecutor,
 };
 
 use karyon_net::Endpoint;
@@ -67,7 +66,7 @@ impl Peer {
         codec: Codec,
         remote_endpoint: Endpoint,
         conn_direction: ConnDirection,
-        ex: GlobalExecutor,
+        ex: Executor<'static>,
     ) -> ArcPeer {
         Arc::new(Peer {
             id: id.clone(),
