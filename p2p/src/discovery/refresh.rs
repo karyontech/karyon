@@ -70,7 +70,7 @@ impl RefreshService {
         Self {
             table,
             listen_endpoint,
-            task_group: TaskGroup::new(executor.clone()),
+            task_group: TaskGroup::with_executor(executor.clone()),
             executor,
             config,
             monitor,

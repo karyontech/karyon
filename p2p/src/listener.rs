@@ -46,7 +46,7 @@ impl Listener {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots,
-            task_group: TaskGroup::new(ex),
+            task_group: TaskGroup::with_executor(ex),
             enable_tls,
             monitor,
         })

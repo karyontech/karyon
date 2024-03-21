@@ -54,7 +54,7 @@ impl<'a> Server<'a> {
         Arc::new(Self {
             listener: listener.to_listener(),
             services: RwLock::new(HashMap::new()),
-            task_group: TaskGroup::new(ex),
+            task_group: TaskGroup::with_executor(ex),
             config,
         })
     }

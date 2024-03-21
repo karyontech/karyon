@@ -50,7 +50,7 @@ impl PingProtocol {
             peer,
             ping_interval,
             ping_timeout,
-            task_group: TaskGroup::new(executor),
+            task_group: TaskGroup::with_executor(executor),
         })
     }
 

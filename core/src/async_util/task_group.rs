@@ -17,7 +17,7 @@ use super::{executor::global_executor, select, CondWait, Either, Executor};
 /// async {
 ///
 ///     let ex = Arc::new(smol::Executor::new());
-///     let group = TaskGroup::new(ex);
+///     let group = TaskGroup::with_executor(ex);
 ///
 ///     group.spawn(smol::Timer::never(), |_| async {});
 ///
@@ -34,10 +34,10 @@ pub struct TaskGroup<'a> {
 }
 
 impl TaskGroup<'static> {
-    /// Creates a new task group without providing an executor
+    /// Creates a new TaskGroup without providing an executor
     ///
     /// This will Spawn a task onto a global executor (single-threaded by default).
-    pub fn new_without_executor() -> Self {
+    pub fn new() -> Self {
         Self {
             tasks: Mutex::new(Vec::new()),
             stop_signal: Arc::new(CondWait::new()),
@@ -47,8 +47,8 @@ impl TaskGroup<'static> {
 }
 
 impl<'a> TaskGroup<'a> {
-    /// Creates a new task group
-    pub fn new(executor: Executor<'a>) -> Self {
+    /// Creates a new TaskGroup by providing an executor
+    pub fn with_executor(executor: Executor<'a>) -> Self {
         Self {
             tasks: Mutex::new(Vec::new()),
             stop_signal: Arc::new(CondWait::new()),
@@ -75,7 +75,7 @@ impl<'a> TaskGroup<'a> {
         self.tasks.lock().unwrap().push(task);
     }
 
-    /// Checks if the task group is empty.
+    /// Checks if the TaskGroup is empty.
     pub fn is_empty(&self) -> bool {
         self.tasks.lock().unwrap().is_empty()
     }
@@ -97,6 +97,12 @@ impl<'a> TaskGroup<'a> {
                 break;
             }
         }
+    }
+}
+
+impl Default for TaskGroup<'static> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -172,10 +178,10 @@ mod tests {
     use std::{future, sync::Arc};
 
     #[test]
-    fn test_task_group() {
+    fn test_task_group_with_executor() {
         let ex = Arc::new(smol::Executor::new());
         smol::block_on(ex.clone().run(async move {
-            let group = Arc::new(TaskGroup::new(ex));
+            let group = Arc::new(TaskGroup::with_executor(ex));
 
             group.spawn(future::ready(0), |res| async move {
                 assert!(matches!(res, TaskResult::Completed(0)));
@@ -204,9 +210,9 @@ mod tests {
     }
 
     #[test]
-    fn test_task_group_without_executor() {
+    fn test_task_group() {
         smol::block_on(async {
-            let group = Arc::new(TaskGroup::new_without_executor());
+            let group = Arc::new(TaskGroup::new());
 
             group.spawn(future::ready(0), |res| async move {
                 assert!(matches!(res, TaskResult::Completed(0)));

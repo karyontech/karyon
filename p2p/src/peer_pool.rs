@@ -80,7 +80,7 @@ impl PeerPool {
             peers: Mutex::new(HashMap::new()),
             protocols,
             protocol_versions,
-            task_group: TaskGroup::new(executor.clone()),
+            task_group: TaskGroup::with_executor(executor.clone()),
             executor,
             monitor,
             config,

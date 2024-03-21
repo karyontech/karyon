@@ -52,7 +52,7 @@ impl Connector {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
-            task_group: TaskGroup::new(ex),
+            task_group: TaskGroup::with_executor(ex),
             monitor,
             connection_slots,
             enable_tls,

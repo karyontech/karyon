@@ -76,7 +76,7 @@ impl Peer {
             remote_endpoint,
             conn_direction,
             protocol_events: EventSys::new(),
-            task_group: TaskGroup::new(ex),
+            task_group: TaskGroup::with_executor(ex),
             stop_chan: channel::bounded(1),
         })
     }

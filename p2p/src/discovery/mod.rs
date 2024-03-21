@@ -116,7 +116,7 @@ impl Discovery {
             outbound_slots,
             connector,
             listener,
-            task_group: TaskGroup::new(ex),
+            task_group: TaskGroup::with_executor(ex),
             config,
         })
     }

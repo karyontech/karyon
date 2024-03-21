@@ -1,11 +1,13 @@
 [workspace]
+resolver = "2"
+
+# Please ensure that each crate comes before any other crate that depends on it
 members = [
     "core",
     "net",
     "p2p",
     "jsonrpc",
 ]
-resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
