@@ -9,7 +9,7 @@ pub enum KeyPairType {
 }
 
 /// A Secret key
-pub struct SecretKey(Vec<u8>);
+pub struct SecretKey(pub Vec<u8>);
 
 #[derive(Clone)]
 pub enum KeyPair {

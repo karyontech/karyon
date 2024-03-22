@@ -4,7 +4,7 @@ use async_task::FallibleTask;
 
 use super::{executor::global_executor, select, CondWait, Either, Executor};
 
-/// TaskGroup is a group of spawned tasks.
+/// TaskGroup A group that contains spawned tasks.
 ///
 /// # Example
 ///
@@ -36,7 +36,7 @@ pub struct TaskGroup<'a> {
 impl TaskGroup<'static> {
     /// Creates a new TaskGroup without providing an executor
     ///
-    /// This will Spawn a task onto a global executor (single-threaded by default).
+    /// This will spawn a task onto a global executor (single-threaded by default).
     pub fn new() -> Self {
         Self {
             tasks: Mutex::new(Vec::new()),
@@ -129,7 +129,7 @@ pub struct TaskHandler {
 }
 
 impl<'a> TaskHandler {
-    /// Creates a new task handle
+    /// Creates a new task handler
     fn new<T, Fut, CallbackF, CallbackFut>(
         ex: Executor<'a>,
         fut: Fut,
@@ -146,7 +146,6 @@ impl<'a> TaskHandler {
         let cancel_flag_c = cancel_flag.clone();
         let task = ex
             .spawn(async move {
-                //start_signal.signal().await;
                 // Waits for either the stop signal or the task to complete.
                 let result = select(stop_signal.wait(), fut).await;
 
@@ -155,7 +154,7 @@ impl<'a> TaskHandler {
                     Either::Right(res) => TaskResult::Completed(res),
                 };
 
-                // Call the callback with the result.
+                // Call the callback
                 callback(result).await;
 
                 cancel_flag_c.signal().await;
