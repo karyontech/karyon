@@ -6,9 +6,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use smol::lock::MutexGuard;
-
-use crate::util::random_16;
+use crate::{async_runtime::lock::MutexGuard, util::random_16};
 
 /// CondVar is an async version of <https://doc.rust-lang.org/std/sync/struct.Condvar.html>
 ///
@@ -17,9 +15,8 @@ use crate::util::random_16;
 ///```
 /// use std::sync::Arc;
 ///
-/// use smol::lock::Mutex;
-///
 /// use karyon_core::async_util::CondVar;
+/// use karyon_core::async_runtime::{spawn, lock::Mutex};
 ///
 ///  async {
 ///     
@@ -28,7 +25,7 @@ use crate::util::random_16;
 ///
 ///     let val_cloned = val.clone();
 ///     let condvar_cloned = condvar.clone();
-///     smol::spawn(async move {
+///     spawn(async move {
 ///         let mut val = val_cloned.lock().await;
 ///
 ///         // While the boolean flag is false, wait for a signal.
@@ -40,7 +37,7 @@ use crate::util::random_16;
 ///     });
 ///
 ///     let condvar_cloned = condvar.clone();
-///     smol::spawn(async move {
+///     spawn(async move {
 ///         let mut val = val.lock().await;
 ///
 ///         // While the boolean flag is false, wait for a signal.
@@ -71,7 +68,10 @@ impl CondVar {
 
     /// Blocks the current task until this condition variable receives a notification.
     pub async fn wait<'a, T>(&self, g: MutexGuard<'a, T>) -> MutexGuard<'a, T> {
+        #[cfg(feature = "smol")]
         let m = MutexGuard::source(&g);
+        #[cfg(feature = "tokio")]
+        let m = MutexGuard::mutex(&g);
 
         CondVarAwait::new(self, g).await;
 
@@ -206,8 +206,6 @@ impl Wakers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use smol::lock::Mutex;
     use std::{
         collections::VecDeque,
         sync::{
@@ -215,6 +213,10 @@ mod tests {
             Arc,
         },
     };
+
+    use crate::async_runtime::{block_on, lock::Mutex, spawn};
+
+    use super::*;
 
     // The tests below demonstrate a solution to a problem in the Wikipedia
     // explanation of condition variables:
@@ -243,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_condvar_signal() {
-        smol::block_on(async {
+        block_on(async {
             let number_of_tasks = 30;
 
             let queue = Arc::new(Mutex::new(Queue::new(5)));
@@ -254,7 +256,7 @@ mod tests {
             let condvar_full_cloned = condvar_full.clone();
             let condvar_empty_cloned = condvar_empty.clone();
 
-            let _producer1 = smol::spawn(async move {
+            let _producer1 = spawn(async move {
                 for i in 1..number_of_tasks {
                     // Lock queue mtuex
                     let mut queue = queue_cloned.lock().await;
@@ -275,7 +277,7 @@ mod tests {
             let queue_cloned = queue.clone();
             let task_consumed = Arc::new(AtomicUsize::new(0));
             let task_consumed_ = task_consumed.clone();
-            let consumer = smol::spawn(async move {
+            let consumer = spawn(async move {
                 for _ in 1..number_of_tasks {
                     // Lock queue mtuex
                     let mut queue = queue_cloned.lock().await;
@@ -297,7 +299,7 @@ mod tests {
                 }
             });
 
-            consumer.await;
+            let _ = consumer.await;
             assert!(queue.lock().await.is_empty());
             assert_eq!(task_consumed.load(Ordering::Relaxed), 29);
         });
@@ -305,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_condvar_broadcast() {
-        smol::block_on(async {
+        block_on(async {
             let tasks = 30;
 
             let queue = Arc::new(Mutex::new(Queue::new(5)));
@@ -313,7 +315,7 @@ mod tests {
 
             let queue_cloned = queue.clone();
             let condvar_cloned = condvar.clone();
-            let _producer1 = smol::spawn(async move {
+            let _producer1 = spawn(async move {
                 for i in 1..tasks {
                     // Lock queue mtuex
                     let mut queue = queue_cloned.lock().await;
@@ -333,7 +335,7 @@ mod tests {
 
             let queue_cloned = queue.clone();
             let condvar_cloned = condvar.clone();
-            let _producer2 = smol::spawn(async move {
+            let _producer2 = spawn(async move {
                 for i in 1..tasks {
                     // Lock queue mtuex
                     let mut queue = queue_cloned.lock().await;
@@ -355,7 +357,7 @@ mod tests {
             let task_consumed = Arc::new(AtomicUsize::new(0));
             let task_consumed_ = task_consumed.clone();
 
-            let consumer = smol::spawn(async move {
+            let consumer = spawn(async move {
                 for _ in 1..((tasks * 2) - 1) {
                     {
                         // Lock queue mutex
@@ -379,7 +381,7 @@ mod tests {
                 }
             });
 
-            consumer.await;
+            let _ = consumer.await;
             assert!(queue.lock().await.is_empty());
             assert_eq!(task_consumed.load(Ordering::Relaxed), 58);
         });

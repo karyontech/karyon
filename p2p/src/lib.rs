@@ -5,7 +5,7 @@
 //! use std::sync::Arc;
 //!
 //! use easy_parallel::Parallel;
-//! use smol::{channel as smol_channel, future, Executor};
+//! use smol::{future, Executor};
 //!
 //! use karyon_core::crypto::{KeyPair, KeyPairType};
 //! use karyon_p2p::{Backend, Config, PeerID};
@@ -19,7 +19,7 @@
 //! let ex = Arc::new(Executor::new());
 //!
 //! // Create a new Backend
-//! let backend = Backend::new(&key_pair, config, ex.clone());
+//! let backend = Backend::new(&key_pair, config, ex.clone().into());
 //!
 //! let task = async {
 //!     // Run the backend

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::info;
 
-use karyon_core::{async_util::Executor, crypto::KeyPair, pubsub::Subscription};
+use karyon_core::{async_runtime::Executor, crypto::KeyPair, pubsub::Subscription};
 
 use crate::{
     config::Config,
@@ -37,7 +37,7 @@ pub struct Backend {
 
 impl Backend {
     /// Creates a new Backend.
-    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor<'static>) -> ArcBackend {
+    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> ArcBackend {
         let config = Arc::new(config);
         let monitor = Arc::new(Monitor::new());
         let conn_queue = ConnQueue::new();

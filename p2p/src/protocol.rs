@@ -92,7 +92,7 @@ impl EventValue for ProtocolEvent {
 ///     let ex = Arc::new(Executor::new());
 ///
 ///     // Create a new Backend
-///     let backend = Backend::new(&key_pair, config, ex);
+///     let backend = Backend::new(&key_pair, config, ex.into());
 ///
 ///     // Attach the NewProtocol
 ///     let c = move |peer| NewProtocol::new(peer);

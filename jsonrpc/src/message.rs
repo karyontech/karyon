@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub const JSONRPC_VERSION: &str = "2.0";
+
 /// Parse error: Invalid JSON was received by the server.
 pub const PARSE_ERROR_CODE: i32 = -32700;
 

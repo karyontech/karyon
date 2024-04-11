@@ -1,8 +1,8 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
-use smol::future::Future;
 
 /// Returns the result of the future that completes first, preferring future1
 /// if both are ready.
@@ -75,14 +75,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{select, Either};
-    use smol::Timer;
     use std::future;
+
+    use crate::{async_runtime::block_on, async_util::sleep};
+
+    use super::{select, Either};
 
     #[test]
     fn test_async_select() {
-        smol::block_on(async move {
-            let fut = select(Timer::never(), future::ready(0 as u32)).await;
+        block_on(async move {
+            let fut = select(sleep(std::time::Duration::MAX), future::ready(0 as u32)).await;
             assert!(matches!(fut, Either::Right(0)));
 
             let fut1 = future::pending::<String>();

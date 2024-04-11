@@ -26,7 +26,7 @@ use karyon_net::Endpoint;
 ///     let ex = Arc::new(Executor::new());
 ///
 ///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-///     let backend = Backend::new(&key_pair, Config::default(), ex);
+///     let backend = Backend::new(&key_pair, Config::default(), ex.into());
 ///
 ///     // Create a new Subscription
 ///     let sub =  backend.monitor().await;

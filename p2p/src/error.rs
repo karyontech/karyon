@@ -62,27 +62,35 @@ pub enum Error {
     #[error("Rcgen Error: {0}")]
     Rcgen(#[from] rcgen::Error),
 
+    #[cfg(feature = "smol")]
     #[error("Tls Error: {0}")]
     Rustls(#[from] futures_rustls::rustls::Error),
 
+    #[cfg(feature = "tokio")]
+    #[error("Tls Error: {0}")]
+    Rustls(#[from] tokio_rustls::rustls::Error),
+
     #[error("Invalid DNS Name: {0}")]
-    InvalidDnsNameError(#[from] futures_rustls::pki_types::InvalidDnsNameError),
+    InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
 
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
     #[error(transparent)]
-    ChannelRecv(#[from] smol::channel::RecvError),
+    ChannelRecv(#[from] async_channel::RecvError),
 
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),
 
     #[error(transparent)]
-    KaryonNet(#[from] karyon_net::NetError),
+    KaryonNet(#[from] karyon_net::Error),
+
+    #[error("Other Error: {0}")]
+    Other(String),
 }
 
-impl<T> From<smol::channel::SendError<T>> for Error {
-    fn from(error: smol::channel::SendError<T>) -> Self {
+impl<T> From<async_channel::SendError<T>> for Error {
+    fn from(error: async_channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
     }
 }

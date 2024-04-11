@@ -5,6 +5,9 @@ use karyon_net::{Addr, Port};
 /// Specifies the size of the key, in bytes.
 pub const KEY_SIZE: usize = 32;
 
+/// The unique key identifying the peer.
+pub type Key = [u8; KEY_SIZE];
+
 /// An Entry represents a peer in the routing table.
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct Entry {
@@ -20,13 +23,10 @@ pub struct Entry {
 
 impl PartialEq for Entry {
     fn eq(&self, other: &Self) -> bool {
-        // TODO: this should also compare both addresses (the self.addr == other.addr)
+        // XXX: should we compare both self.addr and other.addr???
         self.key == other.key
     }
 }
-
-/// The unique key identifying the peer.
-pub type Key = [u8; KEY_SIZE];
 
 /// Calculates the XOR distance between two provided keys.
 ///

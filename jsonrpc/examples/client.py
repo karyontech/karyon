@@ -3,7 +3,7 @@ import random
 import json
 
 HOST = "127.0.0.1"
-PORT = 60000
+PORT = 6000
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
@@ -15,7 +15,7 @@ req = {
     "params": {"x": 4, "y": 3},
 }
 print("Send: ", req)
-s.sendall((json.dumps(req) + '\n').encode())
+s.sendall((json.dumps(req)).encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -27,7 +27,7 @@ req = {
     "params": {"x": 4, "y": 3},
 }
 print("Send: ", req)
-s.sendall((json.dumps(req) + '\n').encode())
+s.sendall((json.dumps(req)).encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -39,7 +39,7 @@ req = {
     "params": None,
 }
 print("Send: ", req)
-s.sendall((json.dumps(req) + '\n').encode())
+s.sendall((json.dumps(req)).encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)
@@ -51,7 +51,7 @@ req = {
     "params": None,
 }
 print("Send: ", req)
-s.sendall((json.dumps(req) + '\n').encode())
+s.sendall((json.dumps(req)).encode())
 res = s.recv(1024)
 res = json.loads(res)
 print("Received: ", res)

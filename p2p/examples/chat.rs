@@ -121,7 +121,7 @@ fn main() {
     let ex = Arc::new(Executor::new());
 
     // Create a new Backend
-    let backend = Backend::new(&key_pair, config, ex.clone());
+    let backend = Backend::new(&key_pair, config, ex.clone().into());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).unwrap();
@@ -133,7 +133,7 @@ fn main() {
             let username = cli.username;
 
             // Attach the ChatProtocol
-            let c = move |peer| ChatProtocol::new(&username, peer, ex_cloned.clone());
+            let c = move |peer| ChatProtocol::new(&username, peer, ex_cloned.clone().into());
             backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
 
             // Run the backend

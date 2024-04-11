@@ -5,14 +5,11 @@ use std::{
     sync::{Arc, Weak},
 };
 
+use async_channel::{Receiver, Sender};
 use chrono::{DateTime, Utc};
 use log::{error, trace};
-use smol::{
-    channel::{Receiver, Sender},
-    lock::Mutex,
-};
 
-use crate::{util::random_16, Result};
+use crate::{async_runtime::lock::Mutex, util::random_16, Result};
 
 pub type ArcEventSys<T> = Arc<EventSys<T>>;
 pub type WeakEventSys<T> = Weak<EventSys<T>>;
@@ -139,7 +136,7 @@ where
         self: &Arc<Self>,
         topic: &T,
     ) -> EventListener<T, E> {
-        let chan = smol::channel::unbounded();
+        let chan = async_channel::unbounded();
 
         let topics = &mut self.listeners.lock().await;
 
@@ -310,6 +307,8 @@ pub trait EventValueTopic: EventValueAny + EventValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::async_runtime::block_on;
+
     use super::*;
 
     #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -334,11 +333,6 @@ mod tests {
     #[derive(Clone, Debug, PartialEq)]
     struct C {
         c_value: usize,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct D {
-        d_value: usize,
     }
 
     #[derive(Clone, Debug, PartialEq)]
@@ -369,12 +363,6 @@ mod tests {
         }
     }
 
-    impl EventValue for D {
-        fn id() -> &'static str {
-            "D"
-        }
-    }
-
     impl EventValue for E {
         fn id() -> &'static str {
             "E"
@@ -396,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_event_sys() {
-        smol::block_on(async move {
+        block_on(async move {
             let event_sys = EventSys::<Topic>::new();
 
             let a_listener = event_sys.register::<A>(&Topic::TopicA).await;

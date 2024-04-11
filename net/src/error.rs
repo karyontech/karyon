@@ -13,8 +13,17 @@ pub enum Error {
     #[error("invalid address {0}")]
     InvalidAddress(String),
 
+    #[error("invalid path {0}")]
+    InvalidPath(String),
+
     #[error("invalid endpoint {0}")]
     InvalidEndpoint(String),
+
+    #[error("Encode error: {0}")]
+    Encode(String),
+
+    #[error("Decode error: {0}")]
+    Decode(String),
 
     #[error("Parse endpoint error {0}")]
     ParseEndpoint(String),
@@ -26,23 +35,28 @@ pub enum Error {
     ChannelSend(String),
 
     #[error(transparent)]
-    ChannelRecv(#[from] smol::channel::RecvError),
+    ChannelRecv(#[from] async_channel::RecvError),
 
     #[error("Ws Error: {0}")]
     WsError(#[from] async_tungstenite::tungstenite::Error),
 
+    #[cfg(feature = "smol")]
     #[error("Tls Error: {0}")]
     Rustls(#[from] futures_rustls::rustls::Error),
 
+    #[cfg(feature = "tokio")]
+    #[error("Tls Error: {0}")]
+    Rustls(#[from] tokio_rustls::rustls::Error),
+
     #[error("Invalid DNS Name: {0}")]
-    InvalidDnsNameError(#[from] futures_rustls::pki_types::InvalidDnsNameError),
+    InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
 
     #[error(transparent)]
-    KaryonCore(#[from] karyon_core::error::Error),
+    KaryonCore(#[from] karyon_core::Error),
 }
 
-impl<T> From<smol::channel::SendError<T>> for Error {
-    fn from(error: smol::channel::SendError<T>) -> Self {
+impl<T> From<async_channel::SendError<T>> for Error {
+    fn from(error: async_channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
     }
 }

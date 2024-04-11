@@ -2,20 +2,14 @@
 resolver = "2"
 
 # Please ensure that each crate comes before any other crate that depends on it
-members = [
-    "core",
-    "net",
-    "p2p",
-    "jsonrpc",
-]
+members = ["core", "net", "p2p", "jsonrpc"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-karyon_core = { path = "core" }
-karyon_net = { path = "net" }
-karyon_p2p = { path = "p2p" }
-karyon_jsonrpc = { path = "jsonrpc" }
-
+karyon_core = { path = "core", default-features = false }
+karyon_net = { path = "net", default-features = false }
+karyon_jsonrpc = { path = "jsonrpc", default-features = false }
+karyon_p2p = { path = "p2p", default-features = false }

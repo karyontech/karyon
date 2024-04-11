@@ -1,9 +1,7 @@
-use std::{num::NonZeroUsize, thread};
+use std::{num::NonZeroUsize, sync::Arc, thread};
 
 use easy_parallel::Parallel;
-use smol::{channel, future, future::Future};
-
-use karyon_core::async_util::Executor;
+use smol::{channel, future, future::Future, Executor};
 
 /// Returns an estimate of the default amount of parallelism a program should use.
 /// see `std::thread::available_parallelism`
@@ -14,7 +12,7 @@ fn available_parallelism() -> usize {
 }
 
 /// Run a multi-threaded executor
-pub fn run_executor<T>(main_future: impl Future<Output = T>, ex: Executor<'_>) {
+pub fn run_executor<T>(main_future: impl Future<Output = T>, ex: Arc<Executor<'_>>) {
     let (signal, shutdown) = channel::unbounded::<()>();
 
     let num_threads = available_parallelism();

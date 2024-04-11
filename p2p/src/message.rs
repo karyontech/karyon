@@ -2,15 +2,10 @@ use std::collections::HashMap;
 
 use bincode::{Decode, Encode};
 
+use karyon_core::util::encode;
 use karyon_net::{Addr, Port};
 
-use crate::{protocol::ProtocolID, routing_table::Entry, version::VersionInt, PeerID};
-
-/// The size of the message header, in bytes.
-pub const MSG_HEADER_SIZE: usize = 6;
-
-/// The maximum allowed size for a message in bytes.
-pub const MAX_ALLOWED_MSG_SIZE: u32 = 1024 * 1024; // 1MB
+use crate::{protocol::ProtocolID, routing_table::Entry, version::VersionInt, PeerID, Result};
 
 /// Defines the main message in the karyon p2p network.
 ///
@@ -23,11 +18,19 @@ pub struct NetMsg {
     pub payload: Vec<u8>,
 }
 
+impl NetMsg {
+    pub fn new<T: Encode>(command: NetMsgCmd, t: T) -> Result<Self> {
+        Ok(Self {
+            header: NetMsgHeader { command },
+            payload: encode(&t)?,
+        })
+    }
+}
+
 /// Represents the header of a message.
 #[derive(Decode, Encode, Debug, Clone)]
 pub struct NetMsgHeader {
     pub command: NetMsgCmd,
-    pub payload_size: u32,
 }
 
 /// Defines message commands.
@@ -39,12 +42,18 @@ pub enum NetMsgCmd {
     Protocol,
     Shutdown,
 
-    // NOTE: The following commands are used during the lookup process.
+    // The following commands are used during the lookup process.
     Ping,
     Pong,
     FindPeer,
     Peer,
     Peers,
+}
+
+#[derive(Decode, Encode, Debug, Clone)]
+pub enum RefreshMsg {
+    Ping([u8; 32]),
+    Pong([u8; 32]),
 }
 
 /// Defines a message related to a specific protocol.
@@ -103,21 +112,6 @@ pub struct PeerMsg {
 #[derive(Decode, Encode, Debug)]
 pub struct PeersMsg(pub Vec<PeerMsg>);
 
-macro_rules! get_msg_payload {
-    ($a:ident, $b:ident) => {
-        if let NetMsgCmd::$a = $b.header.command {
-            $b.payload
-        } else {
-            return Err(Error::InvalidMsg(format!(
-                "Unexpected msg {:?}",
-                $b.header.command
-            )));
-        }
-    };
-}
-
-pub(super) use get_msg_payload;
-
 impl From<Entry> for PeerMsg {
     fn from(entry: Entry) -> PeerMsg {
         PeerMsg {
@@ -139,3 +133,19 @@ impl From<PeerMsg> for Entry {
         }
     }
 }
+
+macro_rules! get_msg_payload {
+    ($a:ident, $b:ident) => {
+        if let NetMsgCmd::$a = $b.header.command {
+            $b.payload
+        } else {
+            return Err(Error::InvalidMsg(format!(
+                "Expected {:?} msg found {:?} msg",
+                stringify!($a),
+                $b.header.command
+            )));
+        }
+    };
+}
+
+pub(super) use get_msg_payload;

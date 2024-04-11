@@ -1,0 +1,18 @@
+[package]
+name = "karyon_jsonrpc_internal"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["smol"]
+smol = ["karyon_core/smol", "karyon_net/smol"]
+tokio = ["karyon_core/tokio", "karyon_net/tokio"]
+
+[dependencies]
+karyon_core = { workspace = true, default-features = false }
+karyon_net = { workspace = true, default-features = false }
+
+serde_json = "1.0.114"
+thiserror = "1.0.58"

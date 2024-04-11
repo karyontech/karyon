@@ -1,19 +1,43 @@
 [package]
 name = "karyon_net"
-version.workspace = true 
+version.workspace = true
 edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-karyon_core.workspace = true
+[features]
+default = ["smol"]
+smol = [
+  "karyon_core/smol",
+  "async-tungstenite/async-std-runtime",
+  "dep:futures-rustls",
+]
+tokio = [
+  "karyon_core/tokio",
+  "async-tungstenite/tokio-runtime",
+  "dep:tokio",
+  "dep:tokio-rustls",
+]
 
-smol = "2.0.0"
+
+[dependencies]
+karyon_core = { workspace = true, default-features = false }
+
+pin-project-lite = "0.2.13"
 async-trait = "0.1.77"
 log = "0.4.21"
-bincode = { version="2.0.0-rc.3", features = ["derive"]}
+bincode = { version = "2.0.0-rc.3", features = ["derive"] }
 thiserror = "1.0.58"
 url = "2.5.0"
-futures-rustls = "0.25.1"
-async-tungstenite = "0.25.0"
-ws_stream_tungstenite = "0.13.0"
+async-tungstenite = { version = "0.25.0", default-features = false }
+asynchronous-codec = "0.7.0"
+futures-util = "0.3.30"
+async-channel = "2.3.0"
+rustls-pki-types = "1.7.0"
+
+futures-rustls = { version = "0.25.1", optional = true }
+tokio-rustls = { version = "0.26.0", optional = true }
+tokio = { version = "1.37.0", features = ["io-util"], optional = true }
+
+[dev-dependencies]
+smol = "2.0.0"

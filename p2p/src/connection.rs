@@ -1,11 +1,11 @@
 use std::{collections::VecDeque, fmt, sync::Arc};
 
-use smol::{channel::Sender, lock::Mutex};
+use async_channel::Sender;
 
-use karyon_core::async_util::CondVar;
+use karyon_core::{async_runtime::lock::Mutex, async_util::CondVar};
 use karyon_net::Conn;
 
-use crate::Result;
+use crate::{message::NetMsg, Result};
 
 /// Defines the direction of a network connection.
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ impl fmt::Display for ConnDirection {
 
 pub struct NewConn {
     pub direction: ConnDirection,
-    pub conn: Conn,
+    pub conn: Conn<NetMsg>,
     pub disconnect_signal: Sender<Result<()>>,
 }
 
@@ -44,8 +44,8 @@ impl ConnQueue {
     }
 
     /// Push a connection into the queue and wait for the disconnect signal
-    pub async fn handle(&self, conn: Conn, direction: ConnDirection) -> Result<()> {
-        let (disconnect_signal, chan) = smol::channel::bounded(1);
+    pub async fn handle(&self, conn: Conn<NetMsg>, direction: ConnDirection) -> Result<()> {
+        let (disconnect_signal, chan) = async_channel::bounded(1);
         let new_conn = NewConn {
             direction,
             conn,

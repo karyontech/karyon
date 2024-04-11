@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use smol::net::TcpStream;
 
-use karyon_jsonrpc::{Client, ClientConfig};
+use karyon_jsonrpc::Client;
 
 #[derive(Deserialize, Serialize)]
 struct Req {
@@ -15,9 +14,11 @@ struct Pong {}
 fn main() {
     env_logger::init();
     smol::future::block_on(async {
-        let conn = TcpStream::connect("127.0.0.1:60000").await.unwrap();
-        let config = ClientConfig::default();
-        let client = Client::new(conn, config);
+        let client = Client::builder("tcp://127.0.0.1:6000")
+            .expect("Create client builder")
+            .build()
+            .await
+            .unwrap();
 
         let params = Req { x: 10, y: 7 };
         let result: u32 = client.call("Calc.add", params).await.unwrap();

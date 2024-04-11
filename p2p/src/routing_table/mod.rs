@@ -266,7 +266,7 @@ impl RoutingTable {
 }
 
 /// Check if two addresses belong to the same subnet.
-pub fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
+fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
     match (addr, other_addr) {
         (Addr::Ip(IpAddr::V4(ip)), Addr::Ip(IpAddr::V4(other_ip))) => {
             // TODO: Consider moving this to a different place
@@ -275,6 +275,8 @@ pub fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
             }
             ip.octets()[0..3] == other_ip.octets()[0..3]
         }
+
+        // TODO:  check ipv6
         _ => false,
     }
 }

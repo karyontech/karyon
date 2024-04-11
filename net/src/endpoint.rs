@@ -1,9 +1,10 @@
 use std::{
     net::{IpAddr, SocketAddr},
-    os::unix::net::SocketAddr as UnixSocketAddress,
     path::PathBuf,
     str::FromStr,
 };
+
+use std::os::unix::net::SocketAddr as UnixSocketAddr;
 
 use bincode::{Decode, Encode};
 use url::Url;
@@ -25,7 +26,7 @@ pub type Port = u16;
 /// let endpoint: Endpoint = "tcp://127.0.0.1:3000".parse().unwrap();
 ///
 /// let socketaddr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
-/// let endpoint =  Endpoint::new_udp_addr(&socketaddr);
+/// let endpoint =  Endpoint::new_udp_addr(socketaddr);
 ///
 /// ```
 ///
@@ -35,7 +36,8 @@ pub enum Endpoint {
     Tcp(Addr, Port),
     Tls(Addr, Port),
     Ws(Addr, Port),
-    Unix(String),
+    Wss(Addr, Port),
+    Unix(PathBuf),
 }
 
 impl std::fmt::Display for Endpoint {
@@ -53,12 +55,11 @@ impl std::fmt::Display for Endpoint {
             Endpoint::Ws(ip, port) => {
                 write!(f, "ws://{}:{}", ip, port)
             }
+            Endpoint::Wss(ip, port) => {
+                write!(f, "wss://{}:{}", ip, port)
+            }
             Endpoint::Unix(path) => {
-                if path.is_empty() {
-                    write!(f, "unix:/UNNAMED")
-                } else {
-                    write!(f, "unix:/{}", path)
-                }
+                write!(f, "unix:/{}", path.to_string_lossy())
             }
         }
     }
@@ -71,7 +72,8 @@ impl TryFrom<Endpoint> for SocketAddr {
             Endpoint::Udp(ip, port)
             | Endpoint::Tcp(ip, port)
             | Endpoint::Tls(ip, port)
-            | Endpoint::Ws(ip, port) => Ok(SocketAddr::new(ip.try_into()?, port)),
+            | Endpoint::Ws(ip, port)
+            | Endpoint::Wss(ip, port) => Ok(SocketAddr::new(ip.try_into()?, port)),
             Endpoint::Unix(_) => Err(Error::TryFromEndpoint),
         }
     }
@@ -87,11 +89,11 @@ impl TryFrom<Endpoint> for PathBuf {
     }
 }
 
-impl TryFrom<Endpoint> for UnixSocketAddress {
+impl TryFrom<Endpoint> for UnixSocketAddr {
     type Error = Error;
-    fn try_from(endpoint: Endpoint) -> std::result::Result<UnixSocketAddress, Self::Error> {
+    fn try_from(endpoint: Endpoint) -> std::result::Result<UnixSocketAddr, Self::Error> {
         match endpoint {
-            Endpoint::Unix(a) => Ok(UnixSocketAddress::from_pathname(a)?),
+            Endpoint::Unix(a) => Ok(UnixSocketAddr::from_pathname(a)?),
             _ => Err(Error::TryFromEndpoint),
         }
     }
@@ -124,6 +126,7 @@ impl FromStr for Endpoint {
                 "udp" => Ok(Endpoint::Udp(addr, port)),
                 "tls" => Ok(Endpoint::Tls(addr, port)),
                 "ws" => Ok(Endpoint::Ws(addr, port)),
+                "wss" => Ok(Endpoint::Wss(addr, port)),
                 _ => Err(Error::InvalidEndpoint(s.to_string())),
             }
         } else {
@@ -132,7 +135,7 @@ impl FromStr for Endpoint {
             }
 
             match url.scheme() {
-                "unix" => Ok(Endpoint::Unix(url.path().to_string())),
+                "unix" => Ok(Endpoint::Unix(url.path().into())),
                 _ => Err(Error::InvalidEndpoint(s.to_string())),
             }
         }
@@ -141,33 +144,33 @@ impl FromStr for Endpoint {
 
 impl Endpoint {
     /// Creates a new TCP endpoint from a `SocketAddr`.
-    pub fn new_tcp_addr(addr: &SocketAddr) -> Endpoint {
+    pub fn new_tcp_addr(addr: SocketAddr) -> Endpoint {
         Endpoint::Tcp(Addr::Ip(addr.ip()), addr.port())
     }
 
     /// Creates a new UDP endpoint from a `SocketAddr`.
-    pub fn new_udp_addr(addr: &SocketAddr) -> Endpoint {
+    pub fn new_udp_addr(addr: SocketAddr) -> Endpoint {
         Endpoint::Udp(Addr::Ip(addr.ip()), addr.port())
     }
 
     /// Creates a new TLS endpoint from a `SocketAddr`.
-    pub fn new_tls_addr(addr: &SocketAddr) -> Endpoint {
+    pub fn new_tls_addr(addr: SocketAddr) -> Endpoint {
         Endpoint::Tls(Addr::Ip(addr.ip()), addr.port())
     }
 
     /// Creates a new WS endpoint from a `SocketAddr`.
-    pub fn new_ws_addr(addr: &SocketAddr) -> Endpoint {
+    pub fn new_ws_addr(addr: SocketAddr) -> Endpoint {
         Endpoint::Ws(Addr::Ip(addr.ip()), addr.port())
     }
 
-    /// Creates a new Unix endpoint from a `UnixSocketAddress`.
-    pub fn new_unix_addr(addr: &UnixSocketAddress) -> Endpoint {
-        Endpoint::Unix(
-            addr.as_pathname()
-                .and_then(|a| a.to_str())
-                .unwrap_or("")
-                .to_string(),
-        )
+    /// Creates a new WSS endpoint from a `SocketAddr`.
+    pub fn new_wss_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Wss(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new Unix endpoint from a `UnixSocketAddr`.
+    pub fn new_unix_addr(addr: &std::path::Path) -> Endpoint {
+        Endpoint::Unix(addr.to_path_buf())
     }
 
     /// Returns the `Port` of the endpoint.
@@ -176,7 +179,8 @@ impl Endpoint {
             Endpoint::Tcp(_, port)
             | Endpoint::Udp(_, port)
             | Endpoint::Tls(_, port)
-            | Endpoint::Ws(_, port) => Ok(port),
+            | Endpoint::Ws(_, port)
+            | Endpoint::Wss(_, port) => Ok(port),
             _ => Err(Error::TryFromEndpoint),
         }
     }
@@ -187,7 +191,8 @@ impl Endpoint {
             Endpoint::Tcp(addr, _)
             | Endpoint::Udp(addr, _)
             | Endpoint::Tls(addr, _)
-            | Endpoint::Ws(addr, _) => Ok(addr),
+            | Endpoint::Ws(addr, _)
+            | Endpoint::Wss(addr, _) => Ok(addr),
             _ => Err(Error::TryFromEndpoint),
         }
     }
@@ -223,10 +228,27 @@ impl std::fmt::Display for Addr {
     }
 }
 
+pub trait ToEndpoint {
+    fn to_endpoint(&self) -> Result<Endpoint>;
+}
+
+impl ToEndpoint for String {
+    fn to_endpoint(&self) -> Result<Endpoint> {
+        Endpoint::from_str(self)
+    }
+}
+
+impl ToEndpoint for &str {
+    fn to_endpoint(&self) -> Result<Endpoint> {
+        Endpoint::from_str(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::net::Ipv4Addr;
+    use std::path::PathBuf;
 
     #[test]
     fn test_endpoint_from_str() {
@@ -243,7 +265,7 @@ mod tests {
         assert_eq!(endpoint_str, endpoint);
 
         let endpoint_str = "unix:/home/x/s.socket".parse::<Endpoint>().unwrap();
-        let endpoint = Endpoint::Unix("/home/x/s.socket".to_string());
+        let endpoint = Endpoint::Unix(PathBuf::from_str("/home/x/s.socket").unwrap());
         assert_eq!(endpoint_str, endpoint);
     }
 }

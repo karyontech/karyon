@@ -1,5 +1,12 @@
 //! A fast and lightweight async implementation of [JSON-RPC
-//! 2.0](https://www.jsonrpc.org/specification), supporting the Tcp and Unix protocols.
+//! 2.0](https://www.jsonrpc.org/specification).
+//! 
+//! features: 
+//! - Supports TCP, TLS, WebSocket, and Unix protocols.
+//! - Uses smol(async-std) as the async runtime, but also supports tokio via 
+//!   the `tokio` feature.
+//! - Allows registration of multiple services (structs) of different types on a
+//!   single server.
 //!
 //! # Example
 //!
@@ -9,69 +16,65 @@
 //! use serde_json::Value;
 //! use smol::net::{TcpStream, TcpListener};
 //!
-//! use karyon_jsonrpc::{JsonRPCError, Server, Client, register_service, ServerConfig, ClientConfig};
+//! use karyon_jsonrpc::{Error, Server, Client, rpc_impl};
 //!
 //! struct HelloWorld {}
 //!
+//! #[rpc_impl]
 //! impl HelloWorld {
-//!     async fn say_hello(&self, params: Value) -> Result<Value, JsonRPCError> {
+//!     async fn say_hello(&self, params: Value) -> Result<Value, Error> {
 //!         let msg: String = serde_json::from_value(params)?;
 //!         Ok(serde_json::json!(format!("Hello {msg}!")))
 //!     }
 //!
-//!     async fn foo(&self, params: Value) -> Result<Value, JsonRPCError> {
+//!     async fn foo(&self, params: Value) -> Result<Value, Error> {
 //!         Ok(serde_json::json!("foo!"))
 //!     }
 //!
-//!     async fn bar(&self, params: Value) -> Result<Value, JsonRPCError> {
+//!     async fn bar(&self, params: Value) -> Result<Value, Error> {
 //!         Ok(serde_json::json!("bar!"))
 //!     }
 //! }
 //!
 //! // Server
 //! async {
-//!     let ex = Arc::new(smol::Executor::new());
-//!
 //!     // Creates a new server
-//!     let listener = TcpListener::bind("127.0.0.1:60000").await.unwrap();
-//!     let config = ServerConfig::default();
-//!     let server = Server::new(listener, config, ex.clone());
-//!
-//!     // Register the HelloWorld service
-//!     register_service!(HelloWorld, say_hello, foo, bar);
-//!     server.attach_service(HelloWorld{});
+//!     let server = Server::builder("tcp://127.0.0.1:60000")
+//!         .expect("create new server builder")
+//!         .service(HelloWorld{})
+//!         .build()
+//!         .await
+//!         .expect("build the server");
 //!
 //!     // Starts the server
-//!     ex.run(server.start());
+//!     server.start().await.expect("start the server");
 //! };
 //!
 //! // Client
 //! async {
-//!
 //!     // Creates a new client
-//!     let conn = TcpStream::connect("127.0.0.1:60000").await.unwrap();
-//!     let config = ClientConfig::default();
-//!     let client = Client::new(conn, config);
+//!     let client = Client::builder("tcp://127.0.0.1:60000")
+//!         .expect("create new client builder")
+//!         .build()
+//!         .await
+//!         .expect("build the client");
 //!
-//!     let result: String = client.call("HelloWorld.say_hello", "world".to_string()).await.unwrap();
+//!     let result: String = client.call("HelloWorld.say_hello", "world".to_string())
+//!         .await
+//!         .expect("send a request");
 //! };
 //!
 //! ```
 
 mod client;
 mod codec;
-mod error;
 pub mod message;
 mod server;
-mod service;
 
-pub use client::{Client, ClientConfig};
-pub use codec::CodecConfig;
-pub use error::Error as JsonRPCError;
-pub use server::{Server, ServerConfig};
-pub use service::{RPCMethod, RPCService};
+pub use client::Client;
+pub use server::Server;
 
+pub use karyon_jsonrpc_internal::{impl_rpc_service, RPCMethod, RPCService};
+pub use karyon_jsonrpc_internal::{Error, Result};
+pub use karyon_jsonrpc_macro::rpc_impl;
 pub use karyon_net::Endpoint;
-
-const JSONRPC_VERSION: &str = "2.0";
-use error::{Error, Result};

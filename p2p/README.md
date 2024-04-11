@@ -1,6 +1,6 @@
 # karyon p2p
 
-karyon p2p serves as the foundational stack for the karyon project. It offers
+karyon p2p serves as the foundational stack for the Karyon project. It offers
 a lightweight, extensible, and customizable peer-to-peer (p2p) network stack
 that seamlessly integrates with any p2p project.
 
@@ -130,7 +130,14 @@ boolean `enable_tls` field in the configuration. However, implementing TLS for
 a P2P network is not trivial and is still unstable, requiring a comprehensive
 audit.
 
-## Usage
+
+## Choosing the async runtime
+
+karyon p2p currently supports both smol(async-std) and tokio. The default is
+smol, but if you want to use tokio, you need to disable the default features
+and then select the `tokio` feature.
+
+## Examples 
 
 You can check out the examples [here](./examples). 
 

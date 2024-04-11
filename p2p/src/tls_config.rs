@@ -1,18 +1,24 @@
 use std::sync::Arc;
 
-use futures_rustls::rustls::{
-    self,
+#[cfg(feature = "smol")]
+use futures_rustls::rustls;
+
+#[cfg(feature = "tokio")]
+use tokio_rustls::rustls;
+
+use rustls::{
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
     crypto::{
         aws_lc_rs::{self, cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, kx_group},
         CryptoProvider, SupportedKxGroup,
     },
-    pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
     server::danger::{ClientCertVerified, ClientCertVerifier},
     CertificateError, DigitallySignedStruct, DistinguishedName,
     Error::InvalidCertificate,
     SignatureScheme, SupportedCipherSuite, SupportedProtocolVersion,
 };
+
+use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 
 use log::error;
 use x509_parser::{certificate::X509Certificate, parse_x509_certificate};

@@ -20,11 +20,15 @@ pub enum Error {
     #[error(transparent)]
     Ed25519(#[from] ed25519_dalek::ed25519::Error),
 
+    #[cfg(feature = "tokio")]
+    #[error(transparent)]
+    TokioJoinError(#[from] tokio::task::JoinError),
+
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
     #[error(transparent)]
-    ChannelRecv(#[from] smol::channel::RecvError),
+    ChannelRecv(#[from] async_channel::RecvError),
 
     #[error(transparent)]
     BincodeDecode(#[from] bincode::error::DecodeError),
@@ -33,8 +37,8 @@ pub enum Error {
     BincodeEncode(#[from] bincode::error::EncodeError),
 }
 
-impl<T> From<smol::channel::SendError<T>> for Error {
-    fn from(error: smol::channel::SendError<T>) -> Self {
+impl<T> From<async_channel::SendError<T>> for Error {
+    fn from(error: async_channel::SendError<T>) -> Self {
         Error::ChannelSend(error.to_string())
     }
 }

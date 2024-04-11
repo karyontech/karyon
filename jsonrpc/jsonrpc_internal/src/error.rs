@@ -26,9 +26,15 @@ pub enum Error {
     #[error("Invalid Message Error: {0}")]
     InvalidMsg(&'static str),
 
+    #[error("Unsupported protocol: {0}")]
+    UnsupportedProtocol(String),
+
+    #[error("Unexpected Error: {0}")]
+    General(&'static str),
+
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),
 
     #[error(transparent)]
-    KaryonNet(#[from] karyon_net::NetError),
+    KaryonNet(#[from] karyon_net::Error),
 }

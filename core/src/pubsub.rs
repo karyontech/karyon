@@ -1,9 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use log::error;
-use smol::lock::Mutex;
 
-use crate::{util::random_16, Result};
+use crate::{async_runtime::lock::Mutex, util::random_16, Result};
 
 pub type ArcPublisher<T> = Arc<Publisher<T>>;
 pub type SubscriptionID = u16;
@@ -28,7 +27,7 @@ pub type SubscriptionID = u16;
 ///  
 /// ```
 pub struct Publisher<T> {
-    subs: Mutex<HashMap<SubscriptionID, smol::channel::Sender<T>>>,
+    subs: Mutex<HashMap<SubscriptionID, async_channel::Sender<T>>>,
 }
 
 impl<T: Clone> Publisher<T> {
@@ -43,7 +42,7 @@ impl<T: Clone> Publisher<T> {
     pub async fn subscribe(self: &Arc<Self>) -> Subscription<T> {
         let mut subs = self.subs.lock().await;
 
-        let chan = smol::channel::unbounded();
+        let chan = async_channel::unbounded();
 
         let mut sub_id = random_16();
 
@@ -84,7 +83,7 @@ impl<T: Clone> Publisher<T> {
 // Subscription
 pub struct Subscription<T> {
     id: SubscriptionID,
-    recv_chan: smol::channel::Receiver<T>,
+    recv_chan: async_channel::Receiver<T>,
     publisher: ArcPublisher<T>,
 }
 
@@ -93,7 +92,7 @@ impl<T: Clone> Subscription<T> {
     pub fn new(
         id: SubscriptionID,
         publisher: ArcPublisher<T>,
-        recv_chan: smol::channel::Receiver<T>,
+        recv_chan: async_channel::Receiver<T>,
     ) -> Subscription<T> {
         Self {
             id,

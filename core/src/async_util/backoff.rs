@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use smol::Timer;
+use super::sleep;
 
 /// Exponential backoff
 /// <https://en.wikipedia.org/wiki/Exponential_backoff>
@@ -57,7 +57,7 @@ impl Backoff {
     /// Retruns the delay value.
     pub async fn sleep(&self) -> u64 {
         if self.stop.load(Ordering::SeqCst) {
-            Timer::after(Duration::from_millis(self.max_delay)).await;
+            sleep(Duration::from_millis(self.max_delay)).await;
             return self.max_delay;
         }
 
@@ -71,7 +71,7 @@ impl Backoff {
 
         self.retries.store(retries + 1, Ordering::SeqCst);
 
-        Timer::after(Duration::from_millis(delay)).await;
+        sleep(Duration::from_millis(delay)).await;
         delay
     }
 
@@ -84,15 +84,18 @@ impl Backoff {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
+    use crate::async_runtime::{block_on, spawn};
+
+    use super::*;
 
     #[test]
     fn test_backoff() {
-        smol::block_on(async move {
+        block_on(async move {
             let backoff = Arc::new(Backoff::new(5, 15));
             let backoff_c = backoff.clone();
-            smol::spawn(async move {
+            spawn(async move {
                 let delay = backoff_c.sleep().await;
                 assert_eq!(delay, 5);
 
@@ -102,14 +105,16 @@ mod tests {
                 let delay = backoff_c.sleep().await;
                 assert_eq!(delay, 15);
             })
-            .await;
+            .await
+            .unwrap();
 
-            smol::spawn(async move {
+            spawn(async move {
                 backoff.reset();
                 let delay = backoff.sleep().await;
                 assert_eq!(delay, 5);
             })
-            .await;
+            .await
+            .unwrap();
         });
     }
 }

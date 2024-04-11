@@ -1,6 +1,5 @@
-use smol::lock::Mutex;
-
 use super::CondVar;
+use crate::async_runtime::lock::Mutex;
 
 /// CondWait is a wrapper struct for CondVar with a Mutex boolean flag.
 ///
@@ -10,11 +9,12 @@ use super::CondVar;
 /// use std::sync::Arc;
 ///
 /// use karyon_core::async_util::CondWait;
+/// use karyon_core::async_runtime::spawn;
 ///
 ///  async {
 ///     let cond_wait = Arc::new(CondWait::new());
 ///     let cond_wait_cloned = cond_wait.clone();
-///     let task = smol::spawn(async move {
+///     let task = spawn(async move {
 ///         cond_wait_cloned.wait().await;
 ///         // ...
 ///     });
@@ -76,21 +76,24 @@ impl Default for CondWait {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     };
 
+    use crate::async_runtime::{block_on, spawn};
+
+    use super::*;
+
     #[test]
     fn test_cond_wait() {
-        smol::block_on(async {
+        block_on(async {
             let cond_wait = Arc::new(CondWait::new());
             let count = Arc::new(AtomicUsize::new(0));
 
             let cond_wait_cloned = cond_wait.clone();
             let count_cloned = count.clone();
-            let task = smol::spawn(async move {
+            let task = spawn(async move {
                 cond_wait_cloned.wait().await;
                 count_cloned.fetch_add(1, Ordering::Relaxed);
                 // do something
@@ -99,7 +102,7 @@ mod tests {
             // Send a signal to the waiting task
             cond_wait.signal().await;
 
-            task.await;
+            let _ = task.await;
 
             // Reset the boolean flag
             cond_wait.reset().await;
@@ -108,7 +111,7 @@ mod tests {
 
             let cond_wait_cloned = cond_wait.clone();
             let count_cloned = count.clone();
-            let task1 = smol::spawn(async move {
+            let task1 = spawn(async move {
                 cond_wait_cloned.wait().await;
                 count_cloned.fetch_add(1, Ordering::Relaxed);
                 // do something
@@ -116,7 +119,7 @@ mod tests {
 
             let cond_wait_cloned = cond_wait.clone();
             let count_cloned = count.clone();
-            let task2 = smol::spawn(async move {
+            let task2 = spawn(async move {
                 cond_wait_cloned.wait().await;
                 count_cloned.fetch_add(1, Ordering::Relaxed);
                 // do something
@@ -125,8 +128,8 @@ mod tests {
             // Broadcast a signal to all waiting tasks
             cond_wait.broadcast().await;
 
-            task1.await;
-            task2.await;
+            let _ = task1.await;
+            let _ = task2.await;
             assert_eq!(count.load(Ordering::Relaxed), 3);
         });
     }

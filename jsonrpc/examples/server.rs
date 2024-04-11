@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use smol::net::TcpListener;
 
-use karyon_jsonrpc::{register_service, JsonRPCError, Server, ServerConfig};
+use karyon_jsonrpc::{rpc_impl, Error, Server};
 
 struct Calc {
     version: String,
@@ -19,43 +16,44 @@ struct Req {
 #[derive(Deserialize, Serialize)]
 struct Pong {}
 
+#[rpc_impl]
 impl Calc {
-    async fn ping(&self, _params: Value) -> Result<Value, JsonRPCError> {
+    async fn ping(&self, _params: Value) -> Result<Value, Error> {
         Ok(serde_json::json!(Pong {}))
     }
 
-    async fn add(&self, params: Value) -> Result<Value, JsonRPCError> {
+    async fn add(&self, params: Value) -> Result<Value, Error> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x + params.y))
     }
 
-    async fn sub(&self, params: Value) -> Result<Value, JsonRPCError> {
+    async fn sub(&self, params: Value) -> Result<Value, Error> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x - params.y))
     }
 
-    async fn version(&self, _params: Value) -> Result<Value, JsonRPCError> {
+    async fn version(&self, _params: Value) -> Result<Value, Error> {
         Ok(serde_json::json!(self.version))
     }
 }
 
 fn main() {
     env_logger::init();
-    let ex = Arc::new(smol::Executor::new());
-    smol::block_on(ex.clone().run(async {
-        // Creates a new server
-        let listener = TcpListener::bind("127.0.0.1:60000").await.unwrap();
-        let config = ServerConfig::default();
-        let server = Server::new(listener, config, ex);
-
+    smol::block_on(async {
         // Register the Calc service
-        register_service!(Calc, ping, add, sub, version);
         let calc = Calc {
             version: String::from("0.1"),
         };
-        server.attach_service(calc).await;
+
+        // Creates a new server
+        let server = Server::builder("tcp://127.0.0.1:6000")
+            .expect("Create a new server builder")
+            .service(calc)
+            .build()
+            .await
+            .expect("start a new server");
 
         // Start the server
         server.start().await.unwrap();
-    }));
+    });
 }
