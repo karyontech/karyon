@@ -1,5 +1,12 @@
 # Karyon
 
+ An infrastructure for peer-to-peer, decentralized, and collaborative software
+
+[Website](https://karyontech.net/) | [Discord](https://discord.gg/xuXRcrkz3p) | [irc](https://libera.chat/) #karyon on liberachat 
+
+> In molecular biology, a Karyon is essentially "a part of the cell
+> containing DNA and RNA and responsible for growth and reproduction"
+
 ## Overview
 
 Many developers around the world aspire to build peer-to-peer, decentralized
@@ -16,14 +23,6 @@ complexities associated with building p2p apps. Karyon's primary goal
 is to make decentralization more achievable and efficient for
 developers everywhere, pushing for a future where software is more open,
 secure, and free from central control.
-
-> In molecular biology, a Karyon is essentially "a part of the cell
-> containing DNA and RNA and responsible for growth and reproduction"
-
-## Join us
-
-- [irc](irc://irc.libera.chat/#karyon) #karyon on Libera Chat
-- [Discord](https://discord.gg/xuXRcrkz3p)
 
 ## Crates 
 
@@ -47,12 +46,12 @@ select the `tokio` feature.
 ## Docs
 
 Online documentation for the main crates: 
-[karyon_p2p](https://karyontech.github.io/karyon/karyon_p2p), 
-[karyon_jsonrpc](https://karyontech.github.io/karyon/karyon_jsonrpc)
+- [karyon_p2p](https://karyontech.github.io/karyon/karyon_p2p), 
+- [karyon_jsonrpc](https://karyontech.github.io/karyon/karyon_jsonrpc)
 
 For the internal crates: 
-[karyon_core](https://karyontech.github.io/karyon/karyon_core), 
-[karyon_net](https://karyontech.github.io/karyon/karyon_net)
+- [karyon_core](https://karyontech.github.io/karyon/karyon_core), 
+- [karyon_net](https://karyontech.github.io/karyon/karyon_net)
 
 ## Status
 
