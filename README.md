@@ -24,22 +24,22 @@ efficient for developers everywhere.
 
 ## Crates 
 
-- [karyon core](./core):  Essential utilities and core functionality.
-- [karyon net](./net): Provides a network interface for TCP, UDP, WebSocket, and Unix,
+- **[karyon core](./core)**:  Essential utilities and core functionality.
+- **[karyon net](./net)**: Provides a network interface for TCP, UDP, TLS, WebSocket, and Unix,
   along with common network functionality. 
-- [karyon p2p](./p2p): A lightweight, extensible, and customizable
+- **[karyon p2p](./p2p)**: A lightweight, extensible, and customizable
   peer-to-peer (p2p) network stack.
-- [karyon jsonrpc](./jsonrpc): A fast and small async
+- **[karyon jsonrpc](./jsonrpc)**: A fast and lightweight async
   [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation.
-- karyon crdt: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
+- **karyon crdt**: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
 implementation for building collaborative software. 
-- karyon base: A lightweight, extensible database that operates with `karyon crdt`.
+- **karyon base**: A lightweight, extensible database that operates with `karyon crdt`.
 
 ## Choosing the async runtime
 
-All the crates support both smol(async-std) and tokio. The default is smol, but
-if you want to use tokio, you need to disable the default features and then
-select the `tokio` feature.
+All the crates support both **smol(async-std)** and **tokio** async runtimes. 
+The default is **smol**, but if you want to use **tokio**, you need to disable 
+the default features and then select the `tokio` feature.
 
 ## Docs
 

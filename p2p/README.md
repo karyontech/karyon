@@ -133,9 +133,9 @@ audit.
 
 ## Choosing the async runtime
 
-karyon p2p currently supports both smol(async-std) and tokio. The default is
-smol, but if you want to use tokio, you need to disable the default features
-and then select the `tokio` feature.
+karyon p2p currently supports both **smol(async-std)** and **tokio** async runtimes.
+The default is **smol**, but if you want to use **tokio**, you need to disable
+the default features and then select the `tokio` feature.
 
 ## Examples 
 
