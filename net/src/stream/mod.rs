@@ -25,13 +25,13 @@ use crate::{
 
 use buffer::Buffer;
 
-const BUFFER_SIZE: usize = 2048 * 2024; // 4MB
+const BUFFER_SIZE: usize = 2048 * 2048; // 4MB
 const INITIAL_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
 
 pub struct ReadStream<T, C> {
     inner: T,
     decoder: C,
-    buffer: Buffer<[u8; BUFFER_SIZE]>,
+    buffer: Buffer<Vec<u8>>,
 }
 
 impl<T, C> ReadStream<T, C>
@@ -43,7 +43,7 @@ where
         Self {
             inner,
             decoder,
-            buffer: Buffer::new([0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
         }
     }
 
@@ -61,7 +61,7 @@ pin_project! {
         inner: T,
         encoder: C,
         high_water_mark: usize,
-        buffer: Buffer<[u8; BUFFER_SIZE]>,
+        buffer: Buffer<Vec<u8>>,
     }
 }
 
@@ -75,7 +75,7 @@ where
             inner,
             encoder,
             high_water_mark: 131072,
-            buffer: Buffer::new([0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
         }
     }
 }
@@ -113,6 +113,9 @@ where
             let n = bytes.len();
 
             this.buffer.extend_from_slice(bytes);
+
+            #[cfg(feature = "tokio")]
+            buf.clear();
 
             match this.decoder.decode(this.buffer.as_mut())? {
                 Some((cn, item)) => {

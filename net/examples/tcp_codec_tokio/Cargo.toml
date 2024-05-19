@@ -1,0 +1,12 @@
+[package]
+name = "tcp_codec_tokio"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+karyon_net = { path = "../../", default-features = false, features = ["tokio"] }
+karyon_core = { path = "../../../core", default-features = false, features = ["tokio"] }
+tokio = { version = "1.37.0", features = ["full"] }
+

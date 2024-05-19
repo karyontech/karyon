@@ -1,0 +1,14 @@
+[package]
+name = "tokio-example"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+karyon_p2p = { path = "../../", default-features = false, features = ["tokio"] }
+async-channel = "2.3.1"
+tokio = { version = "1.37.0", features = ["full"] }
+clap = { version = "4.5.4", features = ["derive"] }
+ctrlc = "3.4.4"
+env_logger = "0.11.3"

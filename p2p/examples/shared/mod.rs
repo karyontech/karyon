@@ -5,7 +5,7 @@ use smol::{channel, future, future::Future, Executor};
 
 /// Returns an estimate of the default amount of parallelism a program should use.
 /// see `std::thread::available_parallelism`
-fn available_parallelism() -> usize {
+pub fn available_parallelism() -> usize {
     thread::available_parallelism()
         .map(NonZeroUsize::get)
         .unwrap_or(1)

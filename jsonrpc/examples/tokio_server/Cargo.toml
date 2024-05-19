@@ -1,0 +1,14 @@
+[package]
+name = "tokio_server"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+env_logger = "0.11.3"
+karyon_jsonrpc = { path = "../../", default-features = false, features = ["tokio"] }
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+tokio = { version = "1.37.0", features = ["full"] }
+

@@ -65,4 +65,12 @@ pub use error::Error as P2pError;
 pub use peer::{ArcPeer, PeerID};
 pub use version::Version;
 
+pub mod endpoint {
+    pub use karyon_net::{Addr, Endpoint, Port};
+}
+
+pub mod keypair {
+    pub use karyon_core::crypto::{KeyPair, KeyPairType, PublicKey, SecretKey};
+}
+
 use error::{Error, Result};
