@@ -68,13 +68,15 @@
 
 mod client;
 mod codec;
+mod error;
 pub mod message;
 mod server;
+mod service;
 
 pub use client::Client;
 pub use server::Server;
 
-pub use karyon_jsonrpc_internal::{impl_rpc_service, RPCMethod, RPCService};
-pub use karyon_jsonrpc_internal::{Error, Result};
+pub use error::{Error, Result};
 pub use karyon_jsonrpc_macro::rpc_impl;
 pub use karyon_net::Endpoint;
+pub use service::{RPCMethod, RPCService};

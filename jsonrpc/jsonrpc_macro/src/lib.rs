@@ -39,7 +39,7 @@ pub fn rpc_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let item2: TokenStream2 = item.into();
     let quoted = quote! {
-            karyon_jsonrpc_internal::impl_rpc_service!(#self_ty, #(#methods),*);
+            karyon_jsonrpc::impl_rpc_service!(#self_ty, #(#methods),*);
             #item2
     };
 

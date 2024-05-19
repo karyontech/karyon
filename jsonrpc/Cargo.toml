@@ -8,7 +8,6 @@ default = ["smol"]
 smol = [
   "karyon_core/smol",
   "karyon_net/smol",
-  "karyon_jsonrpc_internal/smol",
   "karyon_jsonrpc_macro/smol",
   "dep:futures-rustls",
   "async-tungstenite/async-std-runtime",
@@ -16,7 +15,6 @@ smol = [
 tokio = [
   "karyon_core/tokio",
   "karyon_net/tokio",
-  "karyon_jsonrpc_internal/tokio",
   "karyon_jsonrpc_macro/tokio",
   "async-tungstenite/tokio-runtime",
   "dep:tokio-rustls",
@@ -27,7 +25,6 @@ karyon_core = { workspace = true, default-features = false }
 karyon_net = { workspace = true, default-features = false }
 
 karyon_jsonrpc_macro = { path = "jsonrpc_macro", default-features = false }
-karyon_jsonrpc_internal = { path = "jsonrpc_internal", default-features = false }
 
 log = "0.4.21"
 rand = "0.8.5"

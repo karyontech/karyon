@@ -1,7 +1,6 @@
-mod error;
 use std::{future::Future, pin::Pin};
 
-pub use error::{Error, Result};
+use crate::Result;
 
 /// Represents the RPC method
 pub type RPCMethod<'a> = Box<dyn Fn(serde_json::Value) -> RPCMethodOutput<'a> + Send + 'a>;
@@ -21,7 +20,7 @@ pub trait RPCService: Sync + Send {
 /// ```
 /// use serde_json::Value;
 ///
-/// use karyon_jsonrpc_internal::{Error, impl_rpc_service};
+/// use karyon_jsonrpc::{Error, impl_rpc_service};
 ///
 /// struct Hello {}
 ///
@@ -41,11 +40,11 @@ pub trait RPCService: Sync + Send {
 #[macro_export]
 macro_rules! impl_rpc_service {
     ($t:ty, $($m:ident),*) => {
-        impl karyon_jsonrpc_internal::RPCService for $t {
+        impl karyon_jsonrpc::RPCService for $t {
             fn get_method<'a>(
                 &'a self,
                 name: &'a str
-            ) -> Option<karyon_jsonrpc_internal::RPCMethod> {
+            ) -> Option<karyon_jsonrpc::RPCMethod> {
                 match name {
                 $(
                     stringify!($m) => {
