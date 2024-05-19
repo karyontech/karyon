@@ -3,6 +3,7 @@ mod connection;
 mod endpoint;
 mod error;
 mod listener;
+#[cfg(feature = "stream")]
 mod stream;
 mod transports;
 
@@ -10,8 +11,22 @@ pub use {
     connection::{Conn, Connection, ToConn},
     endpoint::{Addr, Endpoint, Port, ToEndpoint},
     listener::{ConnListener, Listener, ToListener},
-    transports::{tcp, tls, udp, unix, ws},
 };
+
+#[cfg(feature = "tcp")]
+pub use transports::tcp;
+
+#[cfg(feature = "tls")]
+pub use transports::tls;
+
+#[cfg(feature = "ws")]
+pub use transports::ws;
+
+#[cfg(feature = "udp")]
+pub use transports::udp;
+
+#[cfg(all(feature = "unix", target_family = "unix"))]
+pub use transports::unix;
 
 /// Represents karyon's Net Error
 pub use error::Error;

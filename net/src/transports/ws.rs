@@ -1,14 +1,18 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
+
+#[cfg(feature = "tls")]
+use std::sync::Arc;
 
 use async_trait::async_trait;
+#[cfg(feature = "tls")]
 use rustls_pki_types as pki_types;
 
 #[cfg(feature = "tokio")]
 use async_tungstenite::tokio as async_tungstenite;
 
-#[cfg(feature = "smol")]
+#[cfg(all(feature = "smol", feature = "tls"))]
 use futures_rustls::{rustls, TlsAcceptor, TlsConnector};
-#[cfg(feature = "tokio")]
+#[cfg(all(feature = "tokio", feature = "tls"))]
 use tokio_rustls::{rustls, TlsAcceptor, TlsConnector};
 
 use karyon_core::async_runtime::{
@@ -30,12 +34,14 @@ use super::tcp::TcpConfig;
 /// WSS configuration
 #[derive(Clone)]
 pub struct ServerWssConfig {
+    #[cfg(feature = "tls")]
     pub server_config: rustls::ServerConfig,
 }
 
 /// WSS configuration
 #[derive(Clone)]
 pub struct ClientWssConfig {
+    #[cfg(feature = "tls")]
     pub client_config: rustls::ClientConfig,
     pub dns_name: String,
 }
@@ -104,6 +110,7 @@ pub struct WsListener<C> {
     inner: TcpListener,
     config: ServerWsConfig,
     codec: C,
+    #[cfg(feature = "tls")]
     tls_acceptor: Option<TlsAcceptor>,
 }
 
@@ -125,6 +132,7 @@ where
         socket.set_nodelay(self.config.tcp_config.nodelay)?;
 
         match &self.config.wss_config {
+            #[cfg(feature = "tls")]
             Some(_) => match &self.tls_acceptor {
                 Some(acceptor) => {
                     let peer_endpoint = socket.peer_addr().map(Endpoint::new_wss_addr)?;
@@ -152,6 +160,8 @@ where
                     local_endpoint,
                 )))
             }
+            #[cfg(not(feature = "tls"))]
+            _ => unreachable!(),
         }
     }
 }
@@ -166,6 +176,7 @@ where
     socket.set_nodelay(config.tcp_config.nodelay)?;
 
     match &config.wss_config {
+        #[cfg(feature = "tls")]
         Some(conf) => {
             let peer_endpoint = socket.peer_addr().map(Endpoint::new_wss_addr)?;
             let local_endpoint = socket.local_addr().map(Endpoint::new_wss_addr)?;
@@ -193,6 +204,8 @@ where
                 local_endpoint,
             ))
         }
+        #[cfg(not(feature = "tls"))]
+        _ => unreachable!(),
     }
 }
 
@@ -206,6 +219,7 @@ pub async fn listen<C>(
 
     let listener = TcpListener::bind(addr).await?;
     match &config.wss_config {
+        #[cfg(feature = "tls")]
         Some(conf) => {
             let acceptor = TlsAcceptor::from(Arc::new(conf.server_config.clone()));
             Ok(WsListener {
@@ -219,8 +233,11 @@ pub async fn listen<C>(
             inner: listener,
             config,
             codec,
+            #[cfg(feature = "tls")]
             tls_acceptor: None,
         }),
+        #[cfg(not(feature = "tls"))]
+        _ => unreachable!(),
     }
 }
 

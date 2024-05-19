@@ -1,6 +1,8 @@
 mod buffer;
+#[cfg(feature = "ws")]
 mod websocket;
 
+#[cfg(feature = "ws")]
 pub use websocket::WsStream;
 
 use std::{

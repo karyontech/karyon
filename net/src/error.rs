@@ -37,6 +37,7 @@ pub enum Error {
     #[error(transparent)]
     ChannelRecv(#[from] async_channel::RecvError),
 
+    #[cfg(feature = "ws")]
     #[error("Ws Error: {0}")]
     WsError(#[from] async_tungstenite::tungstenite::Error),
 
@@ -48,6 +49,7 @@ pub enum Error {
     #[error("Tls Error: {0}")]
     Rustls(#[from] tokio_rustls::rustls::Error),
 
+    #[cfg(feature = "tls")]
     #[error("Invalid DNS Name: {0}")]
     InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
 

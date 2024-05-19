@@ -1,9 +1,12 @@
 mod bytes_codec;
 mod length_codec;
+#[cfg(feature = "ws")]
 mod websocket;
 
 pub use bytes_codec::BytesCodec;
 pub use length_codec::LengthCodec;
+
+#[cfg(feature = "ws")]
 pub use websocket::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
 use crate::Result;

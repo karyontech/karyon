@@ -14,12 +14,16 @@ tokio = ["karyon_core/tokio", "karyon_net/tokio", "dep:tokio-rustls"]
 karyon_core = { workspace = true, features = [
   "crypto",
 ], default-features = false }
-karyon_net = { workspace = true, default-features = false }
+karyon_net = { workspace = true, default-features = false, features = [
+  "tcp",
+  "tls",
+  "udp",
+] }
 
 async-trait = "0.1.77"
 async-channel = "2.3.0"
 futures-util = { version = "0.3.5", features = [
-  "std",
+  "alloc",
 ], default-features = false }
 log = "0.4.21"
 chrono = "0.4.35"
@@ -46,5 +50,3 @@ ctrlc = "3.4.4"
 easy-parallel = "3.3.1"
 env_logger = "0.11.3"
 smol = "2.0.0"
-
-
