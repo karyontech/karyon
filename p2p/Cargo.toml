@@ -1,7 +1,13 @@
 [package]
 name = "karyon_p2p"
+description = "A lightweight, extensible, and customizable p2p network stack." 
 version.workspace = true
 edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

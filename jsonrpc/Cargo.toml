@@ -1,7 +1,13 @@
 [package]
 name = "karyon_jsonrpc"
+description = "A fast and lightweight async JSONRPC2.0 implementation."
 version.workspace = true
 edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+
 
 [features]
 default = ["smol"]
@@ -29,7 +35,7 @@ karyon_net = { workspace = true, default-features = false, features = [
   "tls",
 ] }
 
-karyon_jsonrpc_macro = { path = "jsonrpc_macro", default-features = false }
+karyon_jsonrpc_macro = { version = "0.1.0", path = "jsonrpc_macro", default-features = false }
 
 log = "0.4.21"
 rand = "0.8.5"
