@@ -17,12 +17,10 @@ develop a new p2p network stack and tools from scratch. Such efforts are not
 only time-consuming but also prone to errors and security vulnerabilities, as
 each new implementation reintroduces potential weaknesses.
 
-Karyon provides developers with the components and tools needed to create
-decentralized apps. By offering a robust infrastructure, Karyon simplifies the
-complexities associated with building p2p apps. Karyon's primary goal
-is to make decentralization more achievable and efficient for
-developers everywhere, pushing for a future where software is more open,
-secure, and free from central control.
+Karyon provides developers with the components and tools needed to create p2p
+and decentralized apps and simplifies the complexities associated with building
+them. Its primary goal is to make decentralization more accessible and
+efficient for developers everywhere.
 
 ## Crates 
 
