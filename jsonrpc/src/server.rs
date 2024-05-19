@@ -12,10 +12,10 @@ use karyon_core::async_util::{TaskGroup, TaskResult};
 
 use karyon_net::{Conn, Endpoint, Listener, ToEndpoint};
 
-use crate::{
-    codec::{JsonCodec, WsJsonCodec},
-    message, Error, RPCService, Result,
-};
+#[cfg(feature = "ws")]
+use crate::codec::WsJsonCodec;
+
+use crate::{codec::JsonCodec, message, Error, RPCService, Result};
 
 pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
 pub const FAILED_TO_PARSE_ERROR_MSG: &str = "Failed to parse";
@@ -230,6 +230,7 @@ impl ServerBuilder {
                         .await?,
                 ),
             },
+            #[cfg(feature = "ws")]
             Endpoint::Ws(..) | Endpoint::Wss(..) => match &self.tls_config {
                 Some(conf) => Box::new(
                     karyon_net::ws::listen(
@@ -249,6 +250,7 @@ impl ServerBuilder {
                         .await?,
                 ),
             },
+            #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => Box::new(karyon_net::unix::listen(
                 &self.endpoint,
                 Default::default(),

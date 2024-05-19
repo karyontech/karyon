@@ -1,9 +1,13 @@
+#[cfg(feature = "ws")]
 use async_tungstenite::tungstenite::Message;
 
 use karyon_net::{
-    codec::{Codec, Decoder, Encoder, WebSocketCodec, WebSocketDecoder, WebSocketEncoder},
+    codec::{Codec, Decoder, Encoder},
     Error, Result,
 };
+
+#[cfg(feature = "ws")]
+use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
 #[derive(Clone)]
 pub struct JsonCodec {}
@@ -42,12 +46,16 @@ impl Decoder for JsonCodec {
     }
 }
 
+#[cfg(feature = "ws")]
 #[derive(Clone)]
 pub struct WsJsonCodec {}
+
+#[cfg(feature = "ws")]
 impl WebSocketCodec for WsJsonCodec {
     type Item = serde_json::Value;
 }
 
+#[cfg(feature = "ws")]
 impl WebSocketEncoder for WsJsonCodec {
     type EnItem = serde_json::Value;
     fn encode(&self, src: &Self::EnItem) -> Result<Message> {
@@ -59,6 +67,7 @@ impl WebSocketEncoder for WsJsonCodec {
     }
 }
 
+#[cfg(feature = "ws")]
 impl WebSocketDecoder for WsJsonCodec {
     type DeItem = serde_json::Value;
     fn decode(&self, src: &Message) -> Result<Self::DeItem> {

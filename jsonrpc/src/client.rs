@@ -9,16 +9,15 @@ use futures_rustls::rustls;
 use tokio_rustls::rustls;
 
 use karyon_core::{async_util::timeout, util::random_32};
-use karyon_net::{
-    tls::ClientTlsConfig,
-    ws::{ClientWsConfig, ClientWssConfig},
-    Conn, Endpoint, ToEndpoint,
-};
+use karyon_net::{tls::ClientTlsConfig, Conn, Endpoint, ToEndpoint};
 
-use crate::{
-    codec::{JsonCodec, WsJsonCodec},
-    message, Error, Result,
-};
+#[cfg(feature = "ws")]
+use karyon_net::ws::{ClientWsConfig, ClientWssConfig};
+
+#[cfg(feature = "ws")]
+use crate::codec::WsJsonCodec;
+
+use crate::{codec::JsonCodec, message, Error, Result};
 
 /// Represents an RPC client
 pub struct Client {
@@ -114,6 +113,7 @@ impl ClientBuilder {
                     karyon_net::tcp::dial(&self.endpoint, Default::default(), JsonCodec {}).await?,
                 ),
             },
+            #[cfg(feature = "ws")]
             Endpoint::Ws(..) | Endpoint::Wss(..) => match self.tls_config {
                 Some((conf, dns_name)) => Box::new(
                     karyon_net::ws::dial(
@@ -134,6 +134,7 @@ impl ClientBuilder {
                         .await?,
                 ),
             },
+            #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => Box::new(
                 karyon_net::unix::dial(&self.endpoint, Default::default(), JsonCodec {}).await?,
             ),
