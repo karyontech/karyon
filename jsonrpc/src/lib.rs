@@ -1,9 +1,9 @@
 //! A fast and lightweight async implementation of [JSON-RPC
 //! 2.0](https://www.jsonrpc.org/specification).
-//! 
-//! features: 
+//!
+//! features:
 //! - Supports TCP, TLS, WebSocket, and Unix protocols.
-//! - Uses smol(async-std) as the async runtime, but also supports tokio via 
+//! - Uses smol(async-std) as the async runtime, but also supports tokio via
 //!   the `tokio` feature.
 //! - Allows registration of multiple services (structs) of different types on a
 //!   single server.
