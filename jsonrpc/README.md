@@ -16,7 +16,6 @@ features:
 use std::sync::Arc;
 
 use serde_json::Value;
-use smol::net::{TcpStream, TcpListener};
 
 use karyon_jsonrpc::{Error, Server, Client, rpc_impl};
 
