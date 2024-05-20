@@ -37,10 +37,11 @@ impl EventValue for ProtocolEvent {
 /// use async_trait::async_trait;
 /// use smol::Executor;
 ///
-/// use karyon_core::crypto::{KeyPair, KeyPairType};
 /// use karyon_p2p::{
 ///     protocol::{ArcProtocol, Protocol, ProtocolID, ProtocolEvent},
-///     Backend, PeerID, Config, Version, P2pError, ArcPeer};
+///     Backend, PeerID, Config, Version, P2pError, ArcPeer,
+///     keypair::{KeyPair, KeyPairType},
+///     };
 ///
 /// pub struct NewProtocol {
 ///     peer: ArcPeer,

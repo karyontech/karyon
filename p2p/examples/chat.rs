@@ -7,10 +7,9 @@ use async_trait::async_trait;
 use clap::Parser;
 use smol::{channel, Executor};
 
-use karyon_core::crypto::{KeyPair, KeyPairType};
-use karyon_net::{Endpoint, Port};
-
 use karyon_p2p::{
+    endpoint::{Endpoint, Port},
+    keypair::{KeyPair, KeyPairType},
     protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
     ArcPeer, Backend, Config, P2pError, Version,
 };

@@ -5,10 +5,11 @@ use std::sync::Arc;
 use clap::Parser;
 use smol::{channel, Executor};
 
-use karyon_core::crypto::{KeyPair, KeyPairType};
-use karyon_net::{Endpoint, Port};
-
-use karyon_p2p::{Backend, Config};
+use karyon_p2p::{
+    endpoint::{Endpoint, Port},
+    keypair::{KeyPair, KeyPairType},
+    Backend, Config,
+};
 
 use shared::run_executor;
 

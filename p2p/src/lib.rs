@@ -7,9 +7,9 @@
 //! use easy_parallel::Parallel;
 //! use smol::{future, Executor};
 //!
-//! use karyon_core::crypto::{KeyPair, KeyPairType};
-//! use karyon_p2p::{Backend, Config, PeerID};
+//! use karyon_p2p::{Backend, Config, PeerID, keypair::{KeyPair, KeyPairType}};
 //!
+//! // Generate a new keypair for the peer
 //! let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 //!
 //! // Create the configuration for the backend.
@@ -23,7 +23,9 @@
 //!
 //! let task = async {
 //!     // Run the backend
-//!     backend.run().await.unwrap();
+//!     backend.run()
+//!         .await
+//!         .expect("start the backend");
 //!
 //!     // ....
 //!
