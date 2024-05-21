@@ -12,7 +12,7 @@ authors.workspace = true
 [features]
 default = ["smol"]
 ws = ["karyon_net/ws", "async-tungstenite"]
-unix = ["karyon_net/ws"]
+unix = ["karyon_net/unix"]
 smol = [
   "karyon_core/smol",
   "karyon_net/smol",
