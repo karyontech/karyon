@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -48,7 +50,7 @@ fn main() {
         // Creates a new server
         let server = Server::builder("tcp://127.0.0.1:6000")
             .expect("Create a new server builder")
-            .service(calc)
+            .service(Arc::new(calc))
             .build()
             .await
             .expect("start a new server");

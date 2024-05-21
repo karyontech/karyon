@@ -681,6 +681,7 @@ dependencies = [
 name = "karyon_jsonrpc"
 version = "0.1.0"
 dependencies = [
+ "async-channel",
  "async-trait",
  "async-tungstenite",
  "karyon_core",

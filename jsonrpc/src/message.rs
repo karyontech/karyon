@@ -23,9 +23,12 @@ pub struct Request {
     pub method: String,
     pub params: serde_json::Value,
     pub id: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscriber: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Response {
     pub jsonrpc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,6 +37,19 @@ pub struct Response {
     pub error: Option<Error>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Notification {
+    pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,20 +60,12 @@ pub struct Error {
     pub data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Notification {
-    pub jsonrpc: String,
-    pub method: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub params: Option<serde_json::Value>,
-}
-
 impl std::fmt::Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, method: {}, params: {:?}, id: {:?}}}",
-            self.jsonrpc, self.method, self.params, self.id
+            "{{jsonrpc: {}, method: {}, params: {:?}, id: {:?}, subscribe: {:?}}}",
+            self.jsonrpc, self.method, self.params, self.id, self.subscriber
         )
     }
 }
@@ -66,8 +74,8 @@ impl std::fmt::Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, result': {:?}, error: {:?} , id: {:?}}}",
-            self.jsonrpc, self.result, self.error, self.id
+            "{{jsonrpc: {}, result': {:?}, error: {:?} , id: {:?}, subscription: {:?}}}",
+            self.jsonrpc, self.result, self.error, self.id, self.subscription
         )
     }
 }
@@ -86,8 +94,8 @@ impl std::fmt::Display for Notification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, method: {}, params: {:?}}}",
-            self.jsonrpc, self.method, self.params
+            "{{jsonrpc: {}, method: {:?}, params: {:?}, subscription: {:?}}}",
+            self.jsonrpc, self.method, self.params, self.subscription
         )
     }
 }
