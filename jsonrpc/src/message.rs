@@ -27,8 +27,6 @@ pub struct Request {
     pub method: String,
     pub params: serde_json::Value,
     pub id: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subscriber: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,8 +67,8 @@ impl std::fmt::Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, method: {}, params: {:?}, id: {:?}, subscribe: {:?}}}",
-            self.jsonrpc, self.method, self.params, self.id, self.subscriber
+            "{{jsonrpc: {}, method: {}, params: {:?}, id: {:?}}}",
+            self.jsonrpc, self.method, self.params, self.id,
         )
     }
 }

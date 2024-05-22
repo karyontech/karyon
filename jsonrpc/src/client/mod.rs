@@ -51,7 +51,7 @@ impl Client {
         method: &str,
         params: T,
     ) -> Result<V> {
-        let request = self.send_request(method, params, None).await?;
+        let request = self.send_request(method, params).await?;
         debug!("--> {request}");
 
         let response = match self.timeout {
@@ -84,7 +84,7 @@ impl Client {
         method: &str,
         params: T,
     ) -> Result<(SubscriptionID, Subscription)> {
-        let request = self.send_request(method, params, Some(json!(true))).await?;
+        let request = self.send_request(method, params).await?;
         debug!("--> {request}");
 
         let response = match self.timeout {
@@ -117,9 +117,7 @@ impl Client {
     /// This function sends an unsubscription request for the specified method
     /// and subscription ID. It waits for the response to confirm the unsubscription.
     pub async fn unsubscribe(&self, method: &str, sub_id: SubscriptionID) -> Result<()> {
-        let request = self
-            .send_request(method, json!(sub_id), Some(json!(true)))
-            .await?;
+        let request = self.send_request(method, json!(sub_id)).await?;
         debug!("--> {request}");
 
         let response = match self.timeout {
@@ -144,7 +142,6 @@ impl Client {
         &self,
         method: &str,
         params: T,
-        subscriber: Option<serde_json::Value>,
     ) -> Result<message::Request> {
         let id = random_64();
 
@@ -153,7 +150,6 @@ impl Client {
             id: json!(id),
             method: method.to_string(),
             params: json!(params),
-            subscriber,
         };
 
         let req_json = serde_json::to_value(&request)?;
@@ -187,6 +183,7 @@ impl Client {
                     let msg = selfc.conn.recv().await?;
                     if let Ok(res) = serde_json::from_value::<message::Response>(msg.clone()) {
                         selfc.chan_tx.send(res).await?;
+
                         continue;
                     }
 

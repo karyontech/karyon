@@ -220,7 +220,7 @@ impl Server {
         let selfc = self.clone();
         self.task_group.spawn(
             async move {
-                let response = selfc._handle_request(channel, msg).await;
+                let response = selfc.handle_request(channel, msg).await;
                 debug!("--> {response}");
                 sender.send(serde_json::json!(response)).await?;
                 Ok(())
@@ -230,7 +230,7 @@ impl Server {
     }
 
     /// Handles a new request
-    async fn _handle_request(
+    async fn handle_request(
         &self,
         channel: ArcChannel,
         msg: serde_json::Value,
@@ -240,92 +240,41 @@ impl Server {
             SanityCheckResult::ErrRes(res) => return res,
         };
 
-        if req.msg.subscriber.is_some() {
-            match self.pubsub_services.get(&req.srvc_name) {
-                Some(s) => {
-                    self.handle_pubsub_request(channel, s, &req.method_name, req.msg)
-                        .await
-                }
-                None => pack_err_res(
-                    message::METHOD_NOT_FOUND_ERROR_CODE,
-                    METHOD_NOT_FOUND_ERROR_MSG,
-                    Some(req.msg.id),
-                ),
-            }
-        } else {
-            match self.services.get(&req.srvc_name) {
-                Some(s) => self.handle_call_request(s, &req.method_name, req.msg).await,
-                None => pack_err_res(
-                    message::METHOD_NOT_FOUND_ERROR_CODE,
-                    METHOD_NOT_FOUND_ERROR_MSG,
-                    Some(req.msg.id),
-                ),
-            }
-        }
-    }
-
-    /// Handles a call request
-    async fn handle_call_request(
-        &self,
-        service: &Arc<dyn RPCService + 'static>,
-        method_name: &str,
-        rpc_msg: message::Request,
-    ) -> message::Response {
-        let method = match service.get_method(method_name) {
-            Some(m) => m,
-            None => {
-                return pack_err_res(
-                    message::METHOD_NOT_FOUND_ERROR_CODE,
-                    METHOD_NOT_FOUND_ERROR_MSG,
-                    Some(rpc_msg.id),
-                );
-            }
-        };
-
-        let result = match method(rpc_msg.params.clone()).await {
-            Ok(res) => res,
-            Err(err) => return self.handle_error(err, rpc_msg.id),
-        };
-
-        message::Response {
+        let mut response = message::Response {
             jsonrpc: message::JSONRPC_VERSION.to_string(),
             error: None,
-            result: Some(result),
-            id: Some(rpc_msg.id),
-        }
-    }
+            result: None,
+            id: Some(req.msg.id.clone()),
+        };
 
-    /// Handles a pubsub request
-    async fn handle_pubsub_request(
-        &self,
-        channel: ArcChannel,
-        service: &Arc<dyn PubSubRPCService + 'static>,
-        method_name: &str,
-        rpc_msg: message::Request,
-    ) -> message::Response {
-        let method = match service.get_pubsub_method(method_name) {
-            Some(m) => m,
-            None => {
-                return pack_err_res(
-                    message::METHOD_NOT_FOUND_ERROR_CODE,
-                    METHOD_NOT_FOUND_ERROR_MSG,
-                    Some(rpc_msg.id),
-                );
+        if let Some(service) = self.pubsub_services.get(&req.srvc_name) {
+            if let Some(method) = service.get_pubsub_method(&req.method_name) {
+                let name = format!("{}.{}", service.name(), req.method_name);
+                response.result = match method(channel, name, req.msg.params.clone()).await {
+                    Ok(res) => Some(res),
+                    Err(err) => return self.handle_error(err, req.msg.id),
+                };
+
+                return response;
             }
-        };
-
-        let name = format!("{}.{}", service.name(), method_name);
-        let result = match method(channel, name, rpc_msg.params.clone()).await {
-            Ok(res) => res,
-            Err(err) => return self.handle_error(err, rpc_msg.id),
-        };
-
-        message::Response {
-            jsonrpc: message::JSONRPC_VERSION.to_string(),
-            error: None,
-            result: Some(result),
-            id: Some(rpc_msg.id),
         }
+
+        if let Some(service) = self.services.get(&req.srvc_name) {
+            if let Some(method) = service.get_method(&req.method_name) {
+                response.result = match method(req.msg.params.clone()).await {
+                    Ok(res) => Some(res),
+                    Err(err) => return self.handle_error(err, req.msg.id),
+                };
+
+                return response;
+            }
+        }
+
+        pack_err_res(
+            message::METHOD_NOT_FOUND_ERROR_CODE,
+            METHOD_NOT_FOUND_ERROR_MSG,
+            Some(req.msg.id),
+        )
     }
 
     fn handle_error(&self, err: Error, msg_id: serde_json::Value) -> message::Response {
