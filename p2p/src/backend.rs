@@ -25,6 +25,9 @@ pub struct Backend {
     /// Identity Key pair
     key_pair: KeyPair,
 
+    /// Peer ID
+    peer_id: PeerID,
+
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
 
@@ -65,6 +68,7 @@ impl Backend {
 
         Arc::new(Self {
             key_pair: key_pair.clone(),
+            peer_id,
             monitor,
             discovery,
             config,
@@ -97,8 +101,13 @@ impl Backend {
         self.config.clone()
     }
 
+    /// Returns the `PeerID`.
+    pub fn peer_id(&self) -> &PeerID {
+        &self.peer_id
+    }
+
     /// Returns the `KeyPair`.
-    pub async fn key_pair(&self) -> &KeyPair {
+    pub fn key_pair(&self) -> &KeyPair {
         &self.key_pair
     }
 

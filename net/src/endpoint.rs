@@ -238,6 +238,12 @@ impl ToEndpoint for String {
     }
 }
 
+impl ToEndpoint for Endpoint {
+    fn to_endpoint(&self) -> Result<Endpoint> {
+        Ok(self.clone())
+    }
+}
+
 impl ToEndpoint for &str {
     fn to_endpoint(&self) -> Result<Endpoint> {
         Endpoint::from_str(self)

@@ -47,7 +47,10 @@ where
 
     pub async fn recv(&mut self) -> Result<C::Item> {
         match self.inner.next().await {
-            Some(msg) => self.codec.decode(&msg?),
+            Some(msg) => match self.codec.decode(&msg?)? {
+                Some(m) => Ok(m),
+                None => todo!(),
+            },
             None => Err(Error::IO(std::io::ErrorKind::ConnectionAborted.into())),
         }
     }

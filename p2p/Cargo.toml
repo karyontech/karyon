@@ -1,6 +1,6 @@
 [package]
 name = "karyon_p2p"
-description = "A lightweight, extensible, and customizable p2p network stack." 
+description = "A lightweight, extensible, and customizable p2p network stack."
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -56,3 +56,5 @@ ctrlc = "3.4.4"
 easy-parallel = "3.3.1"
 env_logger = "0.11.3"
 smol = "2.0.0"
+karyon_jsonrpc = { workspace = true, features = ["ws", "smol"] }
+serde_json = "1.0.117"

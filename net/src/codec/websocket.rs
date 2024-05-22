@@ -19,5 +19,5 @@ pub trait WebSocketEncoder {
 
 pub trait WebSocketDecoder {
     type DeItem;
-    fn decode(&self, src: &Message) -> Result<Self::DeItem>;
+    fn decode(&self, src: &Message) -> Result<Option<Self::DeItem>>;
 }
