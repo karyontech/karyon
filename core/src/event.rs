@@ -104,7 +104,10 @@ where
         let mut topics = self.listeners.lock().await;
 
         if !topics.contains_key(topic) {
-            error!("Failed to emit an event to a non-existent topic");
+            trace!(
+                "Failed to emit an event to a non-existent topic {:?}",
+                topic
+            );
             return;
         }
 
@@ -112,7 +115,10 @@ where
         let event_id = E::id().to_string();
 
         if !event_ids.contains_key(&event_id) {
-            error!("Failed to emit an event to a non-existent event id");
+            trace!(
+                "Failed to emit an event to a non-existent event id: {:?}",
+                event_id
+            );
             return;
         }
 

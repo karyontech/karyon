@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use log::info;
 
-use karyon_core::{async_runtime::Executor, crypto::KeyPair, pubsub::Subscription};
+use karyon_core::{async_runtime::Executor, crypto::KeyPair};
 
 use crate::{
     config::Config,
     connection::ConnQueue,
     discovery::{ArcDiscovery, Discovery},
-    monitor::{Monitor, MonitorEvent},
+    monitor::Monitor,
     peer_pool::PeerPool,
     protocol::{ArcProtocol, Protocol},
     ArcPeer, PeerID, Result,
@@ -112,9 +112,9 @@ impl Backend {
         self.discovery.outbound_slots.load()
     }
 
-    /// Subscribes to the monitor to receive network events.
-    pub async fn monitor(&self) -> Subscription<MonitorEvent> {
-        self.monitor.subscribe().await
+    /// Returns the monitor to receive system events.
+    pub fn monitor(&self) -> Arc<Monitor> {
+        self.monitor.clone()
     }
 
     /// Shuts down the Backend.

@@ -87,7 +87,7 @@ impl Connector {
             match self.dial(endpoint, peer_id).await {
                 Ok(conn) => {
                     self.monitor
-                        .notify(&ConnEvent::Connected(endpoint.clone()).into())
+                        .notify(ConnEvent::Connected(endpoint.clone()))
                         .await;
                     return Ok(conn);
                 }
@@ -97,7 +97,7 @@ impl Connector {
             }
 
             self.monitor
-                .notify(&ConnEvent::ConnectRetried(endpoint.clone()).into())
+                .notify(ConnEvent::ConnectRetried(endpoint.clone()))
                 .await;
 
             backoff.sleep().await;
@@ -107,7 +107,7 @@ impl Connector {
         }
 
         self.monitor
-            .notify(&ConnEvent::ConnectFailed(endpoint.clone()).into())
+            .notify(ConnEvent::ConnectFailed(endpoint.clone()))
             .await;
 
         self.connection_slots.remove().await;
@@ -135,7 +135,7 @@ impl Connector {
             }
             selfc
                 .monitor
-                .notify(&ConnEvent::Disconnected(endpoint.clone()).into())
+                .notify(ConnEvent::Disconnected(endpoint.clone()))
                 .await;
             selfc.connection_slots.remove().await;
         };

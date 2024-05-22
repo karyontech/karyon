@@ -61,12 +61,29 @@ fn main() {
     let exc = ex.clone();
     run_executor(
         async {
-            let monitor = backend.monitor().await;
+            let monitor = backend.monitor();
+            let conn_listener = monitor.conn_events().await;
+            let peerpool_listener = monitor.peer_pool_events().await;
+            let discovery_listener = monitor.discovery_events().await;
 
             let monitor_task = exc.spawn(async move {
                 loop {
-                    let event = monitor.recv().await.unwrap();
-                    println!("{}", event);
+                    let event = conn_listener.recv().await.unwrap();
+                    println!("New connection event: {}", event);
+                }
+            });
+
+            let monitor_task2 = exc.spawn(async move {
+                loop {
+                    let event = peerpool_listener.recv().await.unwrap();
+                    println!("New peer pool event: {}", event);
+                }
+            });
+
+            let monitor_task3 = exc.spawn(async move {
+                loop {
+                    let event = discovery_listener.recv().await.unwrap();
+                    println!("New discovery event: {}", event);
                 }
             });
 
@@ -80,6 +97,8 @@ fn main() {
             backend.shutdown().await;
 
             monitor_task.cancel().await;
+            monitor_task2.cancel().await;
+            monitor_task3.cancel().await;
         },
         ex,
     );

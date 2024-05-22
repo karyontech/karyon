@@ -134,7 +134,7 @@ impl LookupService {
     pub async fn start_lookup(&self, endpoint: &Endpoint, peer_id: Option<PeerID>) -> Result<()> {
         trace!("Lookup started {endpoint}");
         self.monitor
-            .notify(&DiscoveryEvent::LookupStarted(endpoint.clone()).into())
+            .notify(DiscoveryEvent::LookupStarted(endpoint.clone()))
             .await;
 
         let mut random_peers = vec![];
@@ -143,7 +143,7 @@ impl LookupService {
             .await
         {
             self.monitor
-                .notify(&DiscoveryEvent::LookupFailed(endpoint.clone()).into())
+                .notify(DiscoveryEvent::LookupFailed(endpoint.clone()))
                 .await;
             return Err(err);
         };
@@ -166,7 +166,10 @@ impl LookupService {
         drop(table);
 
         self.monitor
-            .notify(&DiscoveryEvent::LookupSucceeded(endpoint.clone(), peer_buffer.len()).into())
+            .notify(DiscoveryEvent::LookupSucceeded(
+                endpoint.clone(),
+                peer_buffer.len(),
+            ))
             .await;
 
         Ok(())
@@ -230,10 +233,14 @@ impl LookupService {
         target_peer_id: &PeerID,
     ) -> Result<Vec<PeerMsg>> {
         let conn = self.connector.connect(&endpoint, &peer_id).await?;
+        self.monitor
+            .notify(DiscoveryEvent::Conn(ConnEvent::Connected(endpoint.clone())))
+            .await;
+
         let result = self.handle_outbound(conn, target_peer_id).await;
 
         self.monitor
-            .notify(&ConnEvent::Disconnected(endpoint).into())
+            .notify(DiscoveryEvent::Conn(ConnEvent::Disconnected(endpoint)))
             .await;
         self.outbound_slots.remove().await;
 

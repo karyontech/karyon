@@ -193,7 +193,7 @@ impl PeerPool {
         info!("Add new peer {pid}, direction: {conn_direction}, endpoint: {endpoint}");
 
         self.monitor
-            .notify(&PeerPoolEvent::NewPeer(pid.clone()).into())
+            .notify(PeerPoolEvent::NewPeer(pid.clone()))
             .await;
 
         Ok(())
@@ -216,7 +216,7 @@ impl PeerPool {
         peer.shutdown().await;
 
         self.monitor
-            .notify(&PeerPoolEvent::RemovePeer(pid.clone()).into())
+            .notify(PeerPoolEvent::RemovePeer(pid.clone()))
             .await;
 
         let endpoint = peer.remote_endpoint();

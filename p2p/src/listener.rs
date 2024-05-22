@@ -72,15 +72,13 @@ impl Listener {
         let listener = match self.listen(&endpoint).await {
             Ok(listener) => {
                 self.monitor
-                    .notify(&ConnEvent::Listening(endpoint.clone()).into())
+                    .notify(ConnEvent::Listening(endpoint.clone()))
                     .await;
                 listener
             }
             Err(err) => {
                 error!("Failed to listen on {endpoint}: {err}");
-                self.monitor
-                    .notify(&ConnEvent::ListenFailed(endpoint).into())
-                    .await;
+                self.monitor.notify(ConnEvent::ListenFailed(endpoint)).await;
                 return Err(err);
             }
         };
@@ -117,20 +115,20 @@ impl Listener {
                     let endpoint = match c.peer_endpoint() {
                         Ok(ep) => ep,
                         Err(err) => {
-                            self.monitor.notify(&ConnEvent::AcceptFailed.into()).await;
+                            self.monitor.notify(ConnEvent::AcceptFailed).await;
                             error!("Failed to accept a new connection: {err}");
                             continue;
                         }
                     };
 
                     self.monitor
-                        .notify(&ConnEvent::Accepted(endpoint.clone()).into())
+                        .notify(ConnEvent::Accepted(endpoint.clone()))
                         .await;
                     (c, endpoint)
                 }
                 Err(err) => {
                     error!("Failed to accept a new connection: {err}");
-                    self.monitor.notify(&ConnEvent::AcceptFailed.into()).await;
+                    self.monitor.notify(ConnEvent::AcceptFailed).await;
                     continue;
                 }
             };
@@ -144,7 +142,7 @@ impl Listener {
                 }
                 selfc
                     .monitor
-                    .notify(&ConnEvent::Disconnected(endpoint).into())
+                    .notify(ConnEvent::Disconnected(endpoint))
                     .await;
                 selfc.connection_slots.remove().await;
             };
