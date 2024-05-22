@@ -1,10 +1,10 @@
-use std::fmt;
-
-use crate::PeerID;
+use std::{fmt, sync::Arc};
 
 use karyon_core::event::{ArcEventSys, EventListener, EventSys, EventValue, EventValueTopic};
 
 use karyon_net::Endpoint;
+
+use crate::{Config, PeerID};
 
 /// Responsible for network and system monitoring.
 ///
@@ -37,13 +37,16 @@ use karyon_net::Endpoint;
 /// ```
 pub struct Monitor {
     event_sys: ArcEventSys<MonitorTopic>,
+
+    config: Arc<Config>,
 }
 
 impl Monitor {
     /// Creates a new Monitor
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(config: Arc<Config>) -> Self {
         Self {
             event_sys: EventSys::new(),
+            config,
         }
     }
 
@@ -52,7 +55,9 @@ impl Monitor {
     where
         E: EventValue + Clone + EventValueTopic<Topic = MonitorTopic>,
     {
-        self.event_sys.emit(&event).await
+        if self.config.enable_monitor {
+            self.event_sys.emit(&event).await
+        }
     }
 
     /// Registers a new event listener for connection events.

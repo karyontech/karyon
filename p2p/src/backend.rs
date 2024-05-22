@@ -39,7 +39,7 @@ impl Backend {
     /// Creates a new Backend.
     pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> ArcBackend {
         let config = Arc::new(config);
-        let monitor = Arc::new(Monitor::new());
+        let monitor = Arc::new(Monitor::new(config.clone()));
         let conn_queue = ConnQueue::new();
 
         let peer_id = PeerID::try_from(key_pair.public())

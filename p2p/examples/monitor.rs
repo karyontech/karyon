@@ -45,6 +45,7 @@ fn main() {
         peer_endpoints: cli.peer_endpoints,
         bootstrap_peers: cli.bootstrap_peers,
         discovery_port: cli.discovery_port.unwrap_or(0),
+        enable_monitor: true,
         ..Default::default()
     };
 

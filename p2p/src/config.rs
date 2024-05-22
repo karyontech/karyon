@@ -7,6 +7,9 @@ pub struct Config {
     /// Represents the network version.
     pub version: Version,
 
+    /// Enable monitor
+    pub enable_monitor: bool,
+
     /////////////////
     // PeerPool
     ////////////////
@@ -80,6 +83,8 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             version: "0.1.0".parse().unwrap(),
+
+            enable_monitor: false,
 
             handshake_timeout: 2,
             ping_interval: 20,
