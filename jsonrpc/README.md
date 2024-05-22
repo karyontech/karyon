@@ -101,7 +101,7 @@ async {
         .expect("send a request");
 
     let (sub_id, sub) = client
-            .subscribe("Calc.log_subscribe", ())
+            .subscribe("HelloWorld.log_subscribe", ())
             .await
             .expect("Subscribe to log_subscribe method");
 
@@ -116,7 +116,7 @@ async {
     smol::Timer::after(std::time::Duration::from_secs(5)).await;
 
     client
-        .unsubscribe("Calc.log_unsubscribe", sub_id)
+        .unsubscribe("HelloWorld.log_unsubscribe", sub_id)
         .await
         .expect("Unsubscribe from log_unsubscirbe method");
 };
