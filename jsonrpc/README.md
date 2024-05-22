@@ -16,7 +16,7 @@ features:
 ## Example
 
 ```rust
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serde_json::Value;
 use smol::stream::StreamExt;
@@ -45,8 +45,8 @@ impl HelloWorld {
 
 #[rpc_pubsub_impl]
 impl HelloWorld {
-    async fn log_subscribe(&self, chan: ArcChannel, _params: Value) -> Result<Value, Error> {
-        let sub = chan.new_subscription().await;
+    async fn log_subscribe(&self, chan: ArcChannel, method: String, _params: Value) -> Result<Value, Error> {
+        let sub = chan.new_subscription(&method).await;
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
@@ -62,7 +62,7 @@ impl HelloWorld {
         Ok(serde_json::json!(sub_id))
     }
 
-    async fn log_unsubscribe(&self, chan: ArcChannel, params: Value) -> Result<Value, Error> {
+    async fn log_unsubscribe(&self, chan: ArcChannel, method: String, params: Value) -> Result<Value, Error> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         chan.remove_subscription(&sub_id).await;
         Ok(serde_json::json!(true))
@@ -84,7 +84,9 @@ async {
         .expect("build the server");
 
     // Starts the server
-    server.start().await.expect("start the server");
+    server.start().await;
+
+    smol::Timer::after(Duration::MAX).await;
 };
 
 // Client

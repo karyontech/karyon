@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use karyon_core::async_util::sleep;
 use karyon_jsonrpc::{rpc_impl, rpc_pubsub_impl, ArcChannel, Error, Server, SubscriptionID};
 
 struct Calc {}
@@ -25,8 +26,13 @@ impl Calc {
 
 #[rpc_pubsub_impl]
 impl Calc {
-    async fn log_subscribe(&self, chan: ArcChannel, _params: Value) -> Result<Value, Error> {
-        let sub = chan.new_subscription().await;
+    async fn log_subscribe(
+        &self,
+        chan: ArcChannel,
+        method: String,
+        _params: Value,
+    ) -> Result<Value, Error> {
+        let sub = chan.new_subscription(&method).await;
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
@@ -42,7 +48,12 @@ impl Calc {
         Ok(serde_json::json!(sub_id))
     }
 
-    async fn log_unsubscribe(&self, chan: ArcChannel, params: Value) -> Result<Value, Error> {
+    async fn log_unsubscribe(
+        &self,
+        chan: ArcChannel,
+        _method: String,
+        params: Value,
+    ) -> Result<Value, Error> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         chan.remove_subscription(&sub_id).await;
         Ok(serde_json::json!(true))
@@ -64,6 +75,8 @@ fn main() {
             .expect("Build a new server");
 
         // Start the server
-        server.start().await.expect("Start the server");
+        server.start().await;
+
+        sleep(Duration::MAX).await;
     });
 }

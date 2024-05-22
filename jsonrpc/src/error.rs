@@ -32,6 +32,9 @@ pub enum Error {
     #[error("Unsupported protocol: {0}")]
     UnsupportedProtocol(String),
 
+    #[error("Receive close message from connection: {0}")]
+    CloseConnection(String),
+
     #[error("Subscription not found: {0}")]
     SubscriptionNotFound(String),
 

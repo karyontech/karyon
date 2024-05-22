@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use crate::SubscriptionID;
+
+pub type ID = u64;
+
 pub const JSONRPC_VERSION: &str = "2.0";
 
 /// Parse error: Invalid JSON was received by the server.
@@ -32,24 +36,25 @@ pub struct Request {
 pub struct Response {
     pub jsonrpc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<Error>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subscription: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Notification {
     pub jsonrpc: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub method: Option<String>,
+    pub method: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subscription: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotificationResult {
+    pub result: Option<serde_json::Value>,
+    pub subscription: SubscriptionID,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -74,8 +79,8 @@ impl std::fmt::Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, result': {:?}, error: {:?} , id: {:?}, subscription: {:?}}}",
-            self.jsonrpc, self.result, self.error, self.id, self.subscription
+            "{{jsonrpc: {}, result': {:?}, error: {:?} , id: {:?}}}",
+            self.jsonrpc, self.result, self.error, self.id,
         )
     }
 }
@@ -94,8 +99,8 @@ impl std::fmt::Display for Notification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{jsonrpc: {}, method: {:?}, params: {:?}, subscription: {:?}}}",
-            self.jsonrpc, self.method, self.params, self.subscription
+            "{{jsonrpc: {}, method: {:?}, params: {:?}}}",
+            self.jsonrpc, self.method, self.params
         )
     }
 }

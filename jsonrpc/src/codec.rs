@@ -38,7 +38,7 @@ impl Decoder for JsonCodec {
         let item = match iter.next() {
             Some(Ok(item)) => item,
             Some(Err(ref e)) if e.is_eof() => return Ok(None),
-            Some(Err(e)) => return Err(Error::Encode(e.to_string())),
+            Some(Err(e)) => return Err(Error::Decode(e.to_string())),
             None => return Ok(None),
         };
 
@@ -70,13 +70,21 @@ impl WebSocketEncoder for WsJsonCodec {
 #[cfg(feature = "ws")]
 impl WebSocketDecoder for WsJsonCodec {
     type DeItem = serde_json::Value;
-    fn decode(&self, src: &Message) -> Result<Self::DeItem> {
+    fn decode(&self, src: &Message) -> Result<Option<Self::DeItem>> {
         match src {
             Message::Text(s) => match serde_json::from_str(s) {
+                Ok(m) => Ok(Some(m)),
+                Err(err) => Err(Error::Decode(err.to_string())),
+            },
+            Message::Binary(s) => match serde_json::from_slice(s) {
                 Ok(m) => Ok(m),
                 Err(err) => Err(Error::Decode(err.to_string())),
             },
-            _ => Err(Error::Decode("Receive wrong message".to_string())),
+            Message::Close(_) => Err(Error::IO(std::io::ErrorKind::ConnectionAborted.into())),
+            m => Err(Error::Decode(format!(
+                "Receive unexpected message: {:?}",
+                m
+            ))),
         }
     }
 }

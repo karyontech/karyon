@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -56,5 +56,7 @@ async fn main() {
         .expect("start a new server");
 
     // Start the server
-    server.start().await.unwrap();
+    server.start().await;
+
+    tokio::time::sleep(Duration::MAX).await;
 }
