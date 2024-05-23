@@ -1,6 +1,6 @@
 mod shared;
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use clap::Parser;
 use log::error;

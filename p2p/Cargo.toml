@@ -48,6 +48,7 @@ futures-rustls = { version = "0.25.1", features = [
 ], optional = true }
 tokio-rustls = { version = "0.26.0", features = ["aws-lc-rs"], optional = true }
 rustls-pki-types = "1.7.0"
+parking_lot = "0.12.2"
 
 [dev-dependencies]
 async-std = "1.12.0"
