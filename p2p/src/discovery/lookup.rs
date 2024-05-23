@@ -234,14 +234,12 @@ impl LookupService {
     ) -> Result<Vec<PeerMsg>> {
         let conn = self.connector.connect(&endpoint, &peer_id).await?;
         self.monitor
-            .notify(DiscoveryEvent::Conn(ConnEvent::Connected(endpoint.clone())))
+            .notify(ConnEvent::Connected(endpoint.clone()))
             .await;
 
         let result = self.handle_outbound(conn, target_peer_id).await;
 
-        self.monitor
-            .notify(DiscoveryEvent::Conn(ConnEvent::Disconnected(endpoint)))
-            .await;
+        self.monitor.notify(ConnEvent::Disconnected(endpoint)).await;
         self.outbound_slots.remove().await;
 
         result

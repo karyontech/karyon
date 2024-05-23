@@ -107,7 +107,6 @@ pub enum PeerPoolEvent {
 #[derive(Clone, Debug)]
 pub enum DiscoveryEvent {
     LookupStarted(Endpoint),
-    Conn(ConnEvent),
     LookupFailed(Endpoint),
     LookupSucceeded(Endpoint, usize),
     RefreshStarted,
@@ -143,7 +142,6 @@ impl fmt::Display for DiscoveryEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let val = match self {
             DiscoveryEvent::LookupStarted(endpoint) => format!("LookupStarted: {endpoint}"),
-            DiscoveryEvent::Conn(event) => format!("Connection event: {event}"),
             DiscoveryEvent::LookupFailed(endpoint) => format!("LookupFailed: {endpoint}"),
             DiscoveryEvent::LookupSucceeded(endpoint, len) => {
                 format!("LookupSucceeded: {endpoint} {len}")

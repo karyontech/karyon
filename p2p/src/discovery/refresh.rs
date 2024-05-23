@@ -211,15 +211,13 @@ impl RefreshService {
         let conn = match udp::listen(&endpoint, Default::default(), RefreshMsgCodec {}).await {
             Ok(c) => {
                 self.monitor
-                    .notify(DiscoveryEvent::Conn(ConnEvent::Listening(endpoint.clone())))
+                    .notify(ConnEvent::Listening(endpoint.clone()))
                     .await;
                 c
             }
             Err(err) => {
                 self.monitor
-                    .notify(DiscoveryEvent::Conn(ConnEvent::ListenFailed(
-                        endpoint.clone(),
-                    )))
+                    .notify(ConnEvent::ListenFailed(endpoint.clone()))
                     .await;
                 return Err(err.into());
             }
@@ -230,9 +228,7 @@ impl RefreshService {
             let res = self.listen_to_ping_msg(&conn).await;
             if let Err(err) = res {
                 trace!("Failed to handle ping msg {err}");
-                self.monitor
-                    .notify(DiscoveryEvent::Conn(ConnEvent::AcceptFailed))
-                    .await;
+                self.monitor.notify(ConnEvent::AcceptFailed).await;
             }
         }
     }
@@ -241,7 +237,7 @@ impl RefreshService {
     async fn listen_to_ping_msg(&self, conn: &udp::UdpConn<RefreshMsgCodec>) -> Result<()> {
         let (msg, endpoint) = conn.recv().await?;
         self.monitor
-            .notify(DiscoveryEvent::Conn(ConnEvent::Accepted(endpoint.clone())))
+            .notify(ConnEvent::Accepted(endpoint.clone()))
             .await;
 
         match msg {
@@ -252,9 +248,7 @@ impl RefreshService {
             RefreshMsg::Pong(_) => return Err(Error::InvalidMsg("Unexpected pong msg".into())),
         }
 
-        self.monitor
-            .notify(DiscoveryEvent::Conn(ConnEvent::Disconnected(endpoint)))
-            .await;
+        self.monitor.notify(ConnEvent::Disconnected(endpoint)).await;
         Ok(())
     }
 

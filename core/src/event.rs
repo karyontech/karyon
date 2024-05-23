@@ -243,9 +243,9 @@ where
 
     /// Cancels the listener and removes it from the `EventSys`.
     pub async fn cancel(&self) {
-        self.event_sys()
-            .remove(&self.topic, &self.event_id, &self.id)
-            .await;
+        if let Some(es) = self.event_sys.upgrade() {
+            es.remove(&self.topic, &self.event_id, &self.id).await;
+        }
     }
 
     /// Returns the topic for this event listener.
@@ -256,10 +256,6 @@ where
     /// Returns the event id for this event listener.
     pub async fn event_id(&self) -> &String {
         &self.event_id
-    }
-
-    fn event_sys(&self) -> ArcEventSys<T> {
-        self.event_sys.upgrade().unwrap()
     }
 }
 
