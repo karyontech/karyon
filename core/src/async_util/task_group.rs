@@ -1,4 +1,6 @@
-use std::{future::Future, sync::Arc, sync::Mutex};
+use std::{future::Future, sync::Arc};
+
+use parking_lot::Mutex;
 
 use crate::async_runtime::{global_executor, Executor, Task};
 
@@ -67,17 +69,17 @@ impl TaskGroup {
             callback,
             self.stop_signal.clone(),
         );
-        self.tasks.lock().unwrap().push(task);
+        self.tasks.lock().push(task);
     }
 
     /// Checks if the TaskGroup is empty.
     pub fn is_empty(&self) -> bool {
-        self.tasks.lock().unwrap().is_empty()
+        self.tasks.lock().is_empty()
     }
 
     /// Get the number of the tasks in the group.
     pub fn len(&self) -> usize {
-        self.tasks.lock().unwrap().len()
+        self.tasks.lock().len()
     }
 
     /// Cancels all tasks in the group.
@@ -85,7 +87,7 @@ impl TaskGroup {
         self.stop_signal.broadcast().await;
 
         loop {
-            let task = self.tasks.lock().unwrap().pop();
+            let task = self.tasks.lock().pop();
             if let Some(t) = task {
                 t.cancel().await
             } else {

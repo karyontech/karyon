@@ -2,9 +2,10 @@ use std::{
     collections::HashMap,
     future::Future,
     pin::Pin,
-    sync::Mutex,
     task::{Context, Poll, Waker},
 };
+
+use parking_lot::Mutex;
 
 use crate::{async_runtime::lock::MutexGuard, util::random_16};
 
@@ -80,12 +81,12 @@ impl CondVar {
 
     /// Wakes up one blocked task waiting on this condvar.
     pub fn signal(&self) {
-        self.inner.lock().unwrap().wake(true);
+        self.inner.lock().wake(true);
     }
 
     /// Wakes up all blocked tasks waiting on this condvar.
     pub fn broadcast(&self) {
-        self.inner.lock().unwrap().wake(false);
+        self.inner.lock().wake(false);
     }
 }
 
@@ -115,7 +116,7 @@ impl<'a, T> Future for CondVarAwait<'a, T> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut inner = self.condvar.inner.lock().unwrap();
+        let mut inner = self.condvar.inner.lock();
 
         match self.guard.take() {
             Some(_) => {
@@ -153,7 +154,7 @@ impl<'a, T> Future for CondVarAwait<'a, T> {
 impl<'a, T> Drop for CondVarAwait<'a, T> {
     fn drop(&mut self) {
         if let Some(id) = self.id {
-            let mut inner = self.condvar.inner.lock().unwrap();
+            let mut inner = self.condvar.inner.lock();
             if let Some(wk) = inner.wakers.get_mut(&id).unwrap().take() {
                 wk.wake()
             }
