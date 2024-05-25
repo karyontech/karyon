@@ -16,7 +16,7 @@ use karyon_net::{Conn, Endpoint};
 
 use crate::{
     config::Config,
-    connection::{ConnDirection, ConnQueue},
+    conn_queue::{ConnDirection, ConnQueue},
     connector::Connector,
     listener::Listener,
     message::NetMsg,

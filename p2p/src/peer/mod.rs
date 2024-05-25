@@ -18,7 +18,7 @@ use karyon_core::{
 use karyon_net::{Conn, Endpoint};
 
 use crate::{
-    connection::ConnDirection,
+    conn_queue::ConnDirection,
     message::{NetMsg, NetMsgCmd, ProtocolMsg, ShutdownMsg},
     peer_pool::{ArcPeerPool, WeakPeerPool},
     protocol::{Protocol, ProtocolEvent, ProtocolID},

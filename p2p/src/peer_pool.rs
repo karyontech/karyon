@@ -21,7 +21,7 @@ use karyon_net::Conn;
 
 use crate::{
     config::Config,
-    connection::{ConnDirection, ConnQueue},
+    conn_queue::{ConnDirection, ConnQueue},
     message::{get_msg_payload, NetMsg, NetMsgCmd, VerAckMsg, VerMsg},
     monitor::{Monitor, PeerPoolEvent},
     peer::{ArcPeer, Peer, PeerID},
@@ -99,11 +99,11 @@ impl PeerPool {
     /// Listens to a new connection from the connection queue
     pub async fn listen_loop(self: Arc<Self>) {
         loop {
-            let new_conn = self.conn_queue.next().await;
-            let signal = new_conn.disconnect_signal;
+            let conn = self.conn_queue.next().await;
+            let signal = conn.disconnect_signal;
 
             let result = self
-                .new_peer(new_conn.conn, &new_conn.direction, signal.clone())
+                .new_peer(conn.conn, &conn.direction, signal.clone())
                 .await;
 
             // Only send a disconnect signal if there is an error when adding a peer.

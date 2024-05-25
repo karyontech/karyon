@@ -6,7 +6,7 @@ use karyon_core::{async_runtime::Executor, crypto::KeyPair};
 
 use crate::{
     config::Config,
-    connection::ConnQueue,
+    conn_queue::ConnQueue,
     discovery::{ArcDiscovery, Discovery},
     monitor::Monitor,
     peer_pool::PeerPool,

@@ -671,6 +671,7 @@ dependencies = [
  "dirs",
  "log",
  "once_cell",
+ "parking_lot",
  "pin-project-lite",
  "rand",
  "thiserror",
