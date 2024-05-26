@@ -4,7 +4,7 @@ pub mod service;
 
 use std::{collections::HashMap, sync::Arc};
 
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 
 #[cfg(feature = "smol")]
 use futures_rustls::rustls;
@@ -212,6 +212,7 @@ impl Server {
         channel: ArcChannel,
         msg: serde_json::Value,
     ) {
+        trace!("--> new request {msg}");
         let on_failure = |result: TaskResult<Result<()>>| async move {
             if let TaskResult::Completed(Err(err)) = result {
                 error!("Failed to handle a request: {err}");
@@ -250,7 +251,8 @@ impl Server {
         if let Some(service) = self.pubsub_services.get(&req.srvc_name) {
             if let Some(method) = service.get_pubsub_method(&req.method_name) {
                 let name = format!("{}.{}", service.name(), req.method_name);
-                response.result = match method(channel, name, req.msg.params.clone()).await {
+                let params = req.msg.params.unwrap_or(serde_json::json!(()));
+                response.result = match method(channel, name, params).await {
                     Ok(res) => Some(res),
                     Err(err) => return self.handle_error(err, req.msg.id),
                 };
@@ -261,7 +263,8 @@ impl Server {
 
         if let Some(service) = self.services.get(&req.srvc_name) {
             if let Some(method) = service.get_method(&req.method_name) {
-                response.result = match method(req.msg.params.clone()).await {
+                let params = req.msg.params.unwrap_or(serde_json::json!(()));
+                response.result = match method(params).await {
                     Ok(res) => Some(res),
                     Err(err) => return self.handle_error(err, req.msg.id),
                 };

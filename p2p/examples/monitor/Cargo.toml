@@ -1,0 +1,29 @@
+[package]
+name = "monitor"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+karyon_core = { path = "../../../core", features = ["crypto"] }
+karyon_p2p = { path = "../../", features = ["serde"] }
+karyon_jsonrpc = { path = "../../../jsonrpc", features = ["ws"] }
+clap = { version = "4.5.4", features = ["derive"] }
+ctrlc = "3.4.4"
+env_logger = "0.11.3"
+log = "0.4.21"
+serde = { version = "1.0.203", features = ["derive"] }
+smol = "2.0.0"
+serde_json = "1.0.117"
+easy-parallel = "3.3.1"
+ringbuffer = "0.15.0"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[[bin]]
+name = "monitor"
+path = "src/main.rs"
+

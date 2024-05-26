@@ -1297,6 +1297,7 @@ dependencies = [
  "log",
  "pin-project-lite",
  "rustls-pki-types",
+ "serde",
  "smol",
  "thiserror",
  "tokio",

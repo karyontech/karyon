@@ -11,7 +11,7 @@ use karyon_p2p::{
     endpoint::{Endpoint, Port},
     keypair::{KeyPair, KeyPairType},
     protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
-    ArcPeer, Backend, Config, P2pError, Version,
+    ArcPeer, Backend, Config, Error, Version,
 };
 
 use shared::run_executor;
@@ -58,7 +58,7 @@ impl ChatProtocol {
 
 #[async_trait]
 impl Protocol for ChatProtocol {
-    async fn start(self: Arc<Self>) -> Result<(), P2pError> {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
         let selfc = self.clone();
         let stdin = io::stdin();
         let task = self.executor.spawn(async move {
@@ -90,7 +90,7 @@ impl Protocol for ChatProtocol {
         Ok(())
     }
 
-    fn version() -> Result<Version, P2pError> {
+    fn version() -> Result<Version, Error> {
         "0.1.0, 0.1.0".parse()
     }
 

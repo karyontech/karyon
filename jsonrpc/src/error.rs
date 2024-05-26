@@ -41,8 +41,8 @@ pub enum Error {
     #[error(transparent)]
     ChannelRecv(#[from] async_channel::RecvError),
 
-    #[error("Channel broadcast Error: {0}")]
-    ChannelBroadcast(String),
+    #[error("Channel send  Error: {0}")]
+    ChannelSend(String),
 
     #[error("Unexpected Error: {0}")]
     General(&'static str),
@@ -56,6 +56,6 @@ pub enum Error {
 
 impl<T> From<async_channel::SendError<T>> for Error {
     fn from(error: async_channel::SendError<T>) -> Self {
-        Error::ChannelBroadcast(error.to_string())
+        Error::ChannelSend(error.to_string())
     }
 }

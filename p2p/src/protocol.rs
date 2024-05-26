@@ -39,7 +39,7 @@ impl EventValue for ProtocolEvent {
 ///
 /// use karyon_p2p::{
 ///     protocol::{ArcProtocol, Protocol, ProtocolID, ProtocolEvent},
-///     Backend, PeerID, Config, Version, P2pError, ArcPeer,
+///     Backend, PeerID, Config, Version, Error, ArcPeer,
 ///     keypair::{KeyPair, KeyPairType},
 ///     };
 ///
@@ -57,7 +57,7 @@ impl EventValue for ProtocolEvent {
 ///
 /// #[async_trait]
 /// impl Protocol for NewProtocol {
-///     async fn start(self: Arc<Self>) -> Result<(), P2pError> {
+///     async fn start(self: Arc<Self>) -> Result<(), Error> {
 ///         let listener = self.peer.register_listener::<Self>().await;
 ///         loop {
 ///             let event = listener.recv().await.unwrap();
@@ -76,7 +76,7 @@ impl EventValue for ProtocolEvent {
 ///         Ok(())
 ///     }
 ///
-///     fn version() -> Result<Version, P2pError> {
+///     fn version() -> Result<Version, Error> {
 ///         "0.2.0, >0.1.0".parse()
 ///     }
 ///

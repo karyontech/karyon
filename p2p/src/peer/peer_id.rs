@@ -2,12 +2,16 @@ use bincode::{Decode, Encode};
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Digest, Sha256};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use karyon_core::crypto::PublicKey;
 
 use crate::Error;
 
 /// Represents a unique identifier for a peer.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Decode, Encode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PeerID(pub [u8; 32]);
 
 impl std::fmt::Display for PeerID {

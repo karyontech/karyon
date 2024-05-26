@@ -3,7 +3,7 @@ mod buffer;
 mod websocket;
 
 #[cfg(feature = "ws")]
-pub use websocket::{WsStream, WriteWsStream, ReadWsStream};
+pub use websocket::{ReadWsStream, WriteWsStream, WsStream};
 
 use std::{
     io::ErrorKind,

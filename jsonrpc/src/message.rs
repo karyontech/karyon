@@ -24,9 +24,10 @@ pub const INTERNAL_ERROR_CODE: i32 = -32603;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Request {
     pub jsonrpc: String,
-    pub method: String,
-    pub params: serde_json::Value,
     pub id: serde_json::Value,
+    pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

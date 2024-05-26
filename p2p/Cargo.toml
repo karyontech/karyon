@@ -13,8 +13,9 @@ authors.workspace = true
 
 [features]
 default = ["smol"]
-smol = ["karyon_core/smol", "karyon_net/smol", "dep:futures-rustls"]
-tokio = ["karyon_core/tokio", "karyon_net/tokio", "dep:tokio-rustls"]
+smol = ["karyon_core/smol", "karyon_net/smol", "futures-rustls"]
+tokio = ["karyon_core/tokio", "karyon_net/tokio", "tokio-rustls"]
+serde = ["dep:serde", "karyon_net/serde"]
 
 [dependencies]
 karyon_core = { workspace = true, features = [
@@ -48,6 +49,10 @@ futures-rustls = { version = "0.25.1", features = [
 ], optional = true }
 tokio-rustls = { version = "0.26.0", features = ["aws-lc-rs"], optional = true }
 rustls-pki-types = "1.7.0"
+
+# serde
+serde = { version = "1.0.197", features = ["derive"], optional = true }
+
 parking_lot = "0.12.2"
 
 [dev-dependencies]

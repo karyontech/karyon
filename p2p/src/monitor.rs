@@ -4,6 +4,9 @@ use karyon_core::event::{ArcEventSys, EventListener, EventSys, EventValue, Event
 
 use karyon_net::Endpoint;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::{Config, PeerID};
 
 /// Responsible for network and system monitoring.
@@ -37,7 +40,6 @@ use crate::{Config, PeerID};
 /// ```
 pub struct Monitor {
     event_sys: ArcEventSys<MonitorTopic>,
-
     config: Arc<Config>,
 }
 
@@ -77,6 +79,7 @@ impl Monitor {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MonitorTopic {
     Conn,
     PeerPool,
@@ -85,6 +88,7 @@ pub enum MonitorTopic {
 
 /// Defines connection-related events.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ConnEvent {
     Connected(Endpoint),
     ConnectRetried(Endpoint),
@@ -98,6 +102,7 @@ pub enum ConnEvent {
 
 /// Defines `PeerPool` events.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PeerPoolEvent {
     NewPeer(PeerID),
     RemovePeer(PeerID),
@@ -105,6 +110,7 @@ pub enum PeerPoolEvent {
 
 /// Defines `Discovery` events.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DiscoveryEvent {
     LookupStarted(Endpoint),
     LookupFailed(Endpoint),

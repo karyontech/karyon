@@ -7,7 +7,7 @@ use std::{
 
 use async_channel::{Receiver, Sender};
 use chrono::{DateTime, Utc};
-use log::{error, debug};
+use log::{debug, error};
 
 use crate::{async_runtime::lock::Mutex, util::random_16, Result};
 
