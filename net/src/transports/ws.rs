@@ -25,7 +25,7 @@ use crate::{
     connection::{Conn, Connection, ToConn},
     endpoint::Endpoint,
     listener::{ConnListener, Listener, ToListener},
-    stream::WsStream,
+    stream::{ReadWsStream, WriteWsStream, WsStream},
     Result,
 };
 
@@ -62,20 +62,22 @@ pub struct ClientWsConfig {
 
 /// WS network connection implementation of the [`Connection`] trait.
 pub struct WsConn<C> {
-    // XXX: remove mutex
-    inner: Mutex<WsStream<C>>,
+    read_stream: Mutex<ReadWsStream<C>>,
+    write_stream: Mutex<WriteWsStream<C>>,
     peer_endpoint: Endpoint,
     local_endpoint: Endpoint,
 }
 
 impl<C> WsConn<C>
 where
-    C: WebSocketCodec,
+    C: WebSocketCodec + Clone,
 {
     /// Creates a new WsConn
     pub fn new(ws: WsStream<C>, peer_endpoint: Endpoint, local_endpoint: Endpoint) -> Self {
+        let (read, write) = ws.split();
         Self {
-            inner: Mutex::new(ws),
+            read_stream: Mutex::new(read),
+            write_stream: Mutex::new(write),
             peer_endpoint,
             local_endpoint,
         }
@@ -97,11 +99,11 @@ where
     }
 
     async fn recv(&self) -> Result<Self::Item> {
-        self.inner.lock().await.recv().await
+        self.read_stream.lock().await.recv().await
     }
 
     async fn send(&self, msg: Self::Item) -> Result<()> {
-        self.inner.lock().await.send(msg).await
+        self.write_stream.lock().await.send(msg).await
     }
 }
 
@@ -169,7 +171,7 @@ where
 /// Connects to the given WS address and port.
 pub async fn dial<C>(endpoint: &Endpoint, config: ClientWsConfig, codec: C) -> Result<WsConn<C>>
 where
-    C: WebSocketCodec,
+    C: WebSocketCodec + Clone,
 {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let socket = TcpStream::connect(addr).await?;
