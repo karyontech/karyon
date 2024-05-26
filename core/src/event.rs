@@ -7,7 +7,7 @@ use std::{
 
 use async_channel::{Receiver, Sender};
 use chrono::{DateTime, Utc};
-use log::{error, trace};
+use log::{error, debug};
 
 use crate::{async_runtime::lock::Mutex, util::random_16, Result};
 
@@ -104,7 +104,7 @@ where
         let mut topics = self.listeners.lock().await;
 
         if !topics.contains_key(topic) {
-            trace!(
+            debug!(
                 "Failed to emit an event to a non-existent topic {:?}",
                 topic
             );
@@ -115,7 +115,7 @@ where
         let event_id = E::id().to_string();
 
         if !event_ids.contains_key(&event_id) {
-            trace!(
+            debug!(
                 "Failed to emit an event to a non-existent event id: {:?}",
                 event_id
             );
@@ -127,7 +127,7 @@ where
         let listeners = event_ids.get_mut(&event_id).unwrap();
         for (listener_id, listener) in listeners.iter() {
             if let Err(err) = listener.send(event.clone()).await {
-                trace!("Failed to emit event for topic {:?}: {}", topic, err);
+                debug!("Failed to emit event for topic {:?}: {}", topic, err);
                 failed_listeners.push(*listener_id);
             }
         }

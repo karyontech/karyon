@@ -9,6 +9,9 @@ use std::os::unix::net::SocketAddr as UnixSocketAddr;
 use bincode::{Decode, Encode};
 use url::Url;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::{Error, Result};
 
 /// Port defined as a u16.
@@ -31,6 +34,7 @@ pub type Port = u16;
 /// ```
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Endpoint {
     Udp(Addr, Port),
     Tcp(Addr, Port),
@@ -200,6 +204,7 @@ impl Endpoint {
 
 /// Addr defines a type for an address, either IP or domain.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Addr {
     Ip(IpAddr),
     Domain(String),

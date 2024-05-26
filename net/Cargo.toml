@@ -32,6 +32,7 @@ tokio = [
   # TODO: use tls feature 
   "tokio-rustls",
 ]
+serde = ["dep:serde"]
 
 
 [dependencies]
@@ -57,6 +58,9 @@ rustls-pki-types = { version = "1.7.0", optional = true }
 futures-rustls = { version = "0.25.1", optional = true }
 tokio-rustls = { version = "0.26.0", optional = true }
 tokio = { version = "1.37.0", features = ["io-util"], optional = true }
+
+# serde
+serde = { version = "1.0.197", features = ["derive"], optional = true }
 
 [dev-dependencies]
 smol = "2.0.0"
