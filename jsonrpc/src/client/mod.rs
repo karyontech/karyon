@@ -13,7 +13,10 @@ use karyon_core::{
 };
 use karyon_net::Conn;
 
-use crate::{message, Error, Result, SubscriptionID};
+use crate::{
+    message::{self, SubscriptionID},
+    Error, Result,
+};
 
 const CHANNEL_CAP: usize = 10;
 

@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::SubscriptionID;
-
 pub type ID = u64;
 
 pub const JSONRPC_VERSION: &str = "2.0";
@@ -20,6 +18,8 @@ pub const INVALID_PARAMS_ERROR_CODE: i32 = -32602;
 
 /// Internal error: Internal JSON-RPC error.
 pub const INTERNAL_ERROR_CODE: i32 = -32603;
+
+pub type SubscriptionID = u32;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Request {

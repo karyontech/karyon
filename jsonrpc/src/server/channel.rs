@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use karyon_core::{async_runtime::lock::Mutex, util::random_32};
 
-use crate::{Error, Result};
+use crate::{message::SubscriptionID, Error, Result};
 
-pub type SubscriptionID = u32;
 pub type ArcChannel = Arc<Channel>;
 
 pub(crate) struct NewNotification {

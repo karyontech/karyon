@@ -10,7 +10,7 @@ pub use client::{builder::ClientBuilder, Client};
 pub use error::{Error, Result};
 pub use server::{
     builder::ServerBuilder,
-    channel::{ArcChannel, Channel, Subscription, SubscriptionID},
+    channel::{ArcChannel, Channel, Subscription},
     pubsub_service::{PubSubRPCMethod, PubSubRPCService},
     service::{RPCMethod, RPCService},
     Server,

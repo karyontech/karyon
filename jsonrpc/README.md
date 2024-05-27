@@ -22,7 +22,8 @@ use serde_json::Value;
 use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
-    Error, Server, Client, rpc_impl, rpc_pubsub_impl, SubscriptionID, ArcChannel
+    Error, Server, Client, rpc_impl, rpc_pubsub_impl, message::SubscriptionID, 
+    ArcChannel
 };
 
 struct HelloWorld {}
