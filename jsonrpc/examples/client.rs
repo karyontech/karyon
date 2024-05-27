@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
+use smol::Timer;
 
 use karyon_jsonrpc::Client;
 
@@ -20,6 +23,16 @@ fn main() {
             .await
             .unwrap();
 
+        let clientc = client.clone();
+        smol::spawn(async move {
+            loop {
+                Timer::after(Duration::from_millis(500)).await;
+                let result: Pong = clientc.call("Calc.ping", ()).await.unwrap();
+                println!("ping msg result:  {:?}", result);
+            }
+        })
+        .detach();
+
         let params = Req { x: 10, y: 7 };
         let result: u32 = client.call("Calc.add", params).await.unwrap();
         println!("result {result}");
@@ -28,10 +41,9 @@ fn main() {
         let result: u32 = client.call("Calc.sub", params).await.unwrap();
         println!("result {result}");
 
-        let result: Pong = client.call("Calc.ping", ()).await.unwrap();
-        println!("result {:?}", result);
-
         let result: String = client.call("Calc.version", ()).await.unwrap();
         println!("result {result}");
+
+        Timer::after(Duration::from_secs(10)).await;
     });
 }
