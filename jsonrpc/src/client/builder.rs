@@ -50,7 +50,8 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Set timeout for sending and receiving messages, in milliseconds.
+    /// Set timeout for receiving messages, in milliseconds. Requests will
+    /// fail if it takes longer.
     ///
     /// # Examples
     ///

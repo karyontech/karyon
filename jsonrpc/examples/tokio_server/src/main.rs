@@ -48,7 +48,7 @@ async fn main() {
     };
 
     // Creates a new server
-    let server = Server::builder("tcp://127.0.0.1:6000")
+    let server = Server::builder("ws://127.0.0.1:6000")
         .expect("Create a new server builder")
         .service(Arc::new(calc))
         .build()

@@ -98,15 +98,7 @@ impl Client {
 
         let req_json = serde_json::to_value(&request)?;
 
-        match self.timeout {
-            Some(ms) => {
-                let t = Duration::from_millis(ms);
-                timeout(t, self.conn.send(req_json)).await??;
-            }
-            None => {
-                self.conn.send(req_json).await?;
-            }
-        }
+        self.conn.send(req_json).await?;
 
         let (tx, rx) = async_channel::bounded(CHANNEL_CAP);
         self.chans.lock().await.insert(id, tx);
