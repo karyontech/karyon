@@ -149,7 +149,12 @@ impl Client {
             async move {
                 loop {
                     let msg = selfc.conn.recv().await?;
-                    selfc.handle_msg(msg).await?;
+                    if let Err(err) = selfc.handle_msg(msg).await {
+                        error!(
+                            "Failed to handle a new received msg from the connection {} : {err}",
+                            selfc.conn.peer_endpoint()?
+                        );
+                    }
                 }
             },
             on_failure,

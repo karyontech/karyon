@@ -3,7 +3,9 @@ use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use karyon_jsonrpc::{rpc_impl, Error, Server};
+use karyon_jsonrpc::{
+    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, ArcChannel, Error, Server,
+};
 
 struct Calc {
     version: String,
@@ -39,18 +41,53 @@ impl Calc {
     }
 }
 
+#[rpc_pubsub_impl]
+impl Calc {
+    async fn log_subscribe(
+        &self,
+        chan: ArcChannel,
+        method: String,
+        _params: Value,
+    ) -> Result<Value, Error> {
+        let sub = chan.new_subscription(&method).await;
+        let sub_id = sub.id.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if let Err(_) = sub.notify(serde_json::json!("Hello")).await {
+                    break;
+                }
+            }
+        });
+
+        Ok(serde_json::json!(sub_id))
+    }
+
+    async fn log_unsubscribe(
+        &self,
+        chan: ArcChannel,
+        _method: String,
+        params: Value,
+    ) -> Result<Value, Error> {
+        let sub_id: SubscriptionID = serde_json::from_value(params)?;
+        chan.remove_subscription(&sub_id).await;
+        Ok(serde_json::json!(true))
+    }
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
     // Register the Calc service
-    let calc = Calc {
+    let calc = Arc::new(Calc {
         version: String::from("0.1"),
-    };
+    });
 
     // Creates a new server
     let server = Server::builder("ws://127.0.0.1:6000")
         .expect("Create a new server builder")
-        .service(Arc::new(calc))
+        .service(calc.clone())
+        .pubsub_service(calc)
         .build()
         .await
         .expect("start a new server");

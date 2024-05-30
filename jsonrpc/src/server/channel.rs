@@ -59,7 +59,7 @@ pub struct Channel {
 }
 
 impl Channel {
-    /// Creates a new `Channel`
+    /// Creates a new [`Channel`]
     pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> ArcChannel {
         Arc::new(Self {
             chan,
@@ -67,7 +67,7 @@ impl Channel {
         })
     }
 
-    /// Creates a new subscription
+    /// Creates a new [`Subscription`]
     pub async fn new_subscription(self: &Arc<Self>, method: &str) -> Subscription {
         let sub_id = random_32();
         let sub = Subscription::new(self.clone(), sub_id, self.chan.clone(), method);
@@ -76,12 +76,16 @@ impl Channel {
     }
 
     /// Removes a subscription
-    pub async fn remove_subscription(self: &Arc<Self>, id: &SubscriptionID) {
+    pub async fn remove_subscription(&self, id: &SubscriptionID) {
         let mut subs = self.subs.lock().await;
         let i = match subs.iter().position(|i| i == id) {
             Some(i) => i,
             None => return,
         };
         subs.remove(i);
+    }
+
+    pub fn close(&self) {
+        self.chan.close();
     }
 }
