@@ -7,6 +7,7 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
+readme="README.md"
 
 
 [features]
@@ -29,13 +30,13 @@ tokio = [
 ]
 
 [dependencies]
-karyon_core = { workspace = true, default-features = false }
-karyon_net = { workspace = true, default-features = false, features = [
+karyon_core = { version = "0.1.1", path = "../core", default-features = false }
+karyon_net = { version = "0.1.1", path = "../net", default-features = false, features = [
   "tcp",
   "tls",
 ] }
 
-karyon_jsonrpc_macro = { version = "0.1.0", path = "jsonrpc_macro", default-features = false }
+karyon_jsonrpc_macro = { version = "0.1.1", path = "jsonrpc_macro", default-features = false }
 
 log = "0.4.21"
 rand = "0.8.5"

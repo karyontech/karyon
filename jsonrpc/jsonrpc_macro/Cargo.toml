@@ -1,5 +1,6 @@
 [package]
 name = "karyon_jsonrpc_macro"
+description = "Internal crate for Karyon project."
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true
