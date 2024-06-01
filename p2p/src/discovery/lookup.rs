@@ -345,7 +345,7 @@ impl LookupService {
     /// Sends a Pong msg
     async fn send_pong_msg(&self, nonce: [u8; 32], conn: &Conn<NetMsg>) -> Result<()> {
         trace!("Send Pong msg");
-        conn.send(NetMsg::new(NetMsgCmd::Pong, &PongMsg(nonce))?)
+        conn.send(NetMsg::new(NetMsgCmd::Pong, PongMsg(nonce))?)
             .await?;
         Ok(())
     }
@@ -355,7 +355,7 @@ impl LookupService {
         trace!("Send FindPeer msg");
         conn.send(NetMsg::new(
             NetMsgCmd::FindPeer,
-            &FindPeerMsg(peer_id.clone()),
+            FindPeerMsg(peer_id.clone()),
         )?)
         .await?;
 
@@ -376,7 +376,7 @@ impl LookupService {
             .closest_entries(&peer_id.0, MAX_PEERS_IN_PEERSMSG);
 
         let peers: Vec<PeerMsg> = entries.into_iter().map(|e| e.into()).collect();
-        conn.send(NetMsg::new(NetMsgCmd::Peers, &PeersMsg(peers))?)
+        conn.send(NetMsg::new(NetMsgCmd::Peers, PeersMsg(peers))?)
             .await?;
         Ok(())
     }
@@ -397,7 +397,7 @@ impl LookupService {
     /// Sends a Shutdown msg.
     async fn send_shutdown_msg(&self, conn: &Conn<NetMsg>) -> Result<()> {
         trace!("Send Shutdown msg");
-        conn.send(NetMsg::new(NetMsgCmd::Shutdown, &ShutdownMsg(0))?)
+        conn.send(NetMsg::new(NetMsgCmd::Shutdown, ShutdownMsg(0))?)
             .await?;
         Ok(())
     }

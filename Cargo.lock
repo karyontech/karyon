@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-channel 2.3.1",
  "async-process",
@@ -1251,7 +1251,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-channel 2.3.1",
  "async-trait",
@@ -1275,7 +1275,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc_macro"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1285,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-channel 2.3.1",
  "async-trait",
@@ -1307,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-channel 2.3.1",
  "async-std",

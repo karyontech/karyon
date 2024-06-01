@@ -124,7 +124,7 @@ impl Peer {
 
         // No need to handle the error here
         let shutdown_msg =
-            NetMsg::new(NetMsgCmd::Shutdown, &ShutdownMsg(0)).expect("pack shutdown message");
+            NetMsg::new(NetMsgCmd::Shutdown, ShutdownMsg(0)).expect("pack shutdown message");
         let _ = self.conn.send(shutdown_msg).await;
 
         // Force shutting down
