@@ -31,7 +31,7 @@ differences and optimizations. Some of the main changes:
 > Despite criticisms of Kademlia's vulnerabilities, particularly concerning
 > Sybil and Eclipse attacks [[1]](https://eprint.iacr.org/2018/236.pdf)
 > [[2]](https://arxiv.org/abs/1908.10141), we chose to use Kademlia because our
-> main goal is to build an infrastructure focused on sharing data. This choice
+> main goal is to build a network focused on sharing data. This choice
 > may also assist us in supporting sharding in the future. However, we have made
 > efforts to mitigate most of its vulnerabilities. Several projects, including
 > BitTorrent, Ethereum, IPFS, and Storj, still rely on Kademlia.

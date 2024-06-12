@@ -1,6 +1,6 @@
 # Karyon
 
- An infrastructure for peer-to-peer, decentralized, and collaborative software
+A library for building p2p, decentralized, and collaborative software
 
 [Website](https://karyontech.net/) | [Discord](https://discord.gg/xuXRcrkz3p) | [irc](https://libera.chat/) #karyon on liberachat 
 
@@ -9,18 +9,18 @@
 
 ## Overview
 
-Many developers around the world aspire to build peer-to-peer, decentralized
-apps that are resilient, secure, and free from central control.
-However, there are still not many libraries and tools available to build these
-kinds of apps. This forces many developers to either abandon their ideas or
-develop a new p2p network stack and tools from scratch. Such efforts are not
-only time-consuming but also prone to errors and security vulnerabilities, as
-each new implementation reintroduces potential weaknesses.
+Building peer-to-peer (p2p), decentralized applications that are resilient,
+secure, and free from central control is a challenge for developers. There are
+not many libraries and tools available to build these applications. As
+a result, many developers either abandon their ideas or have to develop a new
+p2p network stack and tools from scratch. Instead of sharing common components
+and tools for building p2p systems, every p2p project seems to reinvent the
+wheel, which increases the effort required and the potential for vulnerabilities.
 
-Karyon provides developers with the components and tools needed to create p2p
-and decentralized apps and simplifies the complexities associated with building
-them. Its primary goal is to make decentralization more accessible and
-efficient for developers everywhere.
+Karyon addresses this issue by providing developers with the components and
+tools needed to create p2p and decentralized apps, simplifying the complexities
+associated with building them. its primary goal is to make decentralization
+more accessible and efficient for developers everywhere.
 
 ## Crates 
 
