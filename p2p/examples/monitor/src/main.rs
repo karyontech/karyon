@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use smol::{channel, lock::Mutex, Executor};
 
 use karyon_core::async_util::{CondWait, TaskGroup, TaskResult};
-use karyon_jsonrpc::{rpc_impl, rpc_pubsub_impl, ArcChannel, Server, Subscription, SubscriptionID};
+use karyon_jsonrpc::{
+    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, Server, Subscription,
+};
 use karyon_p2p::{
     endpoint::{Endpoint, Port},
     keypair::{KeyPair, KeyPairType},
@@ -158,12 +160,12 @@ impl MonitorRPC {
 impl MonitorRPC {
     async fn conn_subscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         method: String,
         _params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
         let sub = chan.new_subscription(&method).await;
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
 
         let cond_wait = self.conn_event_condvar.clone();
         let buffer = self.conn_event_buffer.clone();
@@ -175,12 +177,12 @@ impl MonitorRPC {
 
     async fn peer_pool_subscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         method: String,
         _params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
         let sub = chan.new_subscription(&method).await;
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
 
         let cond_wait = self.pp_event_condvar.clone();
         let buffer = self.pp_event_buffer.clone();
@@ -192,12 +194,12 @@ impl MonitorRPC {
 
     async fn discovery_subscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         method: String,
         _params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
         let sub = chan.new_subscription(&method).await;
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
 
         let cond_wait = self.discv_event_condvar.clone();
         let buffer = self.discv_event_buffer.clone();
@@ -209,7 +211,7 @@ impl MonitorRPC {
 
     async fn conn_unsubscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         _method: String,
         params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
@@ -220,7 +222,7 @@ impl MonitorRPC {
 
     async fn peer_pool_unsubscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         _method: String,
         params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
@@ -231,7 +233,7 @@ impl MonitorRPC {
 
     async fn discovery_unsubscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         _method: String,
         params: serde_json::Value,
     ) -> karyon_jsonrpc::Result<serde_json::Value> {
@@ -243,6 +245,7 @@ impl MonitorRPC {
 
 fn main() {
     env_logger::init();
+
     let cli = Cli::parse();
 
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);

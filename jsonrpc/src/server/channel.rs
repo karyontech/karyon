@@ -4,8 +4,6 @@ use karyon_core::{async_runtime::lock::Mutex, util::random_32};
 
 use crate::{message::SubscriptionID, Error, Result};
 
-pub type ArcChannel = Arc<Channel>;
-
 pub(crate) struct NewNotification {
     pub sub_id: SubscriptionID,
     pub result: serde_json::Value,
@@ -52,7 +50,7 @@ impl Subscription {
     }
 }
 
-/// Represents a channel for creating/removing subscriptions
+/// Represents a connection channel for creating/removing subscriptions
 pub struct Channel {
     chan: async_channel::Sender<NewNotification>,
     subs: Mutex<Vec<SubscriptionID>>,
@@ -60,7 +58,7 @@ pub struct Channel {
 
 impl Channel {
     /// Creates a new [`Channel`]
-    pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> ArcChannel {
+    pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> Arc<Channel> {
         Arc::new(Self {
             chan,
             subs: Mutex::new(Vec::new()),
@@ -75,7 +73,7 @@ impl Channel {
         sub
     }
 
-    /// Removes a subscription
+    /// Removes a [`Subscription`]
     pub async fn remove_subscription(&self, id: &SubscriptionID) {
         let mut subs = self.subs.lock().await;
         let i = match subs.iter().position(|i| i == id) {

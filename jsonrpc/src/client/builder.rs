@@ -1,11 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(feature = "smol")]
 use futures_rustls::rustls;
 #[cfg(feature = "tokio")]
 use tokio_rustls::rustls;
 
-use karyon_core::{async_runtime::lock::Mutex, async_util::TaskGroup};
+use karyon_core::async_util::TaskGroup;
 use karyon_net::{tls::ClientTlsConfig, Conn, Endpoint, ToEndpoint};
 
 #[cfg(feature = "ws")]
@@ -16,7 +16,7 @@ use crate::codec::WsJsonCodec;
 
 use crate::{codec::JsonCodec, Error, Result, TcpConfig};
 
-use super::Client;
+use super::{Client, MessageDispatcher, Subscriber};
 
 const DEFAULT_TIMEOUT: u64 = 3000; // 3s
 
@@ -171,8 +171,8 @@ impl ClientBuilder {
         let client = Arc::new(Client {
             timeout: self.timeout,
             conn,
-            chans: Mutex::new(HashMap::new()),
-            subscriptions: Mutex::new(HashMap::new()),
+            message_dispatcher: MessageDispatcher::new(),
+            subscriber: Subscriber::new(),
             task_group: TaskGroup::new(),
         });
         client.start_background_receiving();

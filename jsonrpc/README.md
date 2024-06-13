@@ -13,6 +13,15 @@ features:
 - Allows passing an `async_executors::Executor` or tokio's `Runtime` when building
   the server.
 
+
+## Install 
+
+```bash
+    
+$ cargo add karyon_jsonrpc 
+
+```
+
 ## Example
 
 ```rust
@@ -23,7 +32,7 @@ use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
     Error, Server, Client, rpc_impl, rpc_pubsub_impl, message::SubscriptionID, 
-    ArcChannel
+    Channel
 };
 
 struct HelloWorld {}
@@ -46,7 +55,7 @@ impl HelloWorld {
 
 #[rpc_pubsub_impl]
 impl HelloWorld {
-    async fn log_subscribe(&self, chan: ArcChannel, method: String, _params: Value) -> Result<Value, Error> {
+    async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, Error> {
         let sub = chan.new_subscription(&method).await;
         let sub_id = sub.id.clone();
         smol::spawn(async move {
@@ -63,7 +72,7 @@ impl HelloWorld {
         Ok(serde_json::json!(sub_id))
     }
 
-    async fn log_unsubscribe(&self, chan: ArcChannel, method: String, params: Value) -> Result<Value, Error> {
+    async fn log_unsubscribe(&self, chan: Arc<Channel>, method: String, params: Value) -> Result<Value, Error> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         chan.remove_subscription(&sub_id).await;
         Ok(serde_json::json!(true))
@@ -126,6 +135,10 @@ async {
 
 ```
 
+## Supported Client Implementations 
 
+- [X] [Golang](https://github.com/karyontech/karyon-go)
+- [ ] Python 
+- [ ] JavaScript/TypeScript 
 
 

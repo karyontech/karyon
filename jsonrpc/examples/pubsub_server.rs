@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_core::async_util::sleep;
-use karyon_jsonrpc::{
-    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, ArcChannel, Error, Server,
-};
+use karyon_jsonrpc::{message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, Error, Server};
 
 struct Calc {}
 
@@ -30,7 +28,7 @@ impl Calc {
 impl Calc {
     async fn log_subscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         method: String,
         _params: Value,
     ) -> Result<Value, Error> {
@@ -52,7 +50,7 @@ impl Calc {
 
     async fn log_unsubscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         _method: String,
         params: Value,
     ) -> Result<Value, Error> {

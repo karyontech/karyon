@@ -1,6 +1,6 @@
 # karyon p2p
 
-karyon p2p serves as the foundational stack for the Karyon project. It offers
+karyon p2p serves as the foundational stack for the Karyon library. It offers
 a lightweight, extensible, and customizable peer-to-peer (p2p) network stack
 that seamlessly integrates with any p2p project.
 

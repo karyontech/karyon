@@ -3,9 +3,7 @@ use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use karyon_jsonrpc::{
-    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, ArcChannel, Error, Server,
-};
+use karyon_jsonrpc::{message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, Error, Server};
 
 struct Calc {
     version: String,
@@ -45,16 +43,16 @@ impl Calc {
 impl Calc {
     async fn log_subscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         method: String,
         _params: Value,
     ) -> Result<Value, Error> {
         let sub = chan.new_subscription(&method).await;
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                if let Err(_) = sub.notify(serde_json::json!("Hello")).await {
+                if sub.notify(serde_json::json!("Hello")).await.is_err() {
                     break;
                 }
             }
@@ -65,7 +63,7 @@ impl Calc {
 
     async fn log_unsubscribe(
         &self,
-        chan: ArcChannel,
+        chan: Arc<Channel>,
         _method: String,
         params: Value,
     ) -> Result<Value, Error> {

@@ -33,7 +33,7 @@ more accessible and efficient for developers everywhere.
   [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation.
 - **karyon crdt**: A [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) 
 implementation for building collaborative software. 
-- **karyon base**: A lightweight, extensible database that operates with `karyon crdt`.
+- **karyon base**: A lightweight, extensible database that operates with **karyon crdt**.
 
 ## Choosing the async runtime
 

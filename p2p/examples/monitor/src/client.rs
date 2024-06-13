@@ -43,6 +43,7 @@ fn main() {
             loop {
                 let _event = sub2.recv().await.expect("Receive peer pool event");
             }
-        }).await;
+        })
+        .await;
     });
 }
