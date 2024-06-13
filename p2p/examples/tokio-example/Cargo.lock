@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-channel",
  "bincode",
@@ -903,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -922,7 +922,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-channel",
  "async-trait",
