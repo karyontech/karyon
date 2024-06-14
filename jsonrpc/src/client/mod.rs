@@ -147,7 +147,7 @@ impl Client {
                     let msg = selfc.conn.recv().await?;
                     if let Err(err) = selfc.handle_msg(msg).await {
                         error!(
-                            "Failed to handle a new received msg from the connection {} : {err}",
+                            "Handle a msg from the endpoint {} : {err}",
                             selfc.conn.peer_endpoint()?
                         );
                     }

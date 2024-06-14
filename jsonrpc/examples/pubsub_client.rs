@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use log::info;
 use serde::{Deserialize, Serialize};
 use smol::Timer;
 
@@ -25,7 +26,8 @@ async fn run_client() {
 
     smol::spawn(async move {
         loop {
-            let _m = sub.recv().await.unwrap();
+            let m = sub.recv().await.expect("Receive new log msg");
+            info!("Receive new log {m}");
         }
     })
     .detach();

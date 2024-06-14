@@ -4,6 +4,7 @@ use karyon_core::{async_runtime::lock::Mutex, util::random_32};
 
 use crate::{message::SubscriptionID, Error, Result};
 
+#[derive(Debug)]
 pub(crate) struct NewNotification {
     pub sub_id: SubscriptionID,
     pub result: serde_json::Value,
@@ -20,7 +21,7 @@ pub struct Subscription {
 }
 
 impl Subscription {
-    /// Creates a new `Subscription`
+    /// Creates a new [`Subscription`]
     fn new(
         parent: Arc<Channel>,
         id: SubscriptionID,

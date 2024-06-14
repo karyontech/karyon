@@ -7,7 +7,7 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-readme="README.md"
+readme = "README.md"
 
 
 [features]

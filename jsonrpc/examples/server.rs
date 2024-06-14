@@ -57,7 +57,7 @@ fn main() {
             .expect("start a new server");
 
         // Start the server
-        server.start().await;
+        server.start();
 
         sleep(Duration::MAX).await;
     });

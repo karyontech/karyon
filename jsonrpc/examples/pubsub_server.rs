@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -36,9 +37,9 @@ impl Calc {
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
-                smol::Timer::after(std::time::Duration::from_secs(1)).await;
+                sleep(Duration::from_millis(500)).await;
                 if let Err(err) = sub.notify(serde_json::json!("Hello")).await {
-                    println!("Error send notification {err}");
+                    error!("Error send notification {err}");
                     break;
                 }
             }
@@ -75,7 +76,7 @@ fn main() {
             .expect("Build a new server");
 
         // Start the server
-        server.start().await;
+        server.start();
 
         sleep(Duration::MAX).await;
     });

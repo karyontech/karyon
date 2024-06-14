@@ -11,8 +11,6 @@ use crate::{
     Error, Result,
 };
 
-const CHANNEL_CAP: usize = 10;
-
 /// Manages subscriptions for the client.
 pub(super) struct Subscriber {
     subs: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
@@ -31,7 +29,7 @@ impl Subscriber {
     }
 
     pub(super) async fn subscribe(&self, id: SubscriptionID) -> Receiver<serde_json::Value> {
-        let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_CAP);
+        let (ch_tx, ch_rx) = async_channel::unbounded();
         self.subs.lock().await.insert(id, ch_tx);
         ch_rx
     }

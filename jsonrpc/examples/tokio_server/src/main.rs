@@ -91,7 +91,7 @@ async fn main() {
         .expect("start a new server");
 
     // Start the server
-    server.start().await;
+    server.start();
 
     tokio::time::sleep(Duration::MAX).await;
 }

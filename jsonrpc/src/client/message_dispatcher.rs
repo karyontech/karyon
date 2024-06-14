@@ -8,8 +8,6 @@ use crate::{message, Error, Result};
 
 use super::RequestID;
 
-const CHANNEL_CAP: usize = 10;
-
 /// Manages client requests
 pub(super) struct MessageDispatcher {
     chans: Mutex<HashMap<RequestID, Sender<message::Response>>>,
@@ -26,7 +24,7 @@ impl MessageDispatcher {
     /// Registers a new request with a given ID and returns a Receiver channel
     /// to wait for the response.
     pub(super) async fn register(&self, id: RequestID) -> Receiver<message::Response> {
-        let (tx, rx) = async_channel::bounded(CHANNEL_CAP);
+        let (tx, rx) = async_channel::unbounded();
         self.chans.lock().await.insert(id, tx);
         rx
     }

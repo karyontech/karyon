@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use log::info;
 use serde::{Deserialize, Serialize};
 use smol::Timer;
 
@@ -21,29 +22,35 @@ fn main() {
             .expect("Create client builder")
             .build()
             .await
-            .unwrap();
-
-        let clientc = client.clone();
-        smol::spawn(async move {
-            loop {
-                Timer::after(Duration::from_millis(500)).await;
-                let result: Pong = clientc.call("Calc.ping", ()).await.unwrap();
-                println!("ping msg result:  {:?}", result);
-            }
-        })
-        .detach();
+            .expect("Create rpc client");
 
         let params = Req { x: 10, y: 7 };
-        let result: u32 = client.call("Calc.add", params).await.unwrap();
-        println!("result {result}");
+        let result: u32 = client
+            .call("Calc.add", params)
+            .await
+            .expect("Call Calc.add method");
+        info!("Add result: {result}");
 
         let params = Req { x: 10, y: 7 };
-        let result: u32 = client.call("Calc.sub", params).await.unwrap();
-        println!("result {result}");
+        let result: u32 = client
+            .call("Calc.sub", params)
+            .await
+            .expect("Call Calc.sub method");
+        info!("Sub result: {result}");
 
-        let result: String = client.call("Calc.version", ()).await.unwrap();
-        println!("result {result}");
+        let result: String = client
+            .call("Calc.version", ())
+            .await
+            .expect("Call Calc.version method");
+        info!("Version result: {result}");
 
-        Timer::after(Duration::from_secs(10)).await;
+        loop {
+            Timer::after(Duration::from_millis(100)).await;
+            let result: Pong = client
+                .call("Calc.ping", ())
+                .await
+                .expect("Call Calc.ping method");
+            info!("Ping result:  {:?}", result);
+        }
     });
 }

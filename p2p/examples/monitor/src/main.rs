@@ -83,7 +83,7 @@ fn main() {
                 .expect("Build rpc server");
 
             // Run the RPC server
-            server.start().await;
+            server.start();
 
             // Run the RPC Service
             service.run().await.expect("Run monitor rpc service");
