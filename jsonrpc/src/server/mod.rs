@@ -19,6 +19,7 @@ use response_queue::ResponseQueue;
 pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
 pub const FAILED_TO_PARSE_ERROR_MSG: &str = "Failed to parse";
 pub const METHOD_NOT_FOUND_ERROR_MSG: &str = "Method not found";
+pub const UNSUPPORTED_JSONRPC_VERSION: &str = "Unsupported jsonrpc version";
 
 struct NewRequest {
     srvc_name: String,
@@ -175,6 +176,20 @@ impl Server {
                 return SanityCheckResult::ErrRes(response);
             }
         };
+
+        if rpc_msg.jsonrpc != message::JSONRPC_VERSION {
+            let response = message::Response {
+                error: Some(message::Error {
+                    code: message::INVALID_REQUEST_ERROR_CODE,
+                    message: UNSUPPORTED_JSONRPC_VERSION.to_string(),
+                    data: None,
+                }),
+                id: Some(rpc_msg.id),
+                ..Default::default()
+            };
+            return SanityCheckResult::ErrRes(response);
+        }
+
         debug!("<-- {rpc_msg}");
 
         // Parse the service name and its method
