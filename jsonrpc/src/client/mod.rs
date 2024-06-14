@@ -97,6 +97,7 @@ impl Client {
 
         // Send the json request
         self.conn.send(req_json).await?;
+        debug!("--> {request}");
 
         // Register a new request
         let rx = self.message_dispatcher.register(id).await;
@@ -126,7 +127,6 @@ impl Client {
             return Err(Error::InvalidMsg("Invalid response id"));
         }
 
-        debug!("--> {request}");
         Ok(response)
     }
 

@@ -11,6 +11,7 @@ pub(crate) struct NewNotification {
 }
 
 /// Represents a new subscription
+#[derive(Clone)]
 pub struct Subscription {
     pub id: SubscriptionID,
     parent: Arc<Channel>,
