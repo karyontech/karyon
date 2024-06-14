@@ -1,6 +1,6 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use crate::Result;
+use crate::RPCResult;
 
 use super::channel::Channel;
 
@@ -8,7 +8,7 @@ use super::channel::Channel;
 pub type PubSubRPCMethod<'a> =
     Box<dyn Fn(Arc<Channel>, String, serde_json::Value) -> PubSubRPCMethodOutput<'a> + Send + 'a>;
 type PubSubRPCMethodOutput<'a> =
-    Pin<Box<dyn Future<Output = Result<serde_json::Value>> + Send + Sync + 'a>>;
+    Pin<Box<dyn Future<Output = RPCResult<serde_json::Value>> + Send + Sync + 'a>>;
 
 /// Defines the interface for an RPC service.
 pub trait PubSubRPCService: Sync + Send {
@@ -23,16 +23,16 @@ pub trait PubSubRPCService: Sync + Send {
 /// ```
 /// use serde_json::Value;
 ///
-/// use karyon_jsonrpc::{Error, impl_rpc_service};
+/// use karyon_jsonrpc::{RPCError, impl_rpc_service};
 ///
 /// struct Hello {}
 ///
 /// impl Hello {
-///     async fn foo(&self, params: Value) -> Result<Value, Error> {
+///     async fn foo(&self, params: Value) -> Result<Value, RPCError> {
 ///         Ok(serde_json::json!("foo!"))
 ///     }
 ///
-///     async fn bar(&self, params: Value) -> Result<Value, Error> {
+///     async fn bar(&self, params: Value) -> Result<Value, RPCError> {
 ///         Ok(serde_json::json!("bar!"))
 ///     }
 /// }

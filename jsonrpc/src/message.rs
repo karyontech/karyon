@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::RPCError;
+
 pub type ID = u64;
 
 pub const JSONRPC_VERSION: &str = "2.0";
@@ -21,6 +23,8 @@ pub const INTERNAL_ERROR_CODE: i32 = -32603;
 
 /// SubscriptionID is used to identify a subscription.
 pub type SubscriptionID = u32;
+
+pub const INTERNAL_ERROR_MSG: &str = "Internal error";
 
 /// Request represents a JSON-RPC request message.
 /// It includes the JSON-RPC version, an identifier for the request, the method
@@ -129,5 +133,59 @@ impl std::fmt::Display for Notification {
             "{{jsonrpc: {}, method: {:?}, params: {:?}}}",
             self.jsonrpc, self.method, self.params
         )
+    }
+}
+
+impl Default for Response {
+    fn default() -> Self {
+        Self {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            error: None,
+            id: None,
+            result: None,
+        }
+    }
+}
+
+impl RPCError {
+    pub fn to_response(
+        &self,
+        id: Option<serde_json::Value>,
+        data: Option<serde_json::Value>,
+    ) -> Response {
+        let err: Error = match self {
+            RPCError::ParseError(msg) => Error {
+                code: PARSE_ERROR_CODE,
+                message: msg.to_string(),
+                data,
+            },
+            RPCError::InvalidParams(msg) => Error {
+                code: INVALID_PARAMS_ERROR_CODE,
+                message: msg.to_string(),
+                data,
+            },
+            RPCError::InvalidRequest(msg) => Error {
+                code: INVALID_REQUEST_ERROR_CODE,
+                message: msg.to_string(),
+                data,
+            },
+            RPCError::CustomError(code, msg) => Error {
+                code: *code,
+                message: msg.to_string(),
+                data,
+            },
+            RPCError::InternalError => Error {
+                code: INTERNAL_ERROR_CODE,
+                message: INTERNAL_ERROR_MSG.to_string(),
+                data,
+            },
+        };
+
+        Response {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            error: Some(err),
+            result: None,
+            id,
+        }
     }
 }

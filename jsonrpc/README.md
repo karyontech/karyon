@@ -31,7 +31,7 @@ use serde_json::Value;
 use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
-    Error, Server, Client, rpc_impl, rpc_pubsub_impl, message::SubscriptionID, 
+    RPCError, Server, Client, rpc_impl, rpc_pubsub_impl, message::SubscriptionID, 
     Channel
 };
 
@@ -39,30 +39,30 @@ struct HelloWorld {}
 
 #[rpc_impl]
 impl HelloWorld {
-    async fn say_hello(&self, params: Value) -> Result<Value, Error> {
+    async fn say_hello(&self, params: Value) -> Result<Value, RPCError> {
         let msg: String = serde_json::from_value(params)?;
         Ok(serde_json::json!(format!("Hello {msg}!")))
     }
 
-    async fn foo(&self, params: Value) -> Result<Value, Error> {
+    async fn foo(&self, params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!("foo!"))
     }
 
-    async fn bar(&self, params: Value) -> Result<Value, Error> {
+    async fn bar(&self, params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!("bar!"))
     }
 }
 
 #[rpc_pubsub_impl]
 impl HelloWorld {
-    async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, Error> {
+    async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, RPCError> {
         let sub = chan.new_subscription(&method).await;
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
                 smol::Timer::after(std::time::Duration::from_secs(1)).await;
                 if let Err(err) = sub.notify(serde_json::json!("Hello")).await {
-                    println!("Error send notification {err}");
+                    println!("Failed to send notification: {err}");
                     break;
                 }
             }
@@ -72,7 +72,7 @@ impl HelloWorld {
         Ok(serde_json::json!(sub_id))
     }
 
-    async fn log_unsubscribe(&self, chan: Arc<Channel>, method: String, params: Value) -> Result<Value, Error> {
+    async fn log_unsubscribe(&self, chan: Arc<Channel>, method: String, params: Value) -> Result<Value, RPCError> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         chan.remove_subscription(&sub_id).await;
         Ok(serde_json::json!(true))

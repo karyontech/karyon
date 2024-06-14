@@ -1,4 +1,4 @@
-use karyon_jsonrpc::{rpc_impl, Error, RPCService};
+use karyon_jsonrpc::{rpc_impl, RPCError, RPCService};
 use serde_json::Value;
 
 #[test]
@@ -7,7 +7,7 @@ fn rpc_impl_service() {
 
     #[rpc_impl]
     impl Foo {
-        async fn foo(&self, params: Value) -> Result<Value, Error> {
+        async fn foo(&self, params: Value) -> Result<Value, RPCError> {
             Ok(params)
         }
     }

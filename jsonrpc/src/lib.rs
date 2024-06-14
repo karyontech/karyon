@@ -7,7 +7,7 @@ pub mod message;
 mod server;
 
 pub use client::{builder::ClientBuilder, Client};
-pub use error::{Error, Result};
+pub use error::{Error, RPCError, RPCResult, Result};
 pub use server::{
     builder::ServerBuilder,
     channel::{Channel, Subscription},

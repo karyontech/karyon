@@ -1,11 +1,11 @@
 use std::{future::Future, pin::Pin};
 
-use crate::Result;
+use crate::RPCResult;
 
 /// Represents the RPC method
 pub type RPCMethod<'a> = Box<dyn Fn(serde_json::Value) -> RPCMethodOutput<'a> + Send + 'a>;
 type RPCMethodOutput<'a> =
-    Pin<Box<dyn Future<Output = Result<serde_json::Value>> + Send + Sync + 'a>>;
+    Pin<Box<dyn Future<Output = RPCResult<serde_json::Value>> + Send + Sync + 'a>>;
 
 /// Defines the interface for an RPC service.
 pub trait RPCService: Sync + Send {
@@ -20,16 +20,16 @@ pub trait RPCService: Sync + Send {
 /// ```
 /// use serde_json::Value;
 ///
-/// use karyon_jsonrpc::{Error, impl_rpc_service};
+/// use karyon_jsonrpc::{RPCError, impl_rpc_service};
 ///
 /// struct Hello {}
 ///
 /// impl Hello {
-///     async fn foo(&self, params: Value) -> Result<Value, Error> {
+///     async fn foo(&self, params: Value) -> Result<Value, RPCError> {
 ///         Ok(serde_json::json!("foo!"))
 ///     }
 ///
-///     async fn bar(&self, params: Value) -> Result<Value, Error> {
+///     async fn bar(&self, params: Value) -> Result<Value, RPCError> {
 ///         Ok(serde_json::json!("bar!"))
 ///     }
 /// }

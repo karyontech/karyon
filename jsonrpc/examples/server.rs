@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_core::async_util::sleep;
-use karyon_jsonrpc::{rpc_impl, Error, Server};
+use karyon_jsonrpc::{rpc_impl, RPCError, Server};
 
 struct Calc {
     version: String,
@@ -21,21 +21,21 @@ struct Pong {}
 
 #[rpc_impl]
 impl Calc {
-    async fn ping(&self, _params: Value) -> Result<Value, Error> {
+    async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!(Pong {}))
     }
 
-    async fn add(&self, params: Value) -> Result<Value, Error> {
+    async fn add(&self, params: Value) -> Result<Value, RPCError> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x + params.y))
     }
 
-    async fn sub(&self, params: Value) -> Result<Value, Error> {
+    async fn sub(&self, params: Value) -> Result<Value, RPCError> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x - params.y))
     }
 
-    async fn version(&self, _params: Value) -> Result<Value, Error> {
+    async fn version(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!(self.version))
     }
 }

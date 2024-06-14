@@ -3,7 +3,9 @@ use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use karyon_jsonrpc::{message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, Error, Server};
+use karyon_jsonrpc::{
+    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, RPCError, Server,
+};
 
 struct Calc {
     version: String,
@@ -20,21 +22,21 @@ struct Pong {}
 
 #[rpc_impl]
 impl Calc {
-    async fn ping(&self, _params: Value) -> Result<Value, Error> {
+    async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!(Pong {}))
     }
 
-    async fn add(&self, params: Value) -> Result<Value, Error> {
+    async fn add(&self, params: Value) -> Result<Value, RPCError> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x + params.y))
     }
 
-    async fn sub(&self, params: Value) -> Result<Value, Error> {
+    async fn sub(&self, params: Value) -> Result<Value, RPCError> {
         let params: Req = serde_json::from_value(params)?;
         Ok(serde_json::json!(params.x - params.y))
     }
 
-    async fn version(&self, _params: Value) -> Result<Value, Error> {
+    async fn version(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!(self.version))
     }
 }
@@ -46,7 +48,7 @@ impl Calc {
         chan: Arc<Channel>,
         method: String,
         _params: Value,
-    ) -> Result<Value, Error> {
+    ) -> Result<Value, RPCError> {
         let sub = chan.new_subscription(&method).await;
         let sub_id = sub.id;
         tokio::spawn(async move {
@@ -66,7 +68,7 @@ impl Calc {
         chan: Arc<Channel>,
         _method: String,
         params: Value,
-    ) -> Result<Value, Error> {
+    ) -> Result<Value, RPCError> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         chan.remove_subscription(&sub_id).await;
         Ok(serde_json::json!(true))
