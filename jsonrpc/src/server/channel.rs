@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use karyon_core::{async_runtime::lock::Mutex, util::random_32};
 
@@ -15,7 +15,7 @@ pub(crate) struct NewNotification {
 #[derive(Clone)]
 pub struct Subscription {
     pub id: SubscriptionID,
-    parent: Arc<Channel>,
+    parent: Weak<Channel>,
     chan: async_channel::Sender<NewNotification>,
     method: String,
 }
@@ -23,7 +23,7 @@ pub struct Subscription {
 impl Subscription {
     /// Creates a new [`Subscription`]
     fn new(
-        parent: Arc<Channel>,
+        parent: Weak<Channel>,
         id: SubscriptionID,
         chan: async_channel::Sender<NewNotification>,
         method: &str,
@@ -38,7 +38,7 @@ impl Subscription {
 
     /// Sends a notification to the subscriber
     pub async fn notify(&self, res: serde_json::Value) -> Result<()> {
-        if self.parent.subs.lock().await.contains(&self.id) {
+        if self.still_subscribed().await {
             let nt = NewNotification {
                 sub_id: self.id,
                 result: res,
@@ -48,6 +48,14 @@ impl Subscription {
             Ok(())
         } else {
             Err(Error::SubscriptionNotFound(self.id.to_string()))
+        }
+    }
+
+    /// Checks from the partent if this subscription is still subscribed
+    pub async fn still_subscribed(&self) -> bool {
+        match self.parent.upgrade() {
+            Some(parent) => parent.subs.lock().await.contains(&self.id),
+            None => false,
         }
     }
 }
@@ -70,7 +78,7 @@ impl Channel {
     /// Creates a new [`Subscription`]
     pub async fn new_subscription(self: &Arc<Self>, method: &str) -> Subscription {
         let sub_id = random_32();
-        let sub = Subscription::new(self.clone(), sub_id, self.chan.clone(), method);
+        let sub = Subscription::new(Arc::downgrade(self), sub_id, self.chan.clone(), method);
         self.subs.lock().await.push(sub_id);
         sub
     }

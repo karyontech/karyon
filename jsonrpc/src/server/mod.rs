@@ -268,9 +268,8 @@ impl Server {
         if let Some(service) = self.pubsub_services.get(&req.srvc_name) {
             // Check if the method exists within the service
             if let Some(method) = service.get_pubsub_method(&req.method_name) {
-                let name = format!("{}.{}", service.name(), req.method_name);
                 let params = req.msg.params.unwrap_or(serde_json::json!(()));
-                response.result = match method(channel, name, params).await {
+                response.result = match method(channel, req.msg.method, params).await {
                     Ok(res) => Some(res),
                     Err(err) => return err.to_response(Some(req.msg.id), None),
                 };
