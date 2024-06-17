@@ -16,7 +16,7 @@ use crate::codec::WsJsonCodec;
 
 use crate::{codec::JsonCodec, Error, Result, TcpConfig};
 
-use super::{Client, MessageDispatcher, Subscriber};
+use super::{Client, MessageDispatcher, Subscriptions};
 
 const DEFAULT_TIMEOUT: u64 = 3000; // 3s
 
@@ -172,7 +172,7 @@ impl ClientBuilder {
             timeout: self.timeout,
             conn,
             message_dispatcher: MessageDispatcher::new(),
-            subscriber: Subscriber::new(),
+            subscriptions: Subscriptions::new(),
             task_group: TaskGroup::new(),
         });
         client.start_background_receiving();
