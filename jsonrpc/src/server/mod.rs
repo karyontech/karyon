@@ -126,7 +126,7 @@ impl Server {
                                 method: nt.method,
                                 params,
                             };
-                            // debug!("--> {notification}");
+                            debug!("--> {notification}");
                             conn_cloned.send(serde_json::json!(notification)).await?;
                         }
                     }

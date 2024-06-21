@@ -34,6 +34,15 @@ impl MessageDispatcher {
         self.chans.lock().await.remove(id);
     }
 
+    /// Clear the registered channels.
+    pub(super) async fn clear(&self) {
+        let mut chans = self.chans.lock().await;
+        for (_, tx) in chans.iter() {
+            tx.close();
+        }
+        chans.clear();
+    }
+
     /// Dispatches a response to the channel associated with the response's ID.
     ///
     /// If a channel is registered for the response's ID, the response is sent

@@ -29,6 +29,12 @@ pub enum Error {
     #[error("Subscription not found: {0}")]
     SubscriptionNotFound(String),
 
+    #[error("Subscription exceeds the maximum buffer size")]
+    SubscriptionBufferFull,
+
+    #[error("ClientDisconnected")]
+    ClientDisconnected,
+
     #[error(transparent)]
     ChannelRecv(#[from] async_channel::RecvError),
 

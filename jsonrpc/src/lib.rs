@@ -8,6 +8,7 @@ mod server;
 
 pub use client::{builder::ClientBuilder, Client};
 pub use error::{Error, RPCError, RPCResult, Result};
+pub use message::SubscriptionID;
 pub use server::{
     builder::ServerBuilder,
     channel::{Channel, Subscription},

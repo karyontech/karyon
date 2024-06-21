@@ -19,7 +19,7 @@ async fn run_client() {
     let clientc = client.clone();
     smol::spawn(async move {}).detach();
 
-    let (_, sub) = client
+    let sub = client
         .subscribe("Calc.log_subscribe", ())
         .await
         .expect("Subscribe to log_subscribe method");
@@ -33,7 +33,7 @@ async fn run_client() {
     .detach();
 
     loop {
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after(Duration::from_millis(500)).await;
         let _: Pong = clientc
             .call("Calc.ping", ())
             .await

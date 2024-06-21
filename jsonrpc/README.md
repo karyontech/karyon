@@ -112,16 +112,17 @@ async {
         .await
         .expect("send a request");
 
-    let (sub_id, sub) = client
+    let sub = client
             .subscribe("HelloWorld.log_subscribe", ())
             .await
             .expect("Subscribe to log_subscribe method");
 
+    let sub_id = sub.id();
     smol::spawn(async move {
-        sub.for_each(|m| {
-            println!("Receive new notification: {m}");
-        })
-        .await
+        loop {
+            let m = sub.recv().await.expect("Receive new log msg");
+            println!("Receive new log {m}");
+        }
     })
     .detach();
 
