@@ -10,20 +10,18 @@ use futures_util::{
 };
 use pin_project_lite::pin_project;
 
-#[cfg(all(feature = "smol", feature = "tls"))]
-use futures_rustls::TlsStream;
-#[cfg(all(feature = "tokio", feature = "tls"))]
-use tokio_rustls::TlsStream;
-
-use karyon_core::async_runtime::net::TcpStream;
-
-use crate::{codec::WebSocketCodec, Error, Result};
-
 #[cfg(feature = "tokio")]
 type WebSocketStream<T> =
     async_tungstenite::WebSocketStream<async_tungstenite::tokio::TokioAdapter<T>>;
 #[cfg(feature = "smol")]
 use async_tungstenite::WebSocketStream;
+
+use karyon_core::async_runtime::net::TcpStream;
+
+#[cfg(feature = "tls")]
+use crate::async_rustls::TlsStream;
+
+use crate::{codec::WebSocketCodec, Error, Result};
 
 pub struct WsStream<C> {
     inner: InnerWSConn,

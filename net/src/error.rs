@@ -41,13 +41,9 @@ pub enum Error {
     #[error("Ws Error: {0}")]
     WsError(#[from] async_tungstenite::tungstenite::Error),
 
-    #[cfg(feature = "smol")]
+    #[cfg(feature = "tls")]
     #[error("Tls Error: {0}")]
-    Rustls(#[from] futures_rustls::rustls::Error),
-
-    #[cfg(feature = "tokio")]
-    #[error("Tls Error: {0}")]
-    Rustls(#[from] tokio_rustls::rustls::Error),
+    Rustls(#[from] karyon_async_rustls::rustls::Error),
 
     #[cfg(feature = "tls")]
     #[error("Invalid DNS Name: {0}")]

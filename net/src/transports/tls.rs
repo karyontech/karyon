@@ -4,16 +4,14 @@ use async_trait::async_trait;
 use futures_util::SinkExt;
 use rustls_pki_types as pki_types;
 
-#[cfg(feature = "smol")]
-use futures_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
-#[cfg(feature = "tokio")]
-use tokio_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
-
 use karyon_core::async_runtime::{
     io::{split, ReadHalf, WriteHalf},
     lock::Mutex,
     net::{TcpListener, TcpStream},
 };
+
+#[cfg(feature = "tls")]
+use crate::async_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
 
 use crate::{
     codec::Codec,

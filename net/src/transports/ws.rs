@@ -10,15 +10,13 @@ use rustls_pki_types as pki_types;
 #[cfg(feature = "tokio")]
 use async_tungstenite::tokio as async_tungstenite;
 
-#[cfg(all(feature = "smol", feature = "tls"))]
-use futures_rustls::{rustls, TlsAcceptor, TlsConnector};
-#[cfg(all(feature = "tokio", feature = "tls"))]
-use tokio_rustls::{rustls, TlsAcceptor, TlsConnector};
-
 use karyon_core::async_runtime::{
     lock::Mutex,
     net::{TcpListener, TcpStream},
 };
+
+#[cfg(feature = "tls")]
+use crate::async_rustls::{rustls, TlsAcceptor, TlsConnector};
 
 use crate::{
     codec::WebSocketCodec,

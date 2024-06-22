@@ -28,6 +28,9 @@ pub use transports::udp;
 #[cfg(all(feature = "unix", target_family = "unix"))]
 pub use transports::unix;
 
+#[cfg(feature = "tls")]
+pub use karyon_async_rustls as async_rustls;
+
 /// Represents karyon's Net Error
 pub use error::Error;
 
