@@ -19,4 +19,7 @@ pub use server::{
 
 pub use karyon_jsonrpc_macro::{rpc_impl, rpc_pubsub_impl};
 
-pub use karyon_net::{tcp::TcpConfig, Endpoint};
+pub use karyon_net::Endpoint;
+
+#[cfg(feature = "tcp")]
+pub use karyon_net::tcp::TcpConfig;

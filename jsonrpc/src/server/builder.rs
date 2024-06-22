@@ -1,27 +1,30 @@
 use std::{collections::HashMap, sync::Arc};
 
-#[cfg(feature = "smol")]
-use futures_rustls::rustls;
-#[cfg(feature = "tokio")]
-use tokio_rustls::rustls;
-
 use karyon_core::{async_runtime::Executor, async_util::TaskGroup};
 use karyon_net::{Endpoint, Listener, ToEndpoint};
 
-#[cfg(feature = "ws")]
-use crate::codec::WsJsonCodec;
+#[cfg(feature = "tls")]
+use karyon_net::async_rustls::rustls;
 
 #[cfg(feature = "ws")]
 use karyon_net::ws::ServerWsConfig;
 
-use crate::{codec::JsonCodec, Error, PubSubRPCService, RPCService, Result, TcpConfig};
+#[cfg(feature = "ws")]
+use crate::codec::WsJsonCodec;
+
+#[cfg(feature = "tcp")]
+use crate::TcpConfig;
+
+use crate::{codec::JsonCodec, Error, PubSubRPCService, RPCService, Result};
 
 use super::Server;
 
 /// Builder for constructing an RPC [`Server`].
 pub struct ServerBuilder {
     endpoint: Endpoint,
+    #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
+    #[cfg(feature = "tls")]
     tls_config: Option<rustls::ServerConfig>,
     services: HashMap<String, Arc<dyn RPCService + 'static>>,
     pubsub_services: HashMap<String, Arc<dyn PubSubRPCService + 'static>>,
@@ -135,6 +138,7 @@ impl ServerBuilder {
     /// ```
     ///
     /// This function will return an error if the endpoint does not support TCP protocols.
+    #[cfg(feature = "tcp")]
     pub fn tcp_config(mut self, config: TcpConfig) -> Result<ServerBuilder> {
         match self.endpoint {
             Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
@@ -162,13 +166,17 @@ impl ServerBuilder {
     /// ```
     ///
     /// This function will return an error if the endpoint does not support TLS protocols.
+    #[cfg(feature = "tls")]
     pub fn tls_config(mut self, config: rustls::ServerConfig) -> Result<ServerBuilder> {
         match self.endpoint {
-            Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
+            Endpoint::Tls(..) | Endpoint::Wss(..) => {
                 self.tls_config = Some(config);
                 Ok(self)
             }
-            _ => Err(Error::UnsupportedProtocol(self.endpoint.to_string())),
+            _ => Err(Error::UnsupportedProtocol(format!(
+                "Invalid tls config for endpoint: {}",
+                self.endpoint
+            ))),
         }
     }
 
@@ -184,7 +192,12 @@ impl ServerBuilder {
 
     async fn _build(self, task_group: TaskGroup) -> Result<Arc<Server>> {
         let listener: Listener<serde_json::Value> = match self.endpoint {
-            Endpoint::Tcp(..) | Endpoint::Tls(..) => match &self.tls_config {
+            #[cfg(feature = "tcp")]
+            Endpoint::Tcp(..) => Box::new(
+                karyon_net::tcp::listen(&self.endpoint, self.tcp_config, JsonCodec {}).await?,
+            ),
+            #[cfg(feature = "tls")]
+            Endpoint::Tls(..) => match &self.tls_config {
                 Some(conf) => Box::new(
                     karyon_net::tls::listen(
                         &self.endpoint,
@@ -196,12 +209,18 @@ impl ServerBuilder {
                     )
                     .await?,
                 ),
-                None => Box::new(
-                    karyon_net::tcp::listen(&self.endpoint, self.tcp_config, JsonCodec {}).await?,
-                ),
+                None => return Err(Error::TLSConfigRequired),
             },
             #[cfg(feature = "ws")]
-            Endpoint::Ws(..) | Endpoint::Wss(..) => match &self.tls_config {
+            Endpoint::Ws(..) => {
+                let config = ServerWsConfig {
+                    tcp_config: self.tcp_config,
+                    wss_config: None,
+                };
+                Box::new(karyon_net::ws::listen(&self.endpoint, config, WsJsonCodec {}).await?)
+            }
+            #[cfg(all(feature = "ws", feature = "tls"))]
+            Endpoint::Wss(..) => match &self.tls_config {
                 Some(conf) => Box::new(
                     karyon_net::ws::listen(
                         &self.endpoint,
@@ -215,13 +234,7 @@ impl ServerBuilder {
                     )
                     .await?,
                 ),
-                None => {
-                    let config = ServerWsConfig {
-                        tcp_config: self.tcp_config,
-                        wss_config: None,
-                    };
-                    Box::new(karyon_net::ws::listen(&self.endpoint, config, WsJsonCodec {}).await?)
-                }
+                None => return Err(Error::TLSConfigRequired),
             },
             #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => Box::new(karyon_net::unix::listen(
@@ -262,7 +275,9 @@ impl Server {
             endpoint,
             services: HashMap::new(),
             pubsub_services: HashMap::new(),
+            #[cfg(feature = "tcp")]
             tcp_config: Default::default(),
+            #[cfg(feature = "tls")]
             tls_config: None,
         })
     }

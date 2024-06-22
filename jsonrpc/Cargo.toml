@@ -11,30 +11,27 @@ readme = "README.md"
 
 
 [features]
-default = ["smol"]
-ws = ["karyon_net/ws", "async-tungstenite"]
+default = ["smol", "tcp", "unix"]
+tcp = ["karyon_net/tcp"]
+tls = ["tcp", "karyon_net/tls"]
+ws = ["tcp", "karyon_net/ws", "async-tungstenite"]
 unix = ["karyon_net/unix"]
 smol = [
   "karyon_core/smol",
   "karyon_net/smol",
   "karyon_jsonrpc_macro/smol",
-  "futures-rustls",
   "async-tungstenite?/async-std-runtime",
 ]
 tokio = [
   "karyon_core/tokio",
   "karyon_net/tokio",
   "karyon_jsonrpc_macro/tokio",
-  "tokio-rustls",
   "async-tungstenite?/tokio-runtime",
 ]
 
 [dependencies]
 karyon_core = { version = "0.1.3", path = "../core", default-features = false }
-karyon_net = { version = "0.1.3", path = "../net", default-features = false, features = [
-  "tcp",
-  "tls",
-] }
+karyon_net = { version = "0.1.3", path = "../net", default-features = false }
 
 karyon_jsonrpc_macro = { version = "0.1.3", path = "jsonrpc_macro", default-features = false }
 
@@ -48,12 +45,6 @@ async-channel = "2.3.1"
 
 async-tungstenite = { version = "0.25.0", default-features = false, optional = true }
 
-futures-rustls = { version = "0.25.1", optional = true }
-tokio-rustls = { version = "0.26.0", optional = true }
-
 [dev-dependencies]
 env_logger = "0.11.3"
-rcgen = "0.13.1"
-rustls-pemfile = "2.1.2"
 smol = "2.0.0"
-webpki-roots = "0.26.1"

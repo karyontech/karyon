@@ -1,6 +1,6 @@
 [package]
 name = "karyon_core"
-description = "Internal crate for Karyon project."
+description = "Internal crate for Karyon library."
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true

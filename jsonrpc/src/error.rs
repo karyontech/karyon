@@ -20,8 +20,11 @@ pub enum Error {
     #[error(transparent)]
     ParseJSON(#[from] serde_json::Error),
 
-    #[error("Unsupported protocol: {0}")]
+    #[error("Unsupported Protocol: {0}")]
     UnsupportedProtocol(String),
+
+    #[error("Tls config is required")]
+    TLSConfigRequired,
 
     #[error("Receive close message from connection: {0}")]
     CloseConnection(String),

@@ -1230,6 +1230,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "karyon_async_rustls"
+version = "0.1.3"
+dependencies = [
+ "futures-rustls",
+ "tokio-rustls",
+]
+
+[[package]]
 name = "karyon_core"
 version = "0.1.3"
 dependencies = [
@@ -1257,20 +1265,15 @@ dependencies = [
  "async-trait",
  "async-tungstenite",
  "env_logger",
- "futures-rustls",
  "karyon_core",
  "karyon_jsonrpc_macro",
  "karyon_net",
  "log",
  "rand",
- "rcgen 0.13.1",
- "rustls-pemfile",
  "serde",
  "serde_json",
  "smol",
  "thiserror",
- "tokio-rustls",
- "webpki-roots",
 ]
 
 [[package]]
@@ -1291,8 +1294,8 @@ dependencies = [
  "async-trait",
  "async-tungstenite",
  "bincode",
- "futures-rustls",
  "futures-util",
+ "karyon_async_rustls",
  "karyon_core",
  "log",
  "pin-project-lite",
@@ -1301,7 +1304,6 @@ dependencies = [
  "smol",
  "thiserror",
  "tokio",
- "tokio-rustls",
  "url",
 ]
 
@@ -1326,7 +1328,7 @@ dependencies = [
  "log",
  "parking_lot",
  "rand",
- "rcgen 0.12.1",
+ "rcgen",
  "rustls-pki-types",
  "semver",
  "serde",
@@ -1755,19 +1757,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rcgen"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54077e1872c46788540de1ea3d7f4ccb1983d12f9aa909b234468676c1a36779"
-dependencies = [
- "pem",
- "ring",
- "rustls-pki-types",
- "time",
- "yasna",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1904,9 +1893,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.5"
+version = "0.23.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afabcee0551bd1aa3e18e5adbf2c0544722014b899adb31bd186ec638d3da97e"
+checksum = "05cff451f60db80f490f3c182b77c35260baace73209e9cdbbe526bfe3a4d402"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -1918,16 +1907,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls-pemfile"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29993a25686778eb88d4189742cd713c9bce943bc54251a33509dc63cbacf73d"
-dependencies = [
- "base64",
- "rustls-pki-types",
-]
-
-[[package]]
 name = "rustls-pki-types"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1935,9 +1914,9 @@ checksum = "976295e77ce332211c0d24d92c0e83e50f5c5f046d11082cea19f3df13a3562d"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.102.3"
+version = "0.102.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3bce581c0dd41bce533ce695a1437fa16a7ab5ac3ccfa99fe1a620a7885eabf"
+checksum = "ff448f7e92e913c4b7d4c6d8e4540a1724b319b4152b8aef6d4cf8339712b33e"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -2255,7 +2234,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
 dependencies = [
- "rustls 0.23.5",
+ "rustls 0.23.10",
  "rustls-pki-types",
  "tokio",
 ]
@@ -2461,15 +2440,6 @@ checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "webpki-roots"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3de34ae270483955a94f4b21bdaaeb83d508bb84a01435f393818edb0012009"
-dependencies = [
- "rustls-pki-types",
 ]
 
 [[package]]

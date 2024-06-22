@@ -1,20 +1,24 @@
 use std::sync::{atomic::AtomicBool, Arc};
 
-#[cfg(feature = "smol")]
-use futures_rustls::rustls;
-#[cfg(feature = "tokio")]
-use tokio_rustls::rustls;
-
 use karyon_core::async_util::TaskGroup;
-use karyon_net::{tls::ClientTlsConfig, Conn, Endpoint, ToEndpoint};
+use karyon_net::{Conn, Endpoint, ToEndpoint};
+
+#[cfg(feature = "tls")]
+use karyon_net::{async_rustls::rustls, tls::ClientTlsConfig};
 
 #[cfg(feature = "ws")]
-use karyon_net::ws::{ClientWsConfig, ClientWssConfig};
+use karyon_net::ws::ClientWsConfig;
+
+#[cfg(all(feature = "ws", feature = "tls"))]
+use karyon_net::ws::ClientWssConfig;
 
 #[cfg(feature = "ws")]
 use crate::codec::WsJsonCodec;
 
-use crate::{codec::JsonCodec, Error, Result, TcpConfig};
+#[cfg(feature = "tcp")]
+use crate::TcpConfig;
+
+use crate::{codec::JsonCodec, Error, Result};
 
 use super::{Client, MessageDispatcher, Subscriptions};
 
@@ -42,8 +46,10 @@ impl Client {
         Ok(ClientBuilder {
             endpoint,
             timeout: Some(DEFAULT_TIMEOUT),
-            tls_config: None,
+            #[cfg(feature = "tcp")]
             tcp_config: Default::default(),
+            #[cfg(feature = "tls")]
+            tls_config: None,
             subscription_buffer_size: DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE,
         })
     }
@@ -52,8 +58,10 @@ impl Client {
 /// Builder for constructing an RPC [`Client`].
 pub struct ClientBuilder {
     endpoint: Endpoint,
-    tls_config: Option<(rustls::ClientConfig, String)>,
+    #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
+    #[cfg(feature = "tls")]
+    tls_config: Option<(rustls::ClientConfig, String)>,
     timeout: Option<u64>,
     subscription_buffer_size: usize,
 }
@@ -118,6 +126,7 @@ impl ClientBuilder {
     /// ```
     ///
     /// This function will return an error if the endpoint does not support TCP protocols.
+    #[cfg(feature = "tcp")]
     pub fn tcp_config(mut self, config: TcpConfig) -> Result<Self> {
         match self.endpoint {
             Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
@@ -146,13 +155,17 @@ impl ClientBuilder {
     /// ```
     ///
     /// This function will return an error if the endpoint does not support TLS protocols.
+    #[cfg(feature = "tls")]
     pub fn tls_config(mut self, config: rustls::ClientConfig, dns_name: &str) -> Result<Self> {
         match self.endpoint {
-            Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
+            Endpoint::Tls(..) | Endpoint::Wss(..) => {
                 self.tls_config = Some((config, dns_name.to_string()));
                 Ok(self)
             }
-            _ => Err(Error::UnsupportedProtocol(self.endpoint.to_string())),
+            _ => Err(Error::UnsupportedProtocol(format!(
+                "Invalid tls config for endpoint: {}",
+                self.endpoint
+            ))),
         }
     }
 
@@ -177,7 +190,12 @@ impl ClientBuilder {
     /// ```
     pub async fn build(self) -> Result<Arc<Client>> {
         let conn: Conn<serde_json::Value> = match self.endpoint {
-            Endpoint::Tcp(..) | Endpoint::Tls(..) => match self.tls_config {
+            #[cfg(feature = "tcp")]
+            Endpoint::Tcp(..) => Box::new(
+                karyon_net::tcp::dial(&self.endpoint, self.tcp_config, JsonCodec {}).await?,
+            ),
+            #[cfg(feature = "tls")]
+            Endpoint::Tls(..) => match self.tls_config {
                 Some((conf, dns_name)) => Box::new(
                     karyon_net::tls::dial(
                         &self.endpoint,
@@ -190,12 +208,18 @@ impl ClientBuilder {
                     )
                     .await?,
                 ),
-                None => Box::new(
-                    karyon_net::tcp::dial(&self.endpoint, self.tcp_config, JsonCodec {}).await?,
-                ),
+                None => return Err(Error::TLSConfigRequired),
             },
             #[cfg(feature = "ws")]
-            Endpoint::Ws(..) | Endpoint::Wss(..) => match self.tls_config {
+            Endpoint::Ws(..) => {
+                let config = ClientWsConfig {
+                    tcp_config: self.tcp_config,
+                    wss_config: None,
+                };
+                Box::new(karyon_net::ws::dial(&self.endpoint, config, WsJsonCodec {}).await?)
+            }
+            #[cfg(all(feature = "ws", feature = "tls"))]
+            Endpoint::Wss(..) => match self.tls_config {
                 Some((conf, dns_name)) => Box::new(
                     karyon_net::ws::dial(
                         &self.endpoint,
@@ -210,13 +234,7 @@ impl ClientBuilder {
                     )
                     .await?,
                 ),
-                None => {
-                    let config = ClientWsConfig {
-                        tcp_config: self.tcp_config,
-                        wss_config: None,
-                    };
-                    Box::new(karyon_net::ws::dial(&self.endpoint, config, WsJsonCodec {}).await?)
-                }
+                None => return Err(Error::TLSConfigRequired),
             },
             #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => Box::new(
