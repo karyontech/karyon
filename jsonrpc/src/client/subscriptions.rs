@@ -25,7 +25,7 @@ impl Subscription {
     }
 
     pub async fn recv(&self) -> Result<Value> {
-        self.rx.recv().await.map_err(Error::from)
+        self.rx.recv().await.map_err(|_| Error::SubscriptionClosed)
     }
 
     pub fn id(&self) -> SubscriptionID {

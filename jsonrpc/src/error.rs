@@ -35,6 +35,9 @@ pub enum Error {
     #[error("Subscription exceeds the maximum buffer size")]
     SubscriptionBufferFull,
 
+    #[error("Subscription closed")]
+    SubscriptionClosed,
+
     #[error("ClientDisconnected")]
     ClientDisconnected,
 
