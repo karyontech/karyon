@@ -83,11 +83,11 @@ impl Server {
                     match selfc.listener.accept().await {
                         Ok(conn) => {
                             if let Err(err) = selfc.handle_conn(conn).await {
-                                error!("Failed to handle a new conn: {err}")
+                                error!("Handle a new connection: {err}")
                             }
                         }
                         Err(err) => {
-                            error!("Failed to accept a new conn: {err}")
+                            error!("Accept a new connection: {err}")
                         }
                     }
                 }
@@ -249,7 +249,7 @@ impl Server {
         trace!("--> new request {msg}");
         let on_complete = |result: TaskResult<Result<()>>| async move {
             if let TaskResult::Completed(Err(err)) = result {
-                error!("Failed to handle a request: {err}");
+                error!("Handle a new request: {err}");
             }
         };
         let selfc = self.clone();

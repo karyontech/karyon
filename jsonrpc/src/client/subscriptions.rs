@@ -78,7 +78,9 @@ impl Subscriptions {
 
     /// Unsubscribe from the provided subscription id.
     pub(super) async fn unsubscribe(&self, id: &SubscriptionID) {
-        self.subs.lock().await.remove(id);
+        if let Some(sub) = self.subs.lock().await.remove(id) {
+            sub.close();
+        }
     }
 
     /// Notifies the subscription about the given notification.

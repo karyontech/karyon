@@ -16,7 +16,6 @@ async fn run_client() {
         .await
         .expect("Build a client");
 
-    let clientc = client.clone();
     smol::spawn(async move {}).detach();
 
     let sub = client
@@ -34,7 +33,7 @@ async fn run_client() {
 
     loop {
         Timer::after(Duration::from_millis(500)).await;
-        let _: Pong = clientc
+        let _: Pong = client
             .call("Calc.ping", ())
             .await
             .expect("Send ping request");
