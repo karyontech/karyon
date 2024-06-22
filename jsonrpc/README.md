@@ -31,8 +31,7 @@ use serde_json::Value;
 use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
-    RPCError, Server, Client, rpc_impl, rpc_pubsub_impl, message::SubscriptionID, 
-    Channel
+    RPCError, Server, Client, rpc_impl, rpc_pubsub_impl, SubscriptionID, Channel
 };
 
 struct HelloWorld {}
@@ -126,6 +125,7 @@ async {
     })
     .detach();
 
+    // Unsubscribe after 5 seconds
     smol::Timer::after(std::time::Duration::from_secs(5)).await;
 
     client

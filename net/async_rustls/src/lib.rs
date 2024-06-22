@@ -9,4 +9,3 @@ pub use futures_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
 
 #[cfg(feature = "tokio")]
 pub use tokio_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream};
-

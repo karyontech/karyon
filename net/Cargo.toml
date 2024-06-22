@@ -33,8 +33,8 @@ tokio = [
 serde = ["dep:serde"]
 
 [dependencies]
-karyon_core = { version = "0.1.3", path = "../core", default-features = false }
-karyon_async_rustls = { version = "0.1.3", path = "./async_rustls", default-features = false, optional = true }
+karyon_core = { version = "0.1.4", path = "../core", default-features = false }
+karyon_async_rustls = { version = "0.1.4", path = "./async_rustls", default-features = false, optional = true }
 
 # utils
 log = "0.4.21"
