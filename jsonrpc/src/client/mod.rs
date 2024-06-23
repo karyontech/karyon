@@ -11,7 +11,7 @@ use std::{
 };
 
 use async_channel::{Receiver, Sender};
-use log::{debug, error};
+use log::{debug, error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
@@ -191,6 +191,10 @@ impl Client {
         });
 
         let conn = client.connect().await?;
+        info!(
+            "Successfully connected to the RPC server: {}",
+            conn.peer_endpoint()?
+        );
         client.start_background_loop(conn);
         Ok(client)
     }

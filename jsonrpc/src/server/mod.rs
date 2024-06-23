@@ -6,7 +6,7 @@ pub mod service;
 
 use std::{collections::HashMap, sync::Arc};
 
-use log::{debug, error, trace, warn};
+use log::{debug, error, info, trace, warn};
 
 use karyon_core::{
     async_runtime::Executor,
@@ -328,6 +328,8 @@ impl Server {
             None => TaskGroup::new(),
         };
         let listener = Self::listen(&config).await?;
+        info!("RPC server listens to the endpoint: {}", config.endpoint);
+
         let server = Arc::new(Server {
             listener,
             task_group,
