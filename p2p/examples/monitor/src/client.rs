@@ -26,17 +26,17 @@ fn main() {
             .await
             .expect("Create rpc client");
 
-        let (_, sub) = rpc
+        let sub = rpc
             .subscribe("MonitorRPC.conn_subscribe", ())
             .await
             .expect("Subscribe to connection events");
 
-        let (_, sub2) = rpc
+        let sub2 = rpc
             .subscribe("MonitorRPC.peer_pool_subscribe", ())
             .await
             .expect("Subscribe to peer pool events");
 
-        let (_, sub3) = rpc
+        let sub3 = rpc
             .subscribe("MonitorRPC.discovery_subscribe", ())
             .await
             .expect("Subscribe to discovery events");
