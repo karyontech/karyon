@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use bincode::{Decode, Encode};
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Digest, Sha256};
@@ -12,16 +13,12 @@ use crate::Error;
 /// Represents a unique identifier for a peer.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Decode, Encode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(into = "String"))]
 pub struct PeerID(pub [u8; 32]);
 
 impl std::fmt::Display for PeerID {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let id = self.0[0..8]
-            .iter()
-            .map(|b| format!("{:x}", b))
-            .collect::<Vec<String>>()
-            .join("");
-
+        let id = STANDARD.encode(self.0);
         write!(f, "{}", id)
     }
 }
@@ -48,6 +45,24 @@ impl From<[u8; 32]> for PeerID {
     }
 }
 
+impl From<PeerID> for String {
+    fn from(pid: PeerID) -> Self {
+        pid.to_string()
+    }
+}
+
+impl TryFrom<String> for PeerID {
+    type Error = Error;
+
+    fn try_from(i: String) -> Result<Self, Self::Error> {
+        let result: [u8; 32] = STANDARD
+            .decode(i)?
+            .try_into()
+            .map_err(|_| Error::PeerIDTryFromString)?;
+        Ok(PeerID(result))
+    }
+}
+
 impl TryFrom<PublicKey> for PeerID {
     type Error = Error;
 
@@ -55,7 +70,7 @@ impl TryFrom<PublicKey> for PeerID {
         let pk: [u8; 32] = pk
             .as_bytes()
             .try_into()
-            .map_err(|_| Error::TryFromPublicKey("Failed to convert public key to [u8;32]"))?;
+            .map_err(|_| Error::PeerIDTryFromPublicKey)?;
 
         Ok(PeerID(pk))
     }

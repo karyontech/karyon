@@ -11,8 +11,11 @@ pub enum Error {
     #[error("Unsupported protocol error: {0}")]
     UnsupportedProtocol(String),
 
-    #[error("Try from public key Error: {0}")]
-    TryFromPublicKey(&'static str),
+    #[error("PeerID try from PublicKey Error")]
+    PeerIDTryFromPublicKey,
+
+    #[error("PeerID try from String Error")]
+    PeerIDTryFromString,
 
     #[error("Invalid message error: {0}")]
     InvalidMsg(String),
@@ -22,6 +25,9 @@ pub enum Error {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    ParseIntError2(#[from] base64::DecodeError),
 
     #[error(transparent)]
     ParseFloatError(#[from] std::num::ParseFloatError),

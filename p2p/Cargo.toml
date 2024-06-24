@@ -27,18 +27,26 @@ karyon_net = { workspace = true, default-features = false, features = [
   "udp",
 ] }
 
+
+log = "0.4.21"
+chrono = "0.4.35"
+rand = "0.8.5"
+thiserror = "1.0.58"
+semver = "1.0.22"
+sha2 = "0.10.8"
+parking_lot = "0.12.2"
+
+# encode/decode
+bincode = { version = "2.0.0-rc.3", features = ["derive"] }
+base64 = "0.22.1"
+serde = { version = "1.0.197", features = ["derive"], optional = true }
+
+# async
 async-trait = "0.1.77"
 async-channel = "2.3.0"
 futures-util = { version = "0.3.5", features = [
   "alloc",
 ], default-features = false }
-log = "0.4.21"
-chrono = "0.4.35"
-bincode = { version = "2.0.0-rc.3", features = ["derive"] }
-rand = "0.8.5"
-thiserror = "1.0.58"
-semver = "1.0.22"
-sha2 = "0.10.8"
 
 # tls
 rcgen = "0.12.1"
@@ -50,11 +58,6 @@ futures-rustls = { version = "0.25.1", features = [
 tokio-rustls = { version = "0.26.0", features = ["aws-lc-rs"], optional = true }
 rustls-pki-types = "1.7.0"
 
-# serde
-serde = { version = "1.0.197", features = ["derive"], optional = true }
-
-parking_lot = "0.12.2"
-
 [dev-dependencies]
 async-std = "1.12.0"
 clap = { version = "4.5.2", features = ["derive"] }
@@ -62,6 +65,3 @@ ctrlc = "3.4.4"
 easy-parallel = "3.3.1"
 env_logger = "0.11.3"
 smol = "2.0.0"
-karyon_jsonrpc = { workspace = true, features = ["ws", "smol"] }
-serde_json = "1.0.117"
-serde = { version = "1.0.202", features = ["derive"] }
