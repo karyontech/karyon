@@ -23,7 +23,7 @@ use crate::{
     config::Config,
     conn_queue::{ConnDirection, ConnQueue},
     message::{get_msg_payload, NetMsg, NetMsgCmd, VerAckMsg, VerMsg},
-    monitor::{Monitor, PeerPoolEvent},
+    monitor::{Monitor, PPEvent},
     peer::{ArcPeer, Peer, PeerID},
     protocol::{Protocol, ProtocolConstructor, ProtocolID},
     protocols::PingProtocol,
@@ -192,9 +192,7 @@ impl PeerPool {
 
         info!("Add new peer {pid}, direction: {conn_direction}, endpoint: {endpoint}");
 
-        self.monitor
-            .notify(PeerPoolEvent::NewPeer(pid.clone()))
-            .await;
+        self.monitor.notify(PPEvent::NewPeer(pid.clone())).await;
 
         Ok(())
     }
@@ -215,9 +213,7 @@ impl PeerPool {
 
         peer.shutdown().await;
 
-        self.monitor
-            .notify(PeerPoolEvent::RemovePeer(pid.clone()))
-            .await;
+        self.monitor.notify(PPEvent::RemovePeer(pid.clone())).await;
 
         let endpoint = peer.remote_endpoint();
         let direction = peer.direction();

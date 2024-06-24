@@ -20,7 +20,7 @@ use crate::{
         get_msg_payload, FindPeerMsg, NetMsg, NetMsgCmd, PeerMsg, PeersMsg, PingMsg, PongMsg,
         ShutdownMsg,
     },
-    monitor::{ConnEvent, DiscoveryEvent, Monitor},
+    monitor::{ConnEvent, DiscvEvent, Monitor},
     routing_table::RoutingTable,
     slots::ConnectionSlots,
     version::version_match,
@@ -131,7 +131,7 @@ impl LookupService {
     pub async fn start_lookup(&self, endpoint: &Endpoint, peer_id: Option<PeerID>) -> Result<()> {
         trace!("Lookup started {endpoint}");
         self.monitor
-            .notify(DiscoveryEvent::LookupStarted(endpoint.clone()))
+            .notify(DiscvEvent::LookupStarted(endpoint.clone()))
             .await;
 
         let mut random_peers = vec![];
@@ -140,7 +140,7 @@ impl LookupService {
             .await
         {
             self.monitor
-                .notify(DiscoveryEvent::LookupFailed(endpoint.clone()))
+                .notify(DiscvEvent::LookupFailed(endpoint.clone()))
                 .await;
             return Err(err);
         };
@@ -161,7 +161,7 @@ impl LookupService {
         }
 
         self.monitor
-            .notify(DiscoveryEvent::LookupSucceeded(
+            .notify(DiscvEvent::LookupSucceeded(
                 endpoint.clone(),
                 peer_buffer.len(),
             ))

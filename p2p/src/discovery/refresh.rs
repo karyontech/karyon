@@ -14,7 +14,7 @@ use karyon_net::{udp, Connection, Endpoint, Error as NetError};
 use crate::{
     codec::RefreshMsgCodec,
     message::RefreshMsg,
-    monitor::{ConnEvent, DiscoveryEvent, Monitor},
+    monitor::{ConnEvent, DiscvEvent, Monitor},
     routing_table::{BucketEntry, Entry, RoutingTable, PENDING_ENTRY, UNREACHABLE_ENTRY},
     Config, Error, Result,
 };
@@ -116,7 +116,7 @@ impl RefreshService {
             sleep(Duration::from_secs(self.config.refresh_interval)).await;
             trace!("Start refreshing the routing table...");
 
-            self.monitor.notify(DiscoveryEvent::RefreshStarted).await;
+            self.monitor.notify(DiscvEvent::RefreshStarted).await;
 
             let mut entries: Vec<BucketEntry> = vec![];
             for bucket in self.table.buckets() {
