@@ -82,7 +82,7 @@ pub fn tls_server_config(key_pair: &KeyPair) -> Result<rustls::ServerConfig> {
 
 /// Generates a certificate and returns both the certificate and the private key.
 fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateKeyDer<'a>)> {
-    let cert_key_pair = rcgen::KeyPair::generate(&rcgen::PKCS_ED25519)?;
+    let cert_key_pair = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519)?;
     let private_key = PrivateKeyDer::Pkcs8(cert_key_pair.serialize_der().into());
 
     // Add a custom extension to the certificate:
@@ -94,12 +94,10 @@ fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateK
     let mut ext = rcgen::CustomExtension::from_oid_content(&[0, 0, 0, 0], ext_content);
     ext.set_criticality(true);
 
-    let mut params = rcgen::CertificateParams::new(vec![]);
-    params.alg = &rcgen::PKCS_ED25519;
-    params.key_pair = Some(cert_key_pair);
+    let mut params = rcgen::CertificateParams::new(vec![])?;
     params.custom_extensions.push(ext);
 
-    let cert = CertificateDer::from(rcgen::Certificate::from_params(params)?.serialize_der()?);
+    let cert = CertificateDer::from(params.self_signed(&cert_key_pair)?);
     Ok((cert, private_key))
 }
 

@@ -30,7 +30,7 @@ pub fn rpc_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     for item in parsed_input.items {
         match item {
-            ImplItem::Method(method) => {
+            ImplItem::Fn(method) => {
                 methods.push(method.sig.ident);
             }
             _ => err!(item.span(), "unexpected item"),
@@ -68,7 +68,7 @@ pub fn rpc_pubsub_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     for item in parsed_input.items {
         match item {
-            ImplItem::Method(method) => {
+            ImplItem::Fn(method) => {
                 methods.push(method.sig.ident);
             }
             _ => err!(item.span(), "unexpected item"),

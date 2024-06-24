@@ -36,31 +36,28 @@ serde = ["dep:serde"]
 karyon_core = { version = "0.1.4", path = "../core", default-features = false }
 karyon_async_rustls = { version = "0.1.4", path = "./async_rustls", default-features = false, optional = true }
 
-# utils
 log = "0.4.21"
-bincode = { version = "2.0.0-rc.3", features = ["derive"] }
-thiserror = "1.0.58"
-url = "2.5.0"
+thiserror = "1.0.61"
+url = "2.5.2"
 
-# async utils
-async-trait = "0.1.77"
-async-channel = "2.3.0"
+# encode/decode 
+serde = { version = "1.0.203", features = ["derive"], optional = true }
+bincode = { version = "2.0.0-rc.3", features = ["derive"] }
+
+# async
+async-trait = "0.1.80"
+async-channel = "2.3.1"
 futures-util = { version = "0.3.30", default-features = false, features = [
   "sink",
 ], optional = true }
-pin-project-lite = { version = "0.2.13", optional = true }
+pin-project-lite = { version = "0.2.14", optional = true }
+tokio = { version = "1.38.0", features = ["io-util"], optional = true }
 
-# websocket deps
-async-tungstenite = { version = "0.25.0", default-features = false, optional = true }
+# websocket
+async-tungstenite = { version = "0.26.2", default-features = false, optional = true }
 
-# tls deps
+# tls
 rustls-pki-types = { version = "1.7.0", optional = true }
-
-# tokio util
-tokio = { version = "1.37.0", features = ["io-util"], optional = true }
-
-# serde
-serde = { version = "1.0.197", features = ["derive"], optional = true }
 
 [dev-dependencies]
 smol = "2.0.0"
