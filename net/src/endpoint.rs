@@ -35,6 +35,7 @@ pub type Port = u16;
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(into = "String"))]
 pub enum Endpoint {
     Udp(Addr, Port),
     Tcp(Addr, Port),
@@ -66,6 +67,11 @@ impl std::fmt::Display for Endpoint {
                 write!(f, "unix:/{}", path.to_string_lossy())
             }
         }
+    }
+}
+impl From<Endpoint> for String {
+    fn from(endpoint: Endpoint) -> String {
+        endpoint.to_string()
     }
 }
 
