@@ -53,12 +53,6 @@ pub struct Discovery {
     /// Connection queue
     conn_queue: Arc<ConnQueue>,
 
-    /// Inbound slots.
-    pub(crate) inbound_slots: Arc<ConnectionSlots>,
-
-    /// Outbound slots.
-    pub(crate) outbound_slots: Arc<ConnectionSlots>,
-
     /// Managing spawned tasks.
     task_group: TaskGroup,
 
@@ -76,23 +70,25 @@ impl Discovery {
         monitor: Arc<Monitor>,
         ex: Executor,
     ) -> ArcDiscovery {
-        let inbound_slots = Arc::new(ConnectionSlots::new(config.inbound_slots));
-        let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));
+        let table = Arc::new(RoutingTable::new(peer_id.0));
 
-        let table_key = peer_id.0;
-        let table = Arc::new(RoutingTable::new(table_key));
+        let refresh_service = Arc::new(RefreshService::new(
+            config.clone(),
+            table.clone(),
+            monitor.clone(),
+            ex.clone(),
+        ));
 
-        let refresh_service =
-            RefreshService::new(config.clone(), table.clone(), monitor.clone(), ex.clone());
-        let lookup_service = LookupService::new(
+        let lookup_service = Arc::new(LookupService::new(
             key_pair,
             peer_id,
             table.clone(),
             config.clone(),
             monitor.clone(),
             ex.clone(),
-        );
+        ));
 
+        let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));
         let connector = Connector::new(
             key_pair,
             config.max_connect_retries,
@@ -102,6 +98,7 @@ impl Discovery {
             ex.clone(),
         );
 
+        let inbound_slots = Arc::new(ConnectionSlots::new(config.inbound_slots));
         let listener = Listener::new(
             key_pair,
             inbound_slots.clone(),
@@ -110,16 +107,16 @@ impl Discovery {
             ex.clone(),
         );
 
+        let task_group = TaskGroup::with_executor(ex);
+
         Arc::new(Self {
-            refresh_service: Arc::new(refresh_service),
-            lookup_service: Arc::new(lookup_service),
+            refresh_service,
+            lookup_service,
             conn_queue,
             table,
-            inbound_slots,
-            outbound_slots,
             connector,
             listener,
-            task_group: TaskGroup::with_executor(ex),
+            task_group,
             config,
         })
     }

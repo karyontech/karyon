@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use log::info;
 
 use karyon_core::{async_runtime::Executor, crypto::KeyPair};
+use karyon_net::Endpoint;
 
 use crate::{
     config::Config,
@@ -111,14 +112,14 @@ impl Backend {
         &self.key_pair
     }
 
-    /// Returns the number of occupied inbound slots.
-    pub fn inbound_slots(&self) -> usize {
-        self.discovery.inbound_slots.load()
+    /// Returns a map of inbound connected peers with their endpoints.
+    pub async fn inbound_peers(&self) -> HashMap<PeerID, Endpoint> {
+        self.peer_pool.inbound_peers().await
     }
 
-    /// Returns the number of occupied outbound slots.
-    pub fn outbound_slots(&self) -> usize {
-        self.discovery.outbound_slots.load()
+    /// Returns a map of outbound connected peers with their endpoints.
+    pub async fn outbound_peers(&self) -> HashMap<PeerID, Endpoint> {
+        self.peer_pool.outbound_peers().await
     }
 
     /// Returns the monitor to receive system events.

@@ -22,11 +22,6 @@ impl ConnectionSlots {
         }
     }
 
-    /// Returns the number of occupied slots
-    pub fn load(&self) -> usize {
-        self.slots.load(Ordering::SeqCst)
-    }
-
     /// Increases the occupied slots by one.
     pub fn add(&self) {
         self.slots.fetch_add(1, Ordering::SeqCst);
