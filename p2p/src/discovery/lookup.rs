@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
 use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 
@@ -146,7 +146,12 @@ impl LookupService {
         };
 
         let mut peer_buffer = vec![];
-        self.self_lookup(&random_peers, &mut peer_buffer).await;
+        if let Err(err) = self.self_lookup(&random_peers, &mut peer_buffer).await {
+            self.monitor
+                .notify(DiscvEvent::LookupFailed(endpoint.clone()))
+                .await;
+            return Err(err);
+        }
 
         while peer_buffer.len() < MAX_PEERS_IN_PEERSMSG {
             match random_peers.pop() {
@@ -201,14 +206,18 @@ impl LookupService {
     }
 
     /// Starts a self lookup
-    async fn self_lookup(&self, random_peers: &Vec<PeerMsg>, peer_buffer: &mut Vec<PeerMsg>) {
-        let mut tasks = FuturesUnordered::new();
+    async fn self_lookup(
+        &self,
+        random_peers: &Vec<PeerMsg>,
+        peer_buffer: &mut Vec<PeerMsg>,
+    ) -> Result<()> {
+        let mut results = FuturesUnordered::new();
         for peer in random_peers.choose_multiple(&mut OsRng, random_peers.len()) {
             let endpoint = Endpoint::Tcp(peer.addr.clone(), peer.discovery_port);
-            tasks.push(self.connect(endpoint, Some(peer.peer_id.clone()), &self.id))
+            results.push(self.connect(endpoint, Some(peer.peer_id.clone()), &self.id))
         }
 
-        while let Some(result) = tasks.next().await {
+        while let Some(result) = results.next().await {
             match result {
                 Ok(peers) => peer_buffer.extend(peers),
                 Err(err) => {
@@ -216,6 +225,8 @@ impl LookupService {
                 }
             }
         }
+
+        Ok(())
     }
 
     /// Connects to the given endpoint and initiates a lookup process for the

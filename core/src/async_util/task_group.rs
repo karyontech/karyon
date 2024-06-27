@@ -87,6 +87,7 @@ impl TaskGroup {
         self.stop_signal.broadcast().await;
 
         loop {
+            // XXX BE CAREFUL HERE, it hold synchronous mutex across .await point.
             let task = self.tasks.lock().pop();
             if let Some(t) = task {
                 t.cancel().await

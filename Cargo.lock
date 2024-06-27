@@ -1229,6 +1229,7 @@ dependencies = [
  "chrono",
  "dirs",
  "ed25519-dalek",
+ "futures-util",
  "log",
  "once_cell",
  "parking_lot",

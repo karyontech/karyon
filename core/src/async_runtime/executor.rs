@@ -25,6 +25,11 @@ impl Executor {
     ) -> Task<T> {
         self.inner.spawn(future).into()
     }
+
+    #[cfg(feature = "tokio")]
+    pub fn handle(&self) -> &tokio::runtime::Handle {
+        return self.inner.handle();
+    }
 }
 
 static GLOBAL_EXECUTOR: OnceCell<Executor> = OnceCell::new();
