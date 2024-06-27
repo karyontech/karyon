@@ -81,7 +81,7 @@ pub struct NewProtocol {
 }
 
 impl NewProtocol {
-    fn new(peer: ArcPeer) -> ArcProtocol {
+    fn new(peer: Arc<Peer>) -> Arc<Protocol> {
         Arc::new(Self {
             peer,
         })

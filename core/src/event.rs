@@ -14,7 +14,6 @@ use crate::{async_runtime::lock::Mutex, util::random_32, Result};
 
 const CHANNEL_BUFFER_SIZE: usize = 1000;
 
-pub type ArcEventSys<T> = Arc<EventSys<T>>;
 pub type EventListenerID = u32;
 
 type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<Event>>>>;
@@ -84,7 +83,7 @@ where
     T: std::hash::Hash + Eq + std::fmt::Debug + Clone,
 {
     /// Creates a new [`EventSys`]
-    pub fn new() -> ArcEventSys<T> {
+    pub fn new() -> Arc<EventSys<T>> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: CHANNEL_BUFFER_SIZE,
@@ -101,7 +100,7 @@ where
     /// starts to consume the buffered events.
     ///
     /// If `size` is zero, this function will panic.
-    pub fn with_buffer_size(size: usize) -> ArcEventSys<T> {
+    pub fn with_buffer_size(size: usize) -> Arc<EventSys<T>> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: size,

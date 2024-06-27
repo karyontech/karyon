@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Weak},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_channel::Sender;
 use bincode::{Decode, Encode};
@@ -21,15 +17,12 @@ use crate::{
     conn_queue::{ConnDirection, ConnQueue},
     message::{get_msg_payload, NetMsg, NetMsgCmd, VerAckMsg, VerMsg},
     monitor::{Monitor, PPEvent},
-    peer::{ArcPeer, Peer, PeerID},
+    peer::Peer,
     protocol::{Protocol, ProtocolConstructor, ProtocolID},
     protocols::PingProtocol,
     version::{version_match, Version, VersionInt},
-    Error, Result,
+    Error, PeerID, Result,
 };
-
-pub type ArcPeerPool = Arc<PeerPool>;
-pub type WeakPeerPool = Weak<PeerPool>;
 
 pub struct PeerPool {
     /// Peer's ID
@@ -39,7 +32,7 @@ pub struct PeerPool {
     conn_queue: Arc<ConnQueue>,
 
     /// Holds the running peers.
-    peers: RwLock<HashMap<PeerID, ArcPeer>>,
+    peers: RwLock<HashMap<PeerID, Arc<Peer>>>,
 
     /// Hashmap contains protocol constructors.
     pub(crate) protocols: RwLock<HashMap<ProtocolID, Box<ProtocolConstructor>>>,

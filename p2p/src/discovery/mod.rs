@@ -32,8 +32,6 @@ use crate::{
 use lookup::LookupService;
 use refresh::RefreshService;
 
-pub type ArcDiscovery = Arc<Discovery>;
-
 pub struct Discovery {
     /// Routing table
     table: Arc<RoutingTable>,
@@ -69,7 +67,7 @@ impl Discovery {
         config: Arc<Config>,
         monitor: Arc<Monitor>,
         ex: Executor,
-    ) -> ArcDiscovery {
+    ) -> Arc<Discovery> {
         let table = Arc::new(RoutingTable::new(peer_id.0));
 
         let refresh_service = Arc::new(RefreshService::new(

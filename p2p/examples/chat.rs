@@ -10,8 +10,8 @@ use smol::{channel, Executor};
 use karyon_p2p::{
     endpoint::{Endpoint, Port},
     keypair::{KeyPair, KeyPairType},
-    protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
-    ArcPeer, Backend, Config, Error, Version,
+    protocol::{Protocol, ProtocolEvent, ProtocolID},
+    Backend, Config, Error, Peer, Version,
 };
 
 use shared::run_executor;
@@ -42,12 +42,12 @@ struct Cli {
 
 pub struct ChatProtocol {
     username: String,
-    peer: ArcPeer,
+    peer: Arc<Peer>,
     executor: Arc<Executor<'static>>,
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: ArcPeer, executor: Arc<Executor<'static>>) -> ArcProtocol {
+    fn new(username: &str, peer: Arc<Peer>, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
         Arc::new(Self {
             peer,
             username: username.to_string(),

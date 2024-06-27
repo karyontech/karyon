@@ -4,11 +4,9 @@ use async_trait::async_trait;
 
 use karyon_core::event::EventValue;
 
-use crate::{peer::ArcPeer, version::Version, Result};
+use crate::{peer::Peer, version::Version, Result};
 
-pub type ArcProtocol = Arc<dyn Protocol>;
-
-pub type ProtocolConstructor = dyn Fn(ArcPeer) -> Arc<dyn Protocol> + Send + Sync;
+pub type ProtocolConstructor = dyn Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync;
 
 pub type ProtocolID = String;
 
@@ -38,17 +36,17 @@ impl EventValue for ProtocolEvent {
 /// use smol::Executor;
 ///
 /// use karyon_p2p::{
-///     protocol::{ArcProtocol, Protocol, ProtocolID, ProtocolEvent},
-///     Backend, PeerID, Config, Version, Error, ArcPeer,
+///     protocol::{Protocol, ProtocolID, ProtocolEvent},
+///     Backend, PeerID, Config, Version, Error, Peer,
 ///     keypair::{KeyPair, KeyPairType},
 ///     };
 ///
 /// pub struct NewProtocol {
-///     peer: ArcPeer,
+///     peer: Arc<Peer>,
 /// }
 ///
 /// impl NewProtocol {
-///     fn new(peer: ArcPeer) -> ArcProtocol {
+///     fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
 ///         Arc::new(Self {
 ///             peer,
 ///         })

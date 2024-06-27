@@ -6,16 +6,9 @@ use karyon_core::{async_runtime::Executor, crypto::KeyPair};
 use karyon_net::Endpoint;
 
 use crate::{
-    config::Config,
-    conn_queue::ConnQueue,
-    discovery::{ArcDiscovery, Discovery},
-    monitor::Monitor,
-    peer_pool::PeerPool,
-    protocol::{ArcProtocol, Protocol},
-    ArcPeer, PeerID, Result,
+    config::Config, conn_queue::ConnQueue, discovery::Discovery, monitor::Monitor, peer::Peer,
+    peer_pool::PeerPool, protocol::Protocol, PeerID, Result,
 };
-
-pub type ArcBackend = Arc<Backend>;
 
 /// Backend serves as the central entry point for initiating and managing
 /// the P2P network.
@@ -33,7 +26,7 @@ pub struct Backend {
     monitor: Arc<Monitor>,
 
     /// Discovery instance.
-    discovery: ArcDiscovery,
+    discovery: Arc<Discovery>,
 
     /// PeerPool instance.
     peer_pool: Arc<PeerPool>,
@@ -41,7 +34,7 @@ pub struct Backend {
 
 impl Backend {
     /// Creates a new Backend.
-    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> ArcBackend {
+    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Backend> {
         let config = Arc::new(config);
         let monitor = Arc::new(Monitor::new(config.clone()));
         let conn_queue = ConnQueue::new();
@@ -87,7 +80,7 @@ impl Backend {
     /// Attach a custom protocol to the network
     pub async fn attach_protocol<P: Protocol>(
         &self,
-        c: impl Fn(ArcPeer) -> ArcProtocol + Send + Sync + 'static,
+        c: impl Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync + 'static,
     ) -> Result<()> {
         self.peer_pool.attach_protocol::<P>(Box::new(c)).await
     }

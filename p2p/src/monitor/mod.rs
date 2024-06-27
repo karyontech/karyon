@@ -2,7 +2,7 @@ mod event;
 
 use std::sync::Arc;
 
-use karyon_core::event::{ArcEventSys, EventListener, EventSys, EventValue, EventValueTopic};
+use karyon_core::event::{EventListener, EventSys, EventValue, EventValueTopic};
 
 use karyon_net::Endpoint;
 
@@ -15,7 +15,7 @@ use crate::{Config, PeerID};
 
 /// Responsible for network and system monitoring.
 ///
-/// It use pub-sub pattern to notify the subscribers with new events.
+/// It use event emitter to notify the registerd listeners about new events.
 ///
 /// # Example
 ///
@@ -45,7 +45,7 @@ use crate::{Config, PeerID};
 /// };
 /// ```
 pub struct Monitor {
-    event_sys: ArcEventSys<MonitorTopic>,
+    event_sys: Arc<EventSys<MonitorTopic>>,
     config: Arc<Config>,
 }
 

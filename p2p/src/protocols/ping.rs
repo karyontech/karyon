@@ -16,8 +16,8 @@ use karyon_core::{
 use karyon_net::Error as NetError;
 
 use crate::{
-    peer::ArcPeer,
-    protocol::{ArcProtocol, Protocol, ProtocolEvent, ProtocolID},
+    peer::Peer,
+    protocol::{Protocol, ProtocolEvent, ProtocolID},
     version::Version,
     Result,
 };
@@ -31,7 +31,7 @@ enum PingProtocolMsg {
 }
 
 pub struct PingProtocol {
-    peer: ArcPeer,
+    peer: Arc<Peer>,
     ping_interval: u64,
     ping_timeout: u64,
     task_group: TaskGroup,
@@ -39,7 +39,7 @@ pub struct PingProtocol {
 
 impl PingProtocol {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(peer: ArcPeer, executor: Executor) -> ArcProtocol {
+    pub fn new(peer: Arc<Peer>, executor: Executor) -> Arc<dyn Protocol> {
         let ping_interval = peer.config().ping_interval;
         let ping_timeout = peer.config().ping_timeout;
         Arc::new(Self {

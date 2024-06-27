@@ -2,7 +2,7 @@ mod peer_id;
 
 pub use peer_id::PeerID;
 
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use async_channel::{Receiver, Sender};
 use bincode::{Decode, Encode};
@@ -11,7 +11,7 @@ use log::{error, trace};
 use karyon_core::{
     async_runtime::{lock::RwLock, Executor},
     async_util::{select, Either, TaskGroup, TaskResult},
-    event::{ArcEventSys, EventListener, EventSys},
+    event::{EventListener, EventSys},
     util::{decode, encode},
 };
 
@@ -20,19 +20,17 @@ use karyon_net::{Conn, Endpoint};
 use crate::{
     conn_queue::ConnDirection,
     message::{NetMsg, NetMsgCmd, ProtocolMsg, ShutdownMsg},
-    peer_pool::{ArcPeerPool, WeakPeerPool},
+    peer_pool::PeerPool,
     protocol::{Protocol, ProtocolEvent, ProtocolID},
     Config, Error, Result,
 };
-
-pub type ArcPeer = Arc<Peer>;
 
 pub struct Peer {
     /// Peer's ID
     id: PeerID,
 
     /// A weak pointer to `PeerPool`
-    peer_pool: WeakPeerPool,
+    peer_pool: Weak<PeerPool>,
 
     /// Holds the peer connection
     conn: Conn<NetMsg>,
@@ -47,7 +45,7 @@ pub struct Peer {
     protocol_ids: RwLock<Vec<ProtocolID>>,
 
     /// `EventSys` responsible for sending events to the protocols.
-    protocol_events: ArcEventSys<ProtocolID>,
+    protocol_events: Arc<EventSys<ProtocolID>>,
 
     /// This channel is used to send a stop signal to the read loop.
     stop_chan: (Sender<Result<()>>, Receiver<Result<()>>),
@@ -59,13 +57,13 @@ pub struct Peer {
 impl Peer {
     /// Creates a new peer
     pub fn new(
-        peer_pool: WeakPeerPool,
+        peer_pool: Weak<PeerPool>,
         id: &PeerID,
         conn: Conn<NetMsg>,
         remote_endpoint: Endpoint,
         conn_direction: ConnDirection,
         ex: Executor,
-    ) -> ArcPeer {
+    ) -> Arc<Peer> {
         Arc::new(Peer {
             id: id.clone(),
             peer_pool,
@@ -228,7 +226,7 @@ impl Peer {
         }
     }
 
-    fn peer_pool(&self) -> ArcPeerPool {
+    fn peer_pool(&self) -> Arc<PeerPool> {
         self.peer_pool.upgrade().unwrap()
     }
 }

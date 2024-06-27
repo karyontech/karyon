@@ -7,7 +7,6 @@ use crate::{async_runtime::lock::Mutex, util::random_32, Result};
 
 const CHANNEL_BUFFER_SIZE: usize = 1000;
 
-pub type ArcPublisher<T> = Arc<Publisher<T>>;
 pub type SubscriptionID = u32;
 
 /// A simple publish-subscribe system.
@@ -36,7 +35,7 @@ pub struct Publisher<T> {
 
 impl<T: Clone> Publisher<T> {
     /// Creates a new [`Publisher`]
-    pub fn new() -> ArcPublisher<T> {
+    pub fn new() -> Arc<Publisher<T>> {
         Arc::new(Self {
             subs: Mutex::new(HashMap::new()),
             subscription_buffer_size: CHANNEL_BUFFER_SIZE,
@@ -53,7 +52,7 @@ impl<T: Clone> Publisher<T> {
     /// the buffered messages.
     ///
     /// If `size` is zero, this function will panic.
-    pub fn with_buffer_size(size: usize) -> ArcPublisher<T> {
+    pub fn with_buffer_size(size: usize) -> Arc<Publisher<T>> {
         Arc::new(Self {
             subs: Mutex::new(HashMap::new()),
             subscription_buffer_size: size,
@@ -79,7 +78,7 @@ impl<T: Clone> Publisher<T> {
         sub
     }
 
-    /// Unsubscribes from the publisher
+    /// Unsubscribes by providing subscription id
     pub async fn unsubscribe(self: &Arc<Self>, id: &SubscriptionID) {
         self.subs.lock().await.remove(id);
     }
@@ -114,14 +113,14 @@ impl<T: Clone> Publisher<T> {
 pub struct Subscription<T> {
     id: SubscriptionID,
     recv_chan: async_channel::Receiver<T>,
-    publisher: ArcPublisher<T>,
+    publisher: Arc<Publisher<T>>,
 }
 
 impl<T: Clone> Subscription<T> {
-    /// Creates a new Subscription
+    /// Creates a new [`Subscription`]
     pub fn new(
         id: SubscriptionID,
-        publisher: ArcPublisher<T>,
+        publisher: Arc<Publisher<T>>,
         recv_chan: async_channel::Receiver<T>,
     ) -> Subscription<T> {
         Self {
@@ -131,13 +130,13 @@ impl<T: Clone> Subscription<T> {
         }
     }
 
-    /// Receive a message from the Publisher
+    /// Receive a message from the [`Publisher`]
     pub async fn recv(&self) -> Result<T> {
         let msg = self.recv_chan.recv().await?;
         Ok(msg)
     }
 
-    /// Unsubscribe from the Publisher
+    /// Unsubscribe from the [`Publisher`]
     pub async fn unsubscribe(&self) {
         self.publisher.unsubscribe(&self.id).await;
     }

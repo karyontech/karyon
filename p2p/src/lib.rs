@@ -61,9 +61,9 @@ pub mod monitor;
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
 
-pub use backend::{ArcBackend, Backend};
+pub use backend::Backend;
 pub use config::Config;
-pub use peer::{ArcPeer, PeerID};
+pub use peer::{Peer, PeerID};
 pub use version::Version;
 
 pub mod endpoint {
