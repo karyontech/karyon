@@ -127,17 +127,18 @@ impl Connector {
     {
         let conn = self.connect(endpoint, peer_id).await?;
 
-        let selfc = self.clone();
         let endpoint = endpoint.clone();
-        let on_disconnect = |res| async move {
-            if let TaskResult::Completed(Err(err)) = res {
-                trace!("Outbound connection dropped: {err}");
+        let on_disconnect = {
+            let this = self.clone();
+            |res| async move {
+                if let TaskResult::Completed(Err(err)) = res {
+                    trace!("Outbound connection dropped: {err}");
+                }
+                this.monitor
+                    .notify(ConnEvent::Disconnected(endpoint.clone()))
+                    .await;
+                this.connection_slots.remove().await;
             }
-            selfc
-                .monitor
-                .notify(ConnEvent::Disconnected(endpoint.clone()))
-                .await;
-            selfc.connection_slots.remove().await;
         };
 
         self.task_group.spawn(callback(conn), on_disconnect);

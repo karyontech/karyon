@@ -59,14 +59,16 @@ impl ChatProtocol {
 #[async_trait]
 impl Protocol for ChatProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
-        let selfc = self.clone();
         let stdin = io::stdin();
-        let task = self.executor.spawn(async move {
-            loop {
-                let mut input = String::new();
-                stdin.read_line(&mut input).await.unwrap();
-                let msg = format!("> {}: {}", selfc.username, input.trim());
-                selfc.peer.broadcast(&Self::id(), &msg).await;
+        let task = self.executor.spawn({
+            let this = self.clone();
+            async move {
+                loop {
+                    let mut input = String::new();
+                    stdin.read_line(&mut input).await.unwrap();
+                    let msg = format!("> {}: {}", this.username, input.trim());
+                    this.peer.broadcast(&Self::id(), &msg).await;
+                }
             }
         });
 
@@ -126,23 +128,25 @@ fn main() {
     let handle = move || ctrlc_s.try_send(()).unwrap();
     ctrlc::set_handler(handle).unwrap();
 
-    let ex_cloned = ex.clone();
     run_executor(
-        async {
-            let username = cli.username;
+        {
+            let ex = ex.clone();
+            async {
+                let username = cli.username;
 
-            // Attach the ChatProtocol
-            let c = move |peer| ChatProtocol::new(&username, peer, ex_cloned.clone().into());
-            backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
+                // Attach the ChatProtocol
+                let c = move |peer| ChatProtocol::new(&username, peer, ex.clone().into());
+                backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
 
-            // Run the backend
-            backend.run().await.unwrap();
+                // Run the backend
+                backend.run().await.unwrap();
 
-            // Wait for ctrlc signal
-            ctrlc_r.recv().await.unwrap();
+                // Wait for ctrlc signal
+                ctrlc_r.recv().await.unwrap();
 
-            // Shutdown the backend
-            backend.shutdown().await;
+                // Shutdown the backend
+                backend.shutdown().await;
+            }
         },
         ex,
     );

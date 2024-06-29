@@ -87,9 +87,13 @@ impl Listener {
 
         info!("Start listening on {resolved_endpoint}");
 
-        let selfc = self.clone();
-        self.task_group
-            .spawn(selfc.listen_loop(listener, callback), |_| async {});
+        self.task_group.spawn(
+            {
+                let this = self.clone();
+                async move { this.listen_loop(listener, callback).await }
+            },
+            |_| async {},
+        );
         Ok(resolved_endpoint)
     }
 
@@ -135,16 +139,15 @@ impl Listener {
 
             self.connection_slots.add();
 
-            let selfc = self.clone();
-            let on_disconnect = |res| async move {
-                if let TaskResult::Completed(Err(err)) = res {
-                    debug!("Inbound connection dropped: {err}");
+            let on_disconnect = {
+                let this = self.clone();
+                |res| async move {
+                    if let TaskResult::Completed(Err(err)) = res {
+                        debug!("Inbound connection dropped: {err}");
+                    }
+                    this.monitor.notify(ConnEvent::Disconnected(endpoint)).await;
+                    this.connection_slots.remove().await;
                 }
-                selfc
-                    .monitor
-                    .notify(ConnEvent::Disconnected(endpoint))
-                    .await;
-                selfc.connection_slots.remove().await;
             };
 
             let callback = callback.clone();

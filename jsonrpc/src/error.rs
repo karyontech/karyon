@@ -45,7 +45,7 @@ pub enum Error {
     ChannelRecv(#[from] async_channel::RecvError),
 
     #[error("Channel send  Error: {0}")]
-    ChannelSend(&'static str),
+    ChannelSend(String),
 
     #[error("Unexpected Error: {0}")]
     General(&'static str),
@@ -59,7 +59,7 @@ pub enum Error {
 
 impl<T> From<async_channel::SendError<T>> for Error {
     fn from(error: async_channel::SendError<T>) -> Self {
-        Error::ChannelSend(error.to_string().leak())
+        Error::ChannelSend(error.to_string())
     }
 }
 
@@ -78,7 +78,7 @@ pub enum RPCError {
     InvalidRequest(&'static str),
 
     #[error("Parse Error: {0}")]
-    ParseError(&'static str),
+    ParseError(String),
 
     #[error("Internal Error")]
     InternalError,
@@ -86,6 +86,6 @@ pub enum RPCError {
 
 impl From<serde_json::Error> for RPCError {
     fn from(error: serde_json::Error) -> Self {
-        RPCError::ParseError(error.to_string().leak())
+        RPCError::ParseError(error.to_string())
     }
 }

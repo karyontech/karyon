@@ -209,16 +209,17 @@ impl Peer {
 
             self.protocol_ids.write().await.push(protocol_id.clone());
 
-            let selfc = self.clone();
-            let proto_idc = protocol_id.clone();
-
-            let on_failure = |result: TaskResult<Result<()>>| async move {
-                if let TaskResult::Completed(res) = result {
-                    if res.is_err() {
-                        error!("protocol {} stopped", proto_idc);
+            let on_failure = {
+                let this = self.clone();
+                let protocol_id = protocol_id.clone();
+                |result: TaskResult<Result<()>>| async move {
+                    if let TaskResult::Completed(res) = result {
+                        if res.is_err() {
+                            error!("protocol {} stopped", protocol_id);
+                        }
+                        // Send a stop signal to read loop
+                        let _ = this.stop_chan.0.try_send(res);
                     }
-                    // Send a stop signal to read loop
-                    let _ = selfc.stop_chan.0.try_send(res);
                 }
             };
 

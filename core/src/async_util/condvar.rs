@@ -24,29 +24,33 @@ use crate::{async_runtime::lock::MutexGuard, util::random_16};
 ///     let val = Arc::new(Mutex::new(false));
 ///     let condvar = Arc::new(CondVar::new());
 ///
-///     let val_cloned = val.clone();
-///     let condvar_cloned = condvar.clone();
-///     spawn(async move {
-///         let mut val = val_cloned.lock().await;
+///     spawn({
+///         let val = val.clone();
+///         let condvar = condvar.clone();
+///         async move {
+///             let mut val = val.lock().await;
 ///
-///         // While the boolean flag is false, wait for a signal.
-///         while !*val {
-///             val = condvar_cloned.wait(val).await;
+///             // While the boolean flag is false, wait for a signal.
+///             while !*val {
+///                 val = condvar.wait(val).await;
+///             }
+///
+///             // ...
 ///         }
-///
-///         // ...
 ///     });
 ///
-///     let condvar_cloned = condvar.clone();
-///     spawn(async move {
-///         let mut val = val.lock().await;
+///     spawn({
+///         let condvar = condvar.clone();
+///         async move {
+///             let mut val = val.lock().await;
 ///
-///         // While the boolean flag is false, wait for a signal.
-///         while !*val {
-///             val = condvar_cloned.wait(val).await;
+///             // While the boolean flag is false, wait for a signal.
+///             while !*val {
+///                 val = condvar.wait(val).await;
+///             }
+///
+///             // ...
 ///         }
-///
-///         // ...
 ///     });
 ///     
 ///     // Wake up all waiting tasks on this condvar
@@ -253,50 +257,54 @@ mod tests {
             let condvar_full = Arc::new(CondVar::new());
             let condvar_empty = Arc::new(CondVar::new());
 
-            let queue_cloned = queue.clone();
-            let condvar_full_cloned = condvar_full.clone();
-            let condvar_empty_cloned = condvar_empty.clone();
+            let _producer1 = spawn({
+                let queue = queue.clone();
+                let condvar_full = condvar_full.clone();
+                let condvar_empty = condvar_empty.clone();
+                async move {
+                    for i in 1..number_of_tasks {
+                        // Lock queue mtuex
+                        let mut queue = queue.lock().await;
 
-            let _producer1 = spawn(async move {
-                for i in 1..number_of_tasks {
-                    // Lock queue mtuex
-                    let mut queue = queue_cloned.lock().await;
+                        // Check if the queue is non-full
+                        while queue.is_full() {
+                            // Release queue mutex and sleep
+                            queue = condvar_full.wait(queue).await;
+                        }
 
-                    // Check if the queue is non-full
-                    while queue.is_full() {
-                        // Release queue mutex and sleep
-                        queue = condvar_full_cloned.wait(queue).await;
+                        queue.items.push_back(format!("task {i}"));
+
+                        // Wake up the consumer
+                        condvar_empty.signal();
                     }
-
-                    queue.items.push_back(format!("task {i}"));
-
-                    // Wake up the consumer
-                    condvar_empty_cloned.signal();
                 }
             });
 
-            let queue_cloned = queue.clone();
             let task_consumed = Arc::new(AtomicUsize::new(0));
-            let task_consumed_ = task_consumed.clone();
-            let consumer = spawn(async move {
-                for _ in 1..number_of_tasks {
-                    // Lock queue mtuex
-                    let mut queue = queue_cloned.lock().await;
 
-                    // Check if the queue is non-empty
-                    while queue.is_empty() {
-                        // Release queue mutex and sleep
-                        queue = condvar_empty.wait(queue).await;
+            let consumer = spawn({
+                let queue = queue.clone();
+                let task_consumed = task_consumed.clone();
+                async move {
+                    for _ in 1..number_of_tasks {
+                        // Lock queue mtuex
+                        let mut queue = queue.lock().await;
+
+                        // Check if the queue is non-empty
+                        while queue.is_empty() {
+                            // Release queue mutex and sleep
+                            queue = condvar_empty.wait(queue).await;
+                        }
+
+                        let _ = queue.items.pop_front().unwrap();
+
+                        task_consumed.fetch_add(1, Ordering::Relaxed);
+
+                        // Do something
+
+                        // Wake up the producer
+                        condvar_full.signal();
                     }
-
-                    let _ = queue.items.pop_front().unwrap();
-
-                    task_consumed_.fetch_add(1, Ordering::Relaxed);
-
-                    // Do something
-
-                    // Wake up the producer
-                    condvar_full.signal();
                 }
             });
 
@@ -314,70 +322,76 @@ mod tests {
             let queue = Arc::new(Mutex::new(Queue::new(5)));
             let condvar = Arc::new(CondVar::new());
 
-            let queue_cloned = queue.clone();
-            let condvar_cloned = condvar.clone();
-            let _producer1 = spawn(async move {
-                for i in 1..tasks {
-                    // Lock queue mtuex
-                    let mut queue = queue_cloned.lock().await;
+            let _producer1 = spawn({
+                let queue = queue.clone();
+                let condvar = condvar.clone();
+                async move {
+                    for i in 1..tasks {
+                        // Lock queue mtuex
+                        let mut queue = queue.lock().await;
 
-                    // Check if the queue is non-full
-                    while queue.is_full() {
-                        // Release queue mutex and sleep
-                        queue = condvar_cloned.wait(queue).await;
-                    }
-
-                    queue.items.push_back(format!("producer1: task {i}"));
-
-                    // Wake up all producer and consumer tasks
-                    condvar_cloned.broadcast();
-                }
-            });
-
-            let queue_cloned = queue.clone();
-            let condvar_cloned = condvar.clone();
-            let _producer2 = spawn(async move {
-                for i in 1..tasks {
-                    // Lock queue mtuex
-                    let mut queue = queue_cloned.lock().await;
-
-                    // Check if the queue is non-full
-                    while queue.is_full() {
-                        // Release queue mutex and sleep
-                        queue = condvar_cloned.wait(queue).await;
-                    }
-
-                    queue.items.push_back(format!("producer2: task {i}"));
-
-                    // Wake up all producer and consumer tasks
-                    condvar_cloned.broadcast();
-                }
-            });
-
-            let queue_cloned = queue.clone();
-            let task_consumed = Arc::new(AtomicUsize::new(0));
-            let task_consumed_ = task_consumed.clone();
-
-            let consumer = spawn(async move {
-                for _ in 1..((tasks * 2) - 1) {
-                    {
-                        // Lock queue mutex
-                        let mut queue = queue_cloned.lock().await;
-
-                        // Check if the queue is non-empty
-                        while queue.is_empty() {
+                        // Check if the queue is non-full
+                        while queue.is_full() {
                             // Release queue mutex and sleep
                             queue = condvar.wait(queue).await;
                         }
 
-                        let _ = queue.items.pop_front().unwrap();
-
-                        task_consumed_.fetch_add(1, Ordering::Relaxed);
-
-                        // Do something
+                        queue.items.push_back(format!("producer1: task {i}"));
 
                         // Wake up all producer and consumer tasks
                         condvar.broadcast();
+                    }
+                }
+            });
+
+            let _producer2 = spawn({
+                let queue = queue.clone();
+                let condvar = condvar.clone();
+                async move {
+                    for i in 1..tasks {
+                        // Lock queue mtuex
+                        let mut queue = queue.lock().await;
+
+                        // Check if the queue is non-full
+                        while queue.is_full() {
+                            // Release queue mutex and sleep
+                            queue = condvar.wait(queue).await;
+                        }
+
+                        queue.items.push_back(format!("producer2: task {i}"));
+
+                        // Wake up all producer and consumer tasks
+                        condvar.broadcast();
+                    }
+                }
+            });
+
+            let task_consumed = Arc::new(AtomicUsize::new(0));
+
+            let consumer = spawn({
+                let queue = queue.clone();
+                let task_consumed = task_consumed.clone();
+                async move {
+                    for _ in 1..((tasks * 2) - 1) {
+                        {
+                            // Lock queue mutex
+                            let mut queue = queue.lock().await;
+
+                            // Check if the queue is non-empty
+                            while queue.is_empty() {
+                                // Release queue mutex and sleep
+                                queue = condvar.wait(queue).await;
+                            }
+
+                            let _ = queue.items.pop_front().unwrap();
+
+                            task_consumed.fetch_add(1, Ordering::Relaxed);
+
+                            // Do something
+
+                            // Wake up all producer and consumer tasks
+                            condvar.broadcast();
+                        }
                     }
                 }
             });

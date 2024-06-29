@@ -128,9 +128,11 @@ impl Protocol for PingProtocol {
         let (pong_chan, pong_chan_recv) = async_channel::bounded(1);
         let (stop_signal_s, stop_signal) = async_channel::bounded::<Result<()>>(1);
 
-        let selfc = self.clone();
         self.task_group.spawn(
-            selfc.clone().ping_loop(pong_chan_recv.clone()),
+            {
+                let this = self.clone();
+                async move { this.ping_loop(pong_chan_recv.clone()).await }
+            },
             |res| async move {
                 if let TaskResult::Completed(result) = res {
                     let _ = stop_signal_s.send(result).await;

@@ -13,10 +13,12 @@ use crate::async_runtime::lock::Mutex;
 ///
 ///  async {
 ///     let cond_wait = Arc::new(CondWait::new());
-///     let cond_wait_cloned = cond_wait.clone();
-///     let task = spawn(async move {
-///         cond_wait_cloned.wait().await;
-///         // ...
+///     let task = spawn({
+///         let cond_wait = cond_wait.clone();
+///         async move {
+///             cond_wait.wait().await;
+///             // ...
+///         }
 ///     });
 ///
 ///     cond_wait.signal().await;
@@ -91,12 +93,14 @@ mod tests {
             let cond_wait = Arc::new(CondWait::new());
             let count = Arc::new(AtomicUsize::new(0));
 
-            let cond_wait_cloned = cond_wait.clone();
-            let count_cloned = count.clone();
-            let task = spawn(async move {
-                cond_wait_cloned.wait().await;
-                count_cloned.fetch_add(1, Ordering::Relaxed);
-                // do something
+            let task = spawn({
+                let cond_wait = cond_wait.clone();
+                let count = count.clone();
+                async move {
+                    cond_wait.wait().await;
+                    count.fetch_add(1, Ordering::Relaxed);
+                    // do something
+                }
             });
 
             // Send a signal to the waiting task
@@ -109,20 +113,24 @@ mod tests {
 
             assert_eq!(count.load(Ordering::Relaxed), 1);
 
-            let cond_wait_cloned = cond_wait.clone();
-            let count_cloned = count.clone();
-            let task1 = spawn(async move {
-                cond_wait_cloned.wait().await;
-                count_cloned.fetch_add(1, Ordering::Relaxed);
-                // do something
+            let task1 = spawn({
+                let cond_wait = cond_wait.clone();
+                let count = count.clone();
+                async move {
+                    cond_wait.wait().await;
+                    count.fetch_add(1, Ordering::Relaxed);
+                    // do something
+                }
             });
 
-            let cond_wait_cloned = cond_wait.clone();
-            let count_cloned = count.clone();
-            let task2 = spawn(async move {
-                cond_wait_cloned.wait().await;
-                count_cloned.fetch_add(1, Ordering::Relaxed);
-                // do something
+            let task2 = spawn({
+                let cond_wait = cond_wait.clone();
+                let count = count.clone();
+                async move {
+                    cond_wait.wait().await;
+                    count.fetch_add(1, Ordering::Relaxed);
+                    // do something
+                }
             });
 
             // Broadcast a signal to all waiting tasks

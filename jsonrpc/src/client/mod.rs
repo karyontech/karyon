@@ -260,20 +260,26 @@ impl Client {
     }
 
     fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value>) {
-        let selfc = self.clone();
-        let on_complete = |result: TaskResult<Result<()>>| async move {
-            if let TaskResult::Completed(Err(err)) = result {
-                error!("Client stopped: {err}");
+        let on_complete = {
+            let this = self.clone();
+            |result: TaskResult<Result<()>>| async move {
+                if let TaskResult::Completed(Err(err)) = result {
+                    error!("Client stopped: {err}");
+                }
+                this.disconnect.store(true, Ordering::Relaxed);
+                this.subscriptions.clear().await;
+                this.message_dispatcher.clear().await;
             }
-            selfc.disconnect.store(true, Ordering::Relaxed);
-            selfc.subscriptions.clear().await;
-            selfc.message_dispatcher.clear().await;
         };
 
-        let selfc = self.clone();
         // Spawn a new task
-        self.task_group
-            .spawn(selfc.background_loop(conn), on_complete);
+        self.task_group.spawn(
+            {
+                let this = self.clone();
+                async move { this.background_loop(conn).await }
+            },
+            on_complete,
+        );
     }
 
     async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value>) -> Result<()> {

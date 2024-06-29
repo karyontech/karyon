@@ -16,8 +16,6 @@ async fn run_client() {
         .await
         .expect("Build a client");
 
-    smol::spawn(async move {}).detach();
-
     let sub = client
         .subscribe("Calc.log_subscribe", ())
         .await

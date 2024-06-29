@@ -78,11 +78,16 @@ impl PeerPool {
         })
     }
 
-    /// Start
+    /// Starts the [`PeerPool`]
     pub async fn start(self: &Arc<Self>) -> Result<()> {
         self.setup_protocols().await?;
-        let selfc = self.clone();
-        self.task_group.spawn(selfc.listen_loop(), |_| async {});
+        self.task_group.spawn(
+            {
+                let this = self.clone();
+                async move { this.listen_loop().await }
+            },
+            |_| async {},
+        );
         Ok(())
     }
 
@@ -145,14 +150,16 @@ impl PeerPool {
         // Insert the new peer
         self.peers.write().await.insert(pid.clone(), peer.clone());
 
-        let selfc = self.clone();
-        let pid_c = pid.clone();
-        let on_disconnect = |result| async move {
-            if let TaskResult::Completed(result) = result {
-                if let Err(err) = selfc.remove_peer(&pid_c).await {
-                    error!("Failed to remove peer {pid_c}: {err}");
+        let on_disconnect = {
+            let this = self.clone();
+            let pid = pid.clone();
+            |result| async move {
+                if let TaskResult::Completed(result) = result {
+                    if let Err(err) = this.remove_peer(&pid).await {
+                        error!("Failed to remove peer {pid}: {err}");
+                    }
+                    let _ = disconnect_signal.send(result).await;
                 }
-                let _ = disconnect_signal.send(result).await;
             }
         };
 

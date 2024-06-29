@@ -283,11 +283,13 @@ impl LookupService {
 
         let endpoint = Endpoint::Tcp(addr, self.config.discovery_port);
 
-        let selfc = self.clone();
-        let callback = |conn: Conn<NetMsg>| async move {
-            let t = Duration::from_secs(selfc.config.lookup_connection_lifespan);
-            timeout(t, selfc.handle_inbound(conn)).await??;
-            Ok(())
+        let callback = {
+            let this = self.clone();
+            |conn: Conn<NetMsg>| async move {
+                let t = Duration::from_secs(this.config.lookup_connection_lifespan);
+                timeout(t, this.handle_inbound(conn)).await??;
+                Ok(())
+            }
         };
 
         self.listener.start(endpoint.clone(), callback).await?;

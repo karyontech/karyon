@@ -59,11 +59,13 @@ pub fn global_executor() -> Executor {
     #[cfg(feature = "tokio")]
     fn init_executor() -> Executor {
         let ex = Arc::new(tokio::runtime::Runtime::new().expect("cannot build tokio runtime"));
-        let ex_cloned = ex.clone();
         thread::Builder::new()
             .name("tokio-executor".to_string())
-            .spawn(move || {
-                catch_unwind(|| ex_cloned.block_on(std::future::pending::<()>())).ok();
+            .spawn({
+                let ex = ex.clone();
+                move || {
+                    catch_unwind(|| ex.block_on(std::future::pending::<()>())).ok();
+                }
             })
             .expect("cannot spawn tokio runtime thread");
         Executor { inner: ex }
