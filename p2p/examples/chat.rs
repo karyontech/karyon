@@ -2,7 +2,6 @@ mod shared;
 
 use std::sync::Arc;
 
-use async_std::io;
 use async_trait::async_trait;
 use clap::Parser;
 use smol::{channel, Executor};
@@ -14,7 +13,7 @@ use karyon_p2p::{
     Backend, Config, Error, Peer, Version,
 };
 
-use shared::run_executor;
+use shared::{read_line_async, run_executor};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -59,13 +58,11 @@ impl ChatProtocol {
 #[async_trait]
 impl Protocol for ChatProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
-        let stdin = io::stdin();
         let task = self.executor.spawn({
             let this = self.clone();
             async move {
                 loop {
-                    let mut input = String::new();
-                    stdin.read_line(&mut input).await.unwrap();
+                    let input = read_line_async().await.expect("Read line from stdin");
                     let msg = format!("> {}: {}", this.username, input.trim());
                     this.peer.broadcast(&Self::id(), &msg).await;
                 }
@@ -74,11 +71,11 @@ impl Protocol for ChatProtocol {
 
         let listener = self.peer.register_listener::<Self>().await;
         loop {
-            let event = listener.recv().await.unwrap();
+            let event = listener.recv().await.expect("Receive new protocol event");
 
             match event {
                 ProtocolEvent::Message(msg) => {
-                    let msg = String::from_utf8(msg).unwrap();
+                    let msg = String::from_utf8(msg).expect("Convert received bytes to string");
                     println!("{msg}");
                 }
                 ProtocolEvent::Shutdown => {
@@ -125,8 +122,8 @@ fn main() {
     let backend = Backend::new(&key_pair, config, ex.clone().into());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
-    let handle = move || ctrlc_s.try_send(()).unwrap();
-    ctrlc::set_handler(handle).unwrap();
+    let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
+    ctrlc::set_handler(handle).expect("ctrlc set handler");
 
     run_executor(
         {
@@ -136,13 +133,16 @@ fn main() {
 
                 // Attach the ChatProtocol
                 let c = move |peer| ChatProtocol::new(&username, peer, ex.clone().into());
-                backend.attach_protocol::<ChatProtocol>(c).await.unwrap();
+                backend
+                    .attach_protocol::<ChatProtocol>(c)
+                    .await
+                    .expect("Attach chat protocol to the p2p backend");
 
                 // Run the backend
-                backend.run().await.unwrap();
+                backend.run().await.expect("Run the backend");
 
                 // Wait for ctrlc signal
-                ctrlc_r.recv().await.unwrap();
+                ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
                 // Shutdown the backend
                 backend.shutdown().await;

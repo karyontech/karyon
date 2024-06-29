@@ -57,22 +57,22 @@ fn main() {
             .worker_threads(available_parallelism())
             .enable_all()
             .build()
-            .unwrap(),
+            .expect("Build a new tokio runtime"),
     );
 
     // Create a new Backend
     let backend = Backend::new(&key_pair, config, rt.clone().into());
 
     let (ctrlc_s, ctrlc_r) = async_channel::unbounded();
-    let handle = move || ctrlc_s.try_send(()).unwrap();
-    ctrlc::set_handler(handle).unwrap();
+    let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
+    ctrlc::set_handler(handle).expect("ctrlc set handler");
 
     rt.block_on(async {
         // Run the backend
-        backend.run().await.unwrap();
+        backend.run().await.expect("Run the backend");
 
         // Wait for ctrlc signal
-        ctrlc_r.recv().await.unwrap();
+        ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
         // Shutdown the backend
         backend.shutdown().await;

@@ -1295,10 +1295,10 @@ name = "karyon_p2p"
 version = "0.1.4"
 dependencies = [
  "async-channel 2.3.1",
- "async-std",
  "async-trait",
  "base64",
  "bincode",
+ "blocking",
  "chrono",
  "clap",
  "ctrlc",
