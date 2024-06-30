@@ -6,7 +6,7 @@ members = ["core", "net", "p2p", "jsonrpc"]
 
 [workspace.package]
 description = "A library for building p2p, decentralized, and collaborative software"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 homepage = "https://karyontech.net"
 repository = "https://github.com/karyontech/karyon"
