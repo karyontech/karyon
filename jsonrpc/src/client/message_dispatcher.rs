@@ -48,10 +48,13 @@ impl MessageDispatcher {
     /// If a channel is registered for the response's ID, the response is sent
     /// through that channel. If no channel is found for the ID, returns an error.
     pub(super) async fn dispatch(&self, res: message::Response) -> Result<()> {
-        if res.id.is_none() {
-            return Err(Error::InvalidMsg("Response id is none"));
-        }
-        let id: RequestID = serde_json::from_value(res.id.clone().unwrap())?;
+        let res_id = match res.id {
+            Some(ref rid) => rid.clone(),
+            None => {
+                return Err(Error::InvalidMsg("Response id is none"));
+            }
+        };
+        let id: RequestID = serde_json::from_value(res_id)?;
         let val = self.chans.lock().await.remove(&id);
         match val {
             Some(tx) => tx.send(res).await.map_err(Error::from),

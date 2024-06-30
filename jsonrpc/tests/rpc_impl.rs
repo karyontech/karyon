@@ -20,7 +20,10 @@ fn rpc_impl_service() {
     let params = serde_json::json!("params");
 
     smol::block_on(async {
-        let foo_method = f.get_method("foo").unwrap();
-        assert_eq!(foo_method(params.clone()).await.unwrap(), params);
+        let foo_method = f.get_method("foo").expect("Get method foo");
+        assert_eq!(
+            foo_method(params.clone()).await.expect("Call foo method"),
+            params
+        );
     });
 }

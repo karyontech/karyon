@@ -41,9 +41,11 @@ impl ServerBuilder {
     /// }
     ///
     /// async {
-    ///     let server = Server::builder("ws://127.0.0.1:3000").unwrap()
+    ///     let server = Server::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
     ///         .service(Arc::new(Ping{}))
-    ///         .build().await.unwrap();
+    ///         .build().await
+    ///         .expect("Build the server");
     /// };
     ///
     /// ```
@@ -100,10 +102,12 @@ impl ServerBuilder {
     ///
     /// async {
     ///     let ping_service = Arc::new(Ping{});
-    ///     let server = Server::builder("ws://127.0.0.1:3000").unwrap()
+    ///     let server = Server::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
     ///         .service(ping_service.clone())
     ///         .pubsub_service(ping_service)
-    ///         .build().await.unwrap();
+    ///         .build().await
+    ///         .expect("Build the server");
     /// };
     ///
     /// ```
@@ -121,9 +125,12 @@ impl ServerBuilder {
     ///
     /// async {
     ///     let tcp_config = TcpConfig::default();
-    ///     let server = Server::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .tcp_config(tcp_config).unwrap()
-    ///         .build().await.unwrap();
+    ///     let server = Server::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .tcp_config(tcp_config)
+    ///         .expect("Add tcp config")
+    ///         .build().await
+    ///         .expect("Build the server");
     /// };
     /// ```
     ///
@@ -149,9 +156,12 @@ impl ServerBuilder {
     ///
     /// async {
     ///     let tls_config = rustls::ServerConfig::new(...);
-    ///     let server = Server::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .tls_config(tls_config).unwrap()
-    ///         .build().await.unwrap();
+    ///     let server = Server::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .tls_config(tls_config)
+    ///         .expect("Add tls config")
+    ///         .build().await
+    ///         .expect("Build the server");
     /// };
     /// ```
     ///
@@ -191,8 +201,10 @@ impl Server {
     /// ```
     /// use karyon_jsonrpc::Server;
     /// async {
-    ///     let server = Server::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .build().await.unwrap();
+    ///     let server = Server::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .build().await
+    ///         .expect("Build the server");
     /// };
     /// ```
     pub fn builder(endpoint: impl ToEndpoint) -> Result<ServerBuilder> {

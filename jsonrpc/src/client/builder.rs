@@ -28,8 +28,10 @@ impl Client {
     /// use karyon_jsonrpc::Client;
     ///  
     /// async {
-    ///     let builder = Client::builder("ws://127.0.0.1:3000").unwrap();
-    ///     let client = builder.build().await.unwrap();
+    ///     let builder = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder");
+    ///     let client = builder.build().await
+    ///         .expect("Build a new client");
     /// };
     /// ```
     pub fn builder(endpoint: impl ToEndpoint) -> Result<ClientBuilder> {
@@ -63,9 +65,11 @@ impl ClientBuilder {
     /// use karyon_jsonrpc::Client;
     ///  
     /// async {
-    ///     let client = Client::builder("ws://127.0.0.1:3000").unwrap()
+    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder")
     ///         .set_timeout(5000)
-    ///         .build().await.unwrap();
+    ///         .build().await
+    ///         .expect("Build a new client");
     /// };
     /// ```
     pub fn set_timeout(mut self, timeout: u64) -> Self {
@@ -87,9 +91,11 @@ impl ClientBuilder {
     /// use karyon_jsonrpc::Client;
     ///  
     /// async {
-    ///     let client = Client::builder("ws://127.0.0.1:3000").unwrap()
+    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder")
     ///         .set_max_subscription_buffer_size(10000)
-    ///         .build().await.unwrap();
+    ///         .build().await
+    ///         .expect("Build a new client");
     /// };
     /// ```
     pub fn set_max_subscription_buffer_size(mut self, size: usize) -> Self {
@@ -107,8 +113,12 @@ impl ClientBuilder {
     /// async {
     ///     let tcp_config = TcpConfig::default();
     ///
-    ///     let client = Client::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .tcp_config(tcp_config).unwrap().build().await.unwrap();
+    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder")
+    ///         .tcp_config(tcp_config)
+    ///         .expect("Add tcp config")
+    ///         .build().await
+    ///         .expect("Build a new client");
     /// };
     /// ```
     ///
@@ -135,9 +145,12 @@ impl ClientBuilder {
     /// async {
     ///     let tls_config = rustls::ClientConfig::new(...);
     ///
-    ///     let client_builder = Client::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .tls_config(tls_config, "example.com").unwrap()
-    ///         .build().await.unwrap();
+    ///     let client_builder = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder")
+    ///         .tls_config(tls_config, "example.com")
+    ///         .expect("Add tls config")
+    ///         .build().await
+    ///         .expect("Build a new client");
     /// };
     /// ```
     ///
@@ -168,10 +181,13 @@ impl ClientBuilder {
     ///  
     /// async {
     ///     let tcp_config = TcpConfig::default();
-    ///     let client = Client::builder("ws://127.0.0.1:3000").unwrap()
-    ///         .tcp_config(tcp_config).unwrap()
+    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///         .expect("Create a new client builder")
+    ///         .tcp_config(tcp_config)
+    ///         .expect("Add tcp config")
     ///         .set_timeout(5000)
-    ///         .build().await.unwrap();
+    ///         .build().await
+    ///         .expect("Build a new client");
     /// };
     ///
     /// ```

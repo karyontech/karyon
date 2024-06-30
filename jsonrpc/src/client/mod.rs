@@ -164,7 +164,7 @@ impl Client {
 
         // It should be OK to unwrap here, as the message dispatcher checks
         // for the response id.
-        if *response.id.as_ref().unwrap() != id {
+        if *response.id.as_ref().expect("Get response id") != id {
             return Err(Error::InvalidMsg("Invalid response id"));
         }
 
