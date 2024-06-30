@@ -52,7 +52,7 @@ impl Subscription {
     }
 
     /// Checks from the partent if this subscription is still subscribed
-    pub async fn still_subscribed(&self) -> bool {
+    async fn still_subscribed(&self) -> bool {
         match self.parent.upgrade() {
             Some(parent) => parent.subs.lock().await.contains(&self.id),
             None => false,
@@ -93,7 +93,8 @@ impl Channel {
         subs.remove(i);
     }
 
-    pub fn close(&self) {
+    /// Closes the [`Channel`]
+    pub(crate) fn close(&self) {
         self.chan.close();
     }
 }

@@ -64,20 +64,21 @@ pub struct Server {
 }
 
 impl Server {
-    /// Returns the local endpoint.
-    pub fn local_endpoint(&self) -> Result<Endpoint> {
-        self.listener.local_endpoint().map_err(Error::from)
-    }
-
-    /// Starts the RPC server
+    /// Starts the RPC server. This will spawn a new task for the main accept loop,
+    /// which listens for incoming connections.
     pub fn start(self: &Arc<Self>) {
-        let on_complete = |result: TaskResult<Result<()>>| async move {
-            if let TaskResult::Completed(Err(err)) = result {
-                error!("Accept loop stopped: {err}");
+        // Handle the completion of the accept loop task
+        let on_complete = {
+            let this = self.clone();
+            |result: TaskResult<Result<()>>| async move {
+                if let TaskResult::Completed(Err(err)) = result {
+                    error!("Main accept loop stopped: {err}");
+                    this.shutdown().await;
+                }
             }
         };
 
-        // Spawns a new task for each new incoming connection
+        // Spawns a new task for the main accept loop
         self.task_group.spawn(
             {
                 let this = self.clone();
@@ -98,6 +99,11 @@ impl Server {
             },
             on_complete,
         );
+    }
+
+    /// Returns the local endpoint.
+    pub fn local_endpoint(&self) -> Result<Endpoint> {
+        self.listener.local_endpoint().map_err(Error::from)
     }
 
     /// Shuts down the RPC server
@@ -335,6 +341,7 @@ impl Server {
         response
     }
 
+    /// Initializes a new [`Server`] from the provided [`ServerConfig`]
     async fn init(config: ServerConfig, ex: Option<Executor>) -> Result<Arc<Self>> {
         let task_group = match ex {
             Some(ex) => TaskGroup::with_executor(ex),

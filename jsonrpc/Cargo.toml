@@ -33,7 +33,7 @@ tokio = [
 karyon_core = { version = "0.1.5", path = "../core", default-features = false }
 karyon_net = { version = "0.1.5", path = "../net", default-features = false }
 
-karyon_jsonrpc_macro = { version = "0.1.5", path = "jsonrpc_macro", default-features = false }
+karyon_jsonrpc_macro = { version = "0.1.5", path = "impl", default-features = false }
 
 log = "0.4.21"
 rand = "0.8.5"

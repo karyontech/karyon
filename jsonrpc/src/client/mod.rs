@@ -180,6 +180,7 @@ impl Client {
         Ok(())
     }
 
+    /// Initializes a new [`Client`] from the provided [`ClientConfig`].
     async fn init(config: ClientConfig) -> Result<Arc<Self>> {
         let client = Arc::new(Client {
             disconnect: AtomicBool::new(false),
