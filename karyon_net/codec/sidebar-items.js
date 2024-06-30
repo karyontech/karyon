@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["bytes_codec","length_codec","websocket"],"struct":["BytesCodec","LengthCodec"],"trait":["Codec","Decoder","Encoder","WebSocketCodec","WebSocketDecoder","WebSocketEncoder"]};
