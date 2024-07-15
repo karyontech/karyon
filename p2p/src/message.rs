@@ -110,7 +110,9 @@ pub struct PeerMsg {
 
 /// PeersMsg a list of `PeerMsg`.
 #[derive(Decode, Encode, Debug)]
-pub struct PeersMsg(pub Vec<PeerMsg>);
+pub struct PeersMsg {
+    pub peers: Vec<PeerMsg>,
+}
 
 impl From<Entry> for PeerMsg {
     fn from(entry: Entry) -> PeerMsg {
@@ -133,19 +135,3 @@ impl From<PeerMsg> for Entry {
         }
     }
 }
-
-macro_rules! get_msg_payload {
-    ($a:ident, $b:ident) => {
-        if let NetMsgCmd::$a = $b.header.command {
-            $b.payload
-        } else {
-            return Err(Error::InvalidMsg(format!(
-                "Expected {:?} msg found {:?} msg",
-                stringify!($a),
-                $b.header.command
-            )));
-        }
-    };
-}
-
-pub(super) use get_msg_payload;

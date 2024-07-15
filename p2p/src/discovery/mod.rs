@@ -16,7 +16,8 @@ use karyon_net::{Conn, Endpoint};
 
 use crate::{
     config::Config,
-    conn_queue::{ConnDirection, ConnQueue},
+    conn_queue::ConnQueue,
+    connection::ConnDirection,
     connector::Connector,
     listener::Listener,
     message::NetMsg,
@@ -132,15 +133,11 @@ impl Discovery {
 
             let resolved_endpoint = self.start_listener(endpoint).await?;
 
-            if endpoint.addr()? != resolved_endpoint.addr()? {
-                info!("Resolved listen endpoint: {resolved_endpoint}");
-                self.lookup_service
-                    .set_listen_endpoint(&resolved_endpoint)
-                    .await;
-                self.refresh_service
-                    .set_listen_endpoint(&resolved_endpoint)
-                    .await;
-            }
+            info!("Resolved listen endpoint: {resolved_endpoint}");
+            self.lookup_service
+                .set_listen_endpoint(&resolved_endpoint)?;
+            self.refresh_service
+                .set_listen_endpoint(&resolved_endpoint)?;
         }
 
         // Start the lookup service

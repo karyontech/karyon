@@ -56,11 +56,8 @@ impl EventValue for ProtocolEvent {
 /// #[async_trait]
 /// impl Protocol for NewProtocol {
 ///     async fn start(self: Arc<Self>) -> Result<(), Error> {
-///         let listener = self.peer.register_listener::<Self>().await;
 ///         loop {
-///             let event = listener.recv().await.unwrap();
-///
-///             match event {
+///             match self.peer.recv::<Self>().await.expect("Receive msg") {
 ///                 ProtocolEvent::Message(msg) => {
 ///                     println!("{:?}", msg);
 ///                 }
@@ -69,8 +66,6 @@ impl EventValue for ProtocolEvent {
 ///                 }
 ///             }
 ///         }
-///
-///         listener.cancel().await;
 ///         Ok(())
 ///     }
 ///
@@ -113,4 +108,11 @@ pub trait Protocol: Send + Sync {
     fn id() -> ProtocolID
     where
         Self: Sized;
+}
+
+#[async_trait]
+pub(crate) trait InitProtocol: Send + Sync {
+    type T;
+    /// Initialize the protocol
+    async fn init(self: Arc<Self>) -> Self::T;
 }

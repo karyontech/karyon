@@ -1,3 +1,5 @@
+mod handshake;
 mod ping;
 
-pub use ping::PingProtocol;
+pub(crate) use handshake::HandshakeProtocol;
+pub(crate) use ping::PingProtocol;

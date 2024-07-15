@@ -1,6 +1,6 @@
-# karyon p2p
+# Karyon p2p
 
-karyon p2p serves as the foundational stack for the Karyon library. It offers
+Karyon p2p serves as the foundational stack for the Karyon library. It offers
 a lightweight, extensible, and customizable peer-to-peer (p2p) network stack
 that seamlessly integrates with any p2p project.
 
@@ -8,11 +8,11 @@ that seamlessly integrates with any p2p project.
 
 ### Discovery 
 
-karyon p2p uses a customized version of the Kademlia for discovering new peers 
+Karyon p2p uses a customized version of the Kademlia for discovering new peers 
 in the network. This approach is based on Kademlia but with several significant 
 differences and optimizations. Some of the main changes:
 
-1. karyon p2p uses TCP for the lookup process, while UDP is used for
+1. Karyon p2p uses TCP for the lookup process, while UDP is used for
    validating and refreshing the routing table. The reason for this choice is
    that the lookup process is infrequent, and the work required to manage
    messages with UDP is largely equivalent to using TCP for this purpose.
@@ -21,11 +21,11 @@ differences and optimizations. Some of the main changes:
    use UDP.  
 
 2. In contrast to traditional Kademlia, which often employs 160 buckets,
-   karyon p2p reduces the number of buckets to 32. This optimization is a
+   Karyon p2p reduces the number of buckets to 32. This optimization is a
    result of the observation that most nodes tend to map into the last few
    buckets, with the majority of other buckets remaining empty.
 
-3. While Kademlia typically uses a 160-bit key to identify a peer, karyon p2p
+3. While Kademlia typically uses a 160-bit key to identify a peer, Karyon p2p
    uses a 256-bit key.
 
 > Despite criticisms of Kademlia's vulnerabilities, particularly concerning
@@ -38,7 +38,7 @@ differences and optimizations. Some of the main changes:
 
 ### Peer ID
 
-In the karyon p2p network, each peer is identified by a 256-bit (32-byte) Peer ID.
+In the Karyon p2p network, each peer is identified by a 256-bit (32-byte) Peer ID.
 
 ### Seeding
 
@@ -67,21 +67,20 @@ is added to the `PeerPool`.
 
 ### Protocols
 
-In the karyon p2p network, we have two types of protocols: core protocols and
-custom protocols. Core protocols are prebuilt into karyon p2p, such as the
-Ping protocol used to maintain connections. Custom protocols, on the other
-hand, are protocols that you define for your application to provide its core
-functionality.
+In the Karyon p2p network, there are two types of protocols: core protocols and
+custom protocols. Core protocols, such as the Ping and Handshake protocols,
+come prebuilt into Karyon p2p. Custom protocols, however, are ones that you
+create to provide the specific functionality your application needs.
 
 Here's an example of a custom protocol:
 
 ```rust
 pub struct NewProtocol {
-    peer: ArcPeer,
+    peer: Arc<Peer>,
 }
 
 impl NewProtocol {
-    fn new(peer: Arc<Peer>) -> Arc<Protocol> {
+    fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
         Arc::new(Self {
             peer,
         })
@@ -90,12 +89,9 @@ impl NewProtocol {
 
 #[async_trait]
 impl Protocol for NewProtocol {
-    async fn start(self: Arc<Self>) -> Result<(), P2pError> {
-        let listener = self.peer.register_listener::<Self>().await;
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
         loop {
-            let event = listener.recv().await.unwrap();
-
-            match event {
+            match self.peer.recv::<Self>().await.expect("Receive msg") {
                 ProtocolEvent::Message(msg) => {
                     println!("{:?}", msg);
                 }
@@ -104,12 +100,10 @@ impl Protocol for NewProtocol {
                 }
             }
         }
-
-        listener.cancel().await;
         Ok(())
     }
 
-    fn version() -> Result<Version, P2pError> {
+    fn version() -> Result<Version, Error> {
         "0.2.0, >0.1.0".parse()
     }
 
@@ -120,20 +114,17 @@ impl Protocol for NewProtocol {
 
 ```
 
-Whenever a new peer is added to the `PeerPool`, all the protocols, including 
-the custom protocols, will automatically start running with the newly connected peer.
-
 ## Network Security 
 
 Using TLS is possible for all inbound and outbound connections by enabling the
 boolean `enable_tls` field in the configuration. However, implementing TLS for
-a P2P network is not trivial and is still unstable, requiring a comprehensive
+a p2p network is not trivial and is still unstable, requiring a comprehensive
 audit.
 
 
 ## Choosing the async runtime
 
-karyon p2p currently supports both **smol(async-std)** and **tokio** async runtimes.
+Karyon p2p currently supports both **smol(async-std)** and **tokio** async runtimes.
 The default is **smol**, but if you want to use **tokio**, you need to disable
 the default features and then select the `tokio` feature.
 

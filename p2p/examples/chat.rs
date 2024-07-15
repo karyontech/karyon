@@ -69,11 +69,8 @@ impl Protocol for ChatProtocol {
             }
         });
 
-        let listener = self.peer.register_listener::<Self>().await;
         loop {
-            let event = listener.recv().await.expect("Receive new protocol event");
-
-            match event {
+            match self.peer.recv::<Self>().await? {
                 ProtocolEvent::Message(msg) => {
                     let msg = String::from_utf8(msg).expect("Convert received bytes to string");
                     println!("{msg}");
@@ -85,7 +82,6 @@ impl Protocol for ChatProtocol {
         }
 
         task.cancel().await;
-        listener.cancel().await;
         Ok(())
     }
 

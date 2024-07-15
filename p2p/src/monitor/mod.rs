@@ -2,6 +2,8 @@ mod event;
 
 use std::sync::Arc;
 
+use log::error;
+
 use karyon_core::event::{EventListener, EventSys, EventValue, EventValueTopic};
 
 use karyon_net::Endpoint;
@@ -62,7 +64,9 @@ impl Monitor {
     pub(crate) async fn notify<E: ToEventStruct>(&self, event: E) {
         if self.config.enable_monitor {
             let event = event.to_struct();
-            self.event_sys.emit(&event).await
+            if let Err(err) = self.event_sys.emit(&event).await {
+                error!("Failed to notify monitor event {:?}: {err}", event);
+            }
         }
     }
 

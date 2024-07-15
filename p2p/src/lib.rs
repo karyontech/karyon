@@ -41,6 +41,7 @@ mod backend;
 mod codec;
 mod config;
 mod conn_queue;
+mod connection;
 mod connector;
 mod discovery;
 mod error;
