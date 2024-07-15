@@ -4,7 +4,7 @@ use async_channel::Sender;
 use bincode::Encode;
 
 use karyon_core::{
-    event::{EventListener, EventSys},
+    event::{EventEmitter, EventListener},
     util::encode,
 };
 
@@ -36,8 +36,8 @@ pub struct Connection {
     pub(crate) direction: ConnDirection,
     conn: Conn<NetMsg>,
     disconnect_signal: Sender<Result<()>>,
-    /// `EventSys` responsible for sending events to the registered protocols.
-    protocol_events: Arc<EventSys<ProtocolID>>,
+    /// `EventEmitter` responsible for sending events to the registered protocols.
+    protocol_events: Arc<EventEmitter<ProtocolID>>,
     pub(crate) remote_endpoint: Endpoint,
     listeners: HashMap<ProtocolID, EventListener<ProtocolID, ProtocolEvent>>,
 }
@@ -52,7 +52,7 @@ impl Connection {
         Self {
             conn,
             direction,
-            protocol_events: EventSys::new(),
+            protocol_events: EventEmitter::new(),
             disconnect_signal: signal,
             remote_endpoint,
             listeners: HashMap::new(),

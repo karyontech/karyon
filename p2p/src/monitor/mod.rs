@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use log::error;
 
-use karyon_core::event::{EventListener, EventSys, EventValue, EventValueTopic};
+use karyon_core::event::{EventEmitter, EventListener, EventValue, EventValueTopic};
 
 use karyon_net::Endpoint;
 
@@ -47,7 +47,7 @@ use crate::{Config, PeerID};
 /// };
 /// ```
 pub struct Monitor {
-    event_sys: Arc<EventSys<MonitorTopic>>,
+    event_emitter: Arc<EventEmitter<MonitorTopic>>,
     config: Arc<Config>,
 }
 
@@ -55,7 +55,7 @@ impl Monitor {
     /// Creates a new Monitor
     pub(crate) fn new(config: Arc<Config>) -> Self {
         Self {
-            event_sys: EventSys::new(),
+            event_emitter: EventEmitter::new(),
             config,
         }
     }
@@ -64,7 +64,7 @@ impl Monitor {
     pub(crate) async fn notify<E: ToEventStruct>(&self, event: E) {
         if self.config.enable_monitor {
             let event = event.to_struct();
-            if let Err(err) = self.event_sys.emit(&event).await {
+            if let Err(err) = self.event_emitter.emit(&event).await {
                 error!("Failed to notify monitor event {:?}: {err}", event);
             }
         }
@@ -75,7 +75,7 @@ impl Monitor {
     where
         E: Clone + EventValue + EventValueTopic<Topic = MonitorTopic>,
     {
-        self.event_sys.register(&E::topic()).await
+        self.event_emitter.register(&E::topic()).await
     }
 }
 

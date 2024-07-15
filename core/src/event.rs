@@ -18,14 +18,14 @@ pub type EventListenerID = u32;
 
 type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<Event>>>>;
 
-/// EventSys emits events to registered listeners based on topics.
+/// EventEmitter emits events to registered listeners based on topics.
 /// # Example
 ///
 /// ```
-/// use karyon_core::event::{EventSys, EventValueTopic, EventValue};
+/// use karyon_core::event::{EventEmitter, EventValueTopic, EventValue};
 ///
 ///  async {
-///     let event_sys = EventSys::new();
+///     let event_emitter = EventEmitter::new();
 ///
 ///     #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 ///     enum Topic {
@@ -42,9 +42,9 @@ type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<E
 ///         }
 ///     }
 ///
-///     let listener = event_sys.register::<A>(&Topic::TopicA).await;
+///     let listener = event_emitter.register::<A>(&Topic::TopicA).await;
 ///
-///     event_sys.emit_by_topic(&Topic::TopicA, &A(3)) .await;
+///     event_emitter.emit_by_topic(&Topic::TopicA, &A(3)) .await;
 ///     let msg: A = listener.recv().await.unwrap();
 ///
 ///     #[derive(Clone, Debug, PartialEq)]
@@ -63,9 +63,9 @@ type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<E
 ///         }
 ///     }
 ///
-///     let listener = event_sys.register::<B>(&Topic::TopicB).await;
+///     let listener = event_emitter.register::<B>(&Topic::TopicB).await;
 ///
-///     event_sys.emit(&B(3)) .await;
+///     event_emitter.emit(&B(3)) .await;
 ///     let msg: B = listener.recv().await.unwrap();
 ///
 ///     // ....
@@ -73,24 +73,24 @@ type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<E
 ///
 /// ```
 ///
-pub struct EventSys<T> {
+pub struct EventEmitter<T> {
     listeners: Mutex<Listeners<T>>,
     listener_buffer_size: usize,
 }
 
-impl<T> EventSys<T>
+impl<T> EventEmitter<T>
 where
     T: std::hash::Hash + Eq + std::fmt::Debug + Clone,
 {
-    /// Creates a new [`EventSys`]
-    pub fn new() -> Arc<EventSys<T>> {
+    /// Creates a new [`EventEmitter`]
+    pub fn new() -> Arc<EventEmitter<T>> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: CHANNEL_BUFFER_SIZE,
         })
     }
 
-    /// Creates a new [`EventSys`] with the provided buffer size for the
+    /// Creates a new [`EventEmitter`] with the provided buffer size for the
     /// [`EventListener`] channel.
     ///
     /// This is important to control the memory used by the listener channel.
@@ -100,7 +100,7 @@ where
     /// starts to consume the buffered events.
     ///
     /// If `size` is zero, this function will panic.
-    pub fn with_buffer_size(size: usize) -> Arc<EventSys<T>> {
+    pub fn with_buffer_size(size: usize) -> Arc<EventEmitter<T>> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: size,
@@ -240,11 +240,11 @@ where
     }
 }
 
-/// EventListener listens for and receives events from the [`EventSys`].
+/// EventListener listens for and receives events from the [`EventEmitter`].
 pub struct EventListener<T, E> {
     id: EventListenerID,
     recv_chan: Receiver<Event>,
-    event_sys: Weak<EventSys<T>>,
+    event_emitter: Weak<EventEmitter<T>>,
     event_id: String,
     topic: T,
     phantom: PhantomData<E>,
@@ -258,7 +258,7 @@ where
     /// Creates a new [`EventListener`].
     fn new(
         id: EventListenerID,
-        event_sys: Weak<EventSys<T>>,
+        event_emitter: Weak<EventEmitter<T>>,
         recv_chan: Receiver<Event>,
         event_id: &str,
         topic: &T,
@@ -266,7 +266,7 @@ where
         Self {
             id,
             recv_chan,
-            event_sys,
+            event_emitter,
             event_id: event_id.to_string(),
             topic: topic.clone(),
             phantom: PhantomData,
@@ -288,9 +288,9 @@ where
         }
     }
 
-    /// Cancels the event listener and removes it from the [`EventSys`].
+    /// Cancels the event listener and removes it from the [`EventEmitter`].
     pub async fn cancel(&self) {
-        if let Some(es) = self.event_sys.upgrade() {
+        if let Some(es) = self.event_emitter.upgrade() {
             es.remove(&self.topic, &self.event_id, &self.id).await;
         }
     }
@@ -306,7 +306,7 @@ where
     }
 }
 
-/// An event within the [`EventSys`].
+/// An event within the [`EventEmitter`].
 #[derive(Clone, Debug)]
 pub struct Event {
     /// The time at which the event was created.
@@ -432,18 +432,18 @@ mod tests {
     }
 
     #[test]
-    fn test_event_sys() {
+    fn test_event_emitter() {
         block_on(async move {
-            let event_sys = EventSys::<Topic>::new();
+            let event_emitter = EventEmitter::<Topic>::new();
 
-            let a_listener = event_sys.register::<A>(&Topic::TopicA).await;
-            let b_listener = event_sys.register::<B>(&Topic::TopicB).await;
+            let a_listener = event_emitter.register::<A>(&Topic::TopicA).await;
+            let b_listener = event_emitter.register::<B>(&Topic::TopicB).await;
 
-            event_sys
+            event_emitter
                 .emit_by_topic(&Topic::TopicA, &A { a_value: 3 })
                 .await
                 .expect("Emit event");
-            event_sys
+            event_emitter
                 .emit_by_topic(&Topic::TopicB, &B { b_value: 5 })
                 .await
                 .expect("Emit event");
@@ -455,17 +455,17 @@ mod tests {
             assert_eq!(msg, B { b_value: 5 });
 
             // register the same event type to different topics
-            let c_listener = event_sys.register::<C>(&Topic::TopicC).await;
-            let d_listener = event_sys.register::<C>(&Topic::TopicD).await;
+            let c_listener = event_emitter.register::<C>(&Topic::TopicC).await;
+            let d_listener = event_emitter.register::<C>(&Topic::TopicD).await;
 
-            event_sys
+            event_emitter
                 .emit(&C { c_value: 10 })
                 .await
                 .expect("Emit event");
             let msg = c_listener.recv().await.unwrap();
             assert_eq!(msg, C { c_value: 10 });
 
-            event_sys
+            event_emitter
                 .emit_by_topic(&Topic::TopicD, &C { c_value: 10 })
                 .await
                 .expect("Emit event");
@@ -473,10 +473,10 @@ mod tests {
             assert_eq!(msg, C { c_value: 10 });
 
             // register different event types to the same topic
-            let e_listener = event_sys.register::<E>(&Topic::TopicE).await;
-            let f_listener = event_sys.register::<F>(&Topic::TopicE).await;
+            let e_listener = event_emitter.register::<E>(&Topic::TopicE).await;
+            let f_listener = event_emitter.register::<F>(&Topic::TopicE).await;
 
-            event_sys
+            event_emitter
                 .emit_by_topic(&Topic::TopicE, &E { e_value: 5 })
                 .await
                 .expect("Emit event");
@@ -484,7 +484,7 @@ mod tests {
             let msg = e_listener.recv().await.unwrap();
             assert_eq!(msg, E { e_value: 5 });
 
-            event_sys
+            event_emitter
                 .emit_by_topic(&Topic::TopicE, &F { f_value: 5 })
                 .await
                 .expect("Emit event");
