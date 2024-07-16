@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CHANNEL_SUBSCRIPTION_BUFFER_SIZE","FAILED_TO_PARSE_ERROR_MSG","INVALID_REQUEST_ERROR_MSG","METHOD_NOT_FOUND_ERROR_MSG","UNSUPPORTED_JSONRPC_VERSION"],"enum":["SanityCheckResult"],"mod":["builder","channel","pubsub_service","response_queue","service"],"struct":["NewRequest","Server","ServerConfig"]};
