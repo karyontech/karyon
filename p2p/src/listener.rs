@@ -157,6 +157,10 @@ impl Listener {
 
     async fn listen(&self, endpoint: &Endpoint) -> Result<karyon_net::Listener<NetMsg>> {
         if self.enable_tls {
+            if !endpoint.is_tcp() && !endpoint.is_tls() {
+                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
+            }
+
             let tls_config = tls::ServerTlsConfig {
                 tcp_config: Default::default(),
                 server_config: tls_server_config(&self.key_pair)?,
@@ -165,6 +169,10 @@ impl Listener {
                 .await
                 .map(|l| Box::new(l) as karyon_net::Listener<NetMsg>)
         } else {
+            if !endpoint.is_tcp() {
+                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
+            }
+
             tcp::listen(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new())
                 .await
                 .map(|l| Box::new(l) as karyon_net::Listener<NetMsg>)

@@ -45,6 +45,98 @@ pub enum Endpoint {
     Unix(PathBuf),
 }
 
+impl Endpoint {
+    /// Creates a new TCP endpoint from a `SocketAddr`.
+    pub fn new_tcp_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Tcp(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new UDP endpoint from a `SocketAddr`.
+    pub fn new_udp_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Udp(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new TLS endpoint from a `SocketAddr`.
+    pub fn new_tls_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Tls(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new WS endpoint from a `SocketAddr`.
+    pub fn new_ws_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Ws(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new WSS endpoint from a `SocketAddr`.
+    pub fn new_wss_addr(addr: SocketAddr) -> Endpoint {
+        Endpoint::Wss(Addr::Ip(addr.ip()), addr.port())
+    }
+
+    /// Creates a new Unix endpoint from a `UnixSocketAddr`.
+    pub fn new_unix_addr(addr: &std::path::Path) -> Endpoint {
+        Endpoint::Unix(addr.to_path_buf())
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Tcp`.
+    pub fn is_tcp(&self) -> bool {
+        matches!(self, Endpoint::Tcp(..))
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Tls`.
+    pub fn is_tls(&self) -> bool {
+        matches!(self, Endpoint::Tls(..))
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Ws`.
+    pub fn is_ws(&self) -> bool {
+        matches!(self, Endpoint::Ws(..))
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Wss`.
+    pub fn is_wss(&self) -> bool {
+        matches!(self, Endpoint::Wss(..))
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Udp`.
+    pub fn is_udp(&self) -> bool {
+        matches!(self, Endpoint::Udp(..))
+    }
+
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Unix`.
+    pub fn is_unix(&self) -> bool {
+        matches!(self, Endpoint::Unix(..))
+    }
+
+    /// Returns the `Port` of the endpoint.
+    pub fn port(&self) -> Result<&Port> {
+        match self {
+            Endpoint::Tcp(_, port)
+            | Endpoint::Udp(_, port)
+            | Endpoint::Tls(_, port)
+            | Endpoint::Ws(_, port)
+            | Endpoint::Wss(_, port) => Ok(port),
+            _ => Err(Error::TryFromEndpoint),
+        }
+    }
+
+    /// Returns the `Addr` of the endpoint.
+    pub fn addr(&self) -> Result<&Addr> {
+        match self {
+            Endpoint::Tcp(addr, _)
+            | Endpoint::Udp(addr, _)
+            | Endpoint::Tls(addr, _)
+            | Endpoint::Ws(addr, _)
+            | Endpoint::Wss(addr, _) => Ok(addr),
+            _ => Err(Error::TryFromEndpoint),
+        }
+    }
+}
+
 impl std::fmt::Display for Endpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -148,62 +240,6 @@ impl FromStr for Endpoint {
                 "unix" => Ok(Endpoint::Unix(url.path().into())),
                 _ => Err(Error::InvalidEndpoint(s.to_string())),
             }
-        }
-    }
-}
-
-impl Endpoint {
-    /// Creates a new TCP endpoint from a `SocketAddr`.
-    pub fn new_tcp_addr(addr: SocketAddr) -> Endpoint {
-        Endpoint::Tcp(Addr::Ip(addr.ip()), addr.port())
-    }
-
-    /// Creates a new UDP endpoint from a `SocketAddr`.
-    pub fn new_udp_addr(addr: SocketAddr) -> Endpoint {
-        Endpoint::Udp(Addr::Ip(addr.ip()), addr.port())
-    }
-
-    /// Creates a new TLS endpoint from a `SocketAddr`.
-    pub fn new_tls_addr(addr: SocketAddr) -> Endpoint {
-        Endpoint::Tls(Addr::Ip(addr.ip()), addr.port())
-    }
-
-    /// Creates a new WS endpoint from a `SocketAddr`.
-    pub fn new_ws_addr(addr: SocketAddr) -> Endpoint {
-        Endpoint::Ws(Addr::Ip(addr.ip()), addr.port())
-    }
-
-    /// Creates a new WSS endpoint from a `SocketAddr`.
-    pub fn new_wss_addr(addr: SocketAddr) -> Endpoint {
-        Endpoint::Wss(Addr::Ip(addr.ip()), addr.port())
-    }
-
-    /// Creates a new Unix endpoint from a `UnixSocketAddr`.
-    pub fn new_unix_addr(addr: &std::path::Path) -> Endpoint {
-        Endpoint::Unix(addr.to_path_buf())
-    }
-
-    /// Returns the `Port` of the endpoint.
-    pub fn port(&self) -> Result<&Port> {
-        match self {
-            Endpoint::Tcp(_, port)
-            | Endpoint::Udp(_, port)
-            | Endpoint::Tls(_, port)
-            | Endpoint::Ws(_, port)
-            | Endpoint::Wss(_, port) => Ok(port),
-            _ => Err(Error::TryFromEndpoint),
-        }
-    }
-
-    /// Returns the `Addr` of the endpoint.
-    pub fn addr(&self) -> Result<&Addr> {
-        match self {
-            Endpoint::Tcp(addr, _)
-            | Endpoint::Udp(addr, _)
-            | Endpoint::Tls(addr, _)
-            | Endpoint::Ws(addr, _)
-            | Endpoint::Wss(addr, _) => Ok(addr),
-            _ => Err(Error::TryFromEndpoint),
         }
     }
 }

@@ -80,7 +80,6 @@ impl Discovery {
 
         let lookup_service = Arc::new(LookupService::new(
             key_pair,
-            peer_id,
             table.clone(),
             config.clone(),
             monitor.clone(),

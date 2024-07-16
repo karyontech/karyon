@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Unsupported protocol error: {0}")]
     UnsupportedProtocol(String),
 
+    #[error("Unsupported Endpoint: {0}")]
+    UnsupportedEndpoint(String),
+
     #[error("PeerID try from PublicKey Error")]
     PeerIDTryFromPublicKey,
 

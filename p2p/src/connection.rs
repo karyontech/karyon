@@ -74,8 +74,7 @@ impl Connection {
     pub async fn recv<P: Protocol>(&self) -> Result<ProtocolEvent> {
         match self.listeners.get(&P::id()) {
             Some(l) => l.recv().await.map_err(Error::from),
-            // TODO
-            None => todo!(),
+            None => Err(Error::UnsupportedProtocol(P::id())),
         }
     }
 

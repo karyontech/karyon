@@ -148,6 +148,10 @@ impl Connector {
 
     async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<Conn<NetMsg>> {
         if self.enable_tls {
+            if !endpoint.is_tcp() && !endpoint.is_tls() {
+                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
+            }
+
             let tls_config = tls::ClientTlsConfig {
                 tcp_config: Default::default(),
                 client_config: tls_client_config(&self.key_pair, peer_id.clone())?,
@@ -157,6 +161,10 @@ impl Connector {
                 .await
                 .map(|l| Box::new(l) as karyon_net::Conn<NetMsg>)
         } else {
+            if !endpoint.is_tcp() {
+                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
+            }
+
             tcp::dial(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new())
                 .await
                 .map(|l| Box::new(l) as karyon_net::Conn<NetMsg>)

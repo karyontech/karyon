@@ -41,6 +41,9 @@ pub struct LookupService {
     /// Resolved listen endpoint
     listen_endpoint: RwLock<Option<Endpoint>>,
 
+    /// Resolved discovery endpoint
+    discovery_endpoint: RwLock<Option<Endpoint>>,
+
     /// Holds the configuration for the P2P network.
     config: Arc<Config>,
 
@@ -52,7 +55,6 @@ impl LookupService {
     /// Creates a new lookup service
     pub fn new(
         key_pair: &KeyPair,
-        id: &PeerID,
         table: Arc<RoutingTable>,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
@@ -78,13 +80,18 @@ impl LookupService {
             ex,
         );
 
+        let id = key_pair
+            .public()
+            .try_into()
+            .expect("Get PeerID from KeyPair");
         Self {
-            id: id.clone(),
+            id,
             table,
             listener,
             connector,
             outbound_slots,
             listen_endpoint: RwLock::new(None),
+            discovery_endpoint: RwLock::new(None),
             config,
             monitor,
         }
@@ -98,17 +105,21 @@ impl LookupService {
 
     /// Set the resolved listen endpoint.
     pub fn set_listen_endpoint(&self, resolved_endpoint: &Endpoint) -> Result<()> {
-        let resolved_endpoint = Endpoint::Tcp(
+        let discovery_endpoint = Endpoint::Tcp(
             resolved_endpoint.addr()?.clone(),
             self.config.discovery_port,
         );
-        *self.listen_endpoint.write() = Some(resolved_endpoint);
+        *self.listen_endpoint.write() = Some(resolved_endpoint.clone());
+        *self.discovery_endpoint.write() = Some(discovery_endpoint.clone());
         Ok(())
     }
 
-    /// Get the listening endpoint.
     pub fn listen_endpoint(&self) -> Option<Endpoint> {
         self.listen_endpoint.read().clone()
+    }
+
+    pub fn discovery_endpoint(&self) -> Option<Endpoint> {
+        self.discovery_endpoint.read().clone()
     }
 
     /// Shuts down the lookup service.
@@ -278,7 +289,7 @@ impl LookupService {
 
         trace!("Send Peer msg");
         if let Some(endpoint) = self.listen_endpoint() {
-            self.send_peer_msg(&conn, endpoint.clone()).await?;
+            self.send_peer_msg(&conn, endpoint).await?;
         }
 
         trace!("Send Shutdown msg");
@@ -289,8 +300,8 @@ impl LookupService {
 
     /// Start a listener.
     async fn start_listener(self: &Arc<Self>) -> Result<()> {
-        let endpoint: Endpoint = match self.listen_endpoint() {
-            Some(e) => e.clone(),
+        let endpoint: Endpoint = match self.discovery_endpoint() {
+            Some(e) => e,
             None => return Ok(()),
         };
 
