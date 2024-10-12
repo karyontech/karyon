@@ -23,7 +23,6 @@ pub mod pubsub;
 pub mod async_runtime;
 
 #[cfg(feature = "crypto")]
-
 /// Collects common cryptographic tools
 pub mod crypto;
 

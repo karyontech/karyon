@@ -12,6 +12,6 @@ type PubSubRPCMethodOutput<'a> =
 
 /// Defines the interface for an RPC service.
 pub trait PubSubRPCService: Sync + Send {
-    fn get_pubsub_method<'a>(&'a self, name: &'a str) -> Option<PubSubRPCMethod>;
+    fn get_pubsub_method(&self, name: &str) -> Option<PubSubRPCMethod>;
     fn name(&self) -> String;
 }

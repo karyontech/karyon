@@ -215,7 +215,7 @@ impl LookupService {
     /// Starts a self lookup
     async fn self_lookup(
         &self,
-        random_peers: &Vec<PeerMsg>,
+        random_peers: &[PeerMsg],
         peer_buffer: &mut Vec<PeerMsg>,
     ) -> Result<()> {
         let mut results = FuturesUnordered::new();

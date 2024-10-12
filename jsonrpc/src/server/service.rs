@@ -9,6 +9,6 @@ type RPCMethodOutput<'a> =
 
 /// Defines the interface for an RPC service.
 pub trait RPCService: Sync + Send {
-    fn get_method<'a>(&'a self, name: &'a str) -> Option<RPCMethod>;
+    fn get_method(&self, name: &str) -> Option<RPCMethod>;
     fn name(&self) -> String;
 }

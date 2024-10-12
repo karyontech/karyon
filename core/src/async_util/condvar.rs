@@ -58,7 +58,6 @@ use crate::{async_runtime::lock::MutexGuard, util::random_16};
 ///  };
 ///
 /// ```
-
 pub struct CondVar {
     inner: Mutex<Wakers>,
 }
@@ -116,7 +115,7 @@ impl<'a, T> CondVarAwait<'a, T> {
     }
 }
 
-impl<'a, T> Future for CondVarAwait<'a, T> {
+impl<T> Future for CondVarAwait<'_, T> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -155,7 +154,7 @@ impl<'a, T> Future for CondVarAwait<'a, T> {
     }
 }
 
-impl<'a, T> Drop for CondVarAwait<'a, T> {
+impl<T> Drop for CondVarAwait<'_, T> {
     fn drop(&mut self) {
         if let Some(id) = self.id {
             let mut inner = self.condvar.inner.lock();

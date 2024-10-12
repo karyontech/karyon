@@ -126,7 +126,7 @@ pub struct TaskHandler {
     cancel_flag: Arc<CondWait>,
 }
 
-impl<'a> TaskHandler {
+impl TaskHandler {
     /// Creates a new task handler
     fn new<T, Fut, CallbackF, CallbackFut>(
         ex: Executor,
