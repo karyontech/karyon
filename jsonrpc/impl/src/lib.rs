@@ -54,9 +54,9 @@ pub fn rpc_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let item: TokenStream2 = item.into();
     quote! {
         impl karyon_jsonrpc::RPCService for #self_ty {
-            fn get_method<'a>(
-                &'a self,
-                name: &'a str
+            fn get_method(
+                &self,
+                name: &str
             ) -> Option<karyon_jsonrpc::RPCMethod> {
                 match name {
                 #(#impl_methods)*
@@ -115,9 +115,9 @@ pub fn rpc_pubsub_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let item: TokenStream2 = item.into();
     quote! {
         impl karyon_jsonrpc::PubSubRPCService for #self_ty {
-            fn get_pubsub_method<'a>(
-                &'a self,
-                name: &'a str
+            fn get_pubsub_method(
+                &self,
+                name: &str
             ) -> Option<karyon_jsonrpc::PubSubRPCMethod> {
                 match name {
                 #(#impl_methods)*

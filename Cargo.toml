@@ -2,7 +2,7 @@
 resolver = "2"
 
 # Please ensure that each crate comes before any other crate that depends on it
-members = ["core", "net", "p2p", "jsonrpc"]
+members = ["core", "net", "net/async_rustls", "jsonrpc", "jsonrpc/impl", "p2p"]
 
 [workspace.package]
 description = "A library for building p2p, decentralized, and collaborative software"
@@ -23,7 +23,6 @@ karyon_jsonrpc = { path = "jsonrpc", version = "0.1.6", default-features = false
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "0.1.6", default-features = false }
 
 karyon_p2p = { path = "p2p", version = "0.1.6", default-features = false }
-
 
 log = "0.4"
 thiserror = "1.0"
