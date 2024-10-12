@@ -25,30 +25,30 @@ karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "0.1.6", default-featu
 karyon_p2p = { path = "p2p", version = "0.1.6", default-features = false }
 
 
-log = "0.4.21"
-thiserror = "1.0.61"
-chrono = "0.4.38"
-rand = "0.8.5"
-url = "2.5.2"
-parking_lot = "0.12.3"
-once_cell = "1.19.0"
-semver = "1.0.23"
-sha2 = "0.10.8"
+log = "0.4"
+thiserror = "1.0"
+chrono = "0.4"
+rand = "0.8"
+url = "2.5"
+parking_lot = "0.12"
+once_cell = "1.19"
+semver = "1.0"
+sha2 = "0.10"
 
 # async 
-async-channel = "2.3.1"
-async-trait = "0.1.80"
-pin-project-lite = "0.2.14"
-async-process = "2.2.3"
-smol = "2.0.0"
-tokio = "1.38.0"
-futures-util = { version = "0.3.5", default-features = false }
+async-channel = "2.3"
+async-trait = "0.1"
+pin-project-lite = "0.2"
+async-process = "2.2"
+smol = "2.0"
+tokio = "1.38"
+futures-util = { version = "0.3", default-features = false }
 
 # encode
 bincode = "2.0.0-rc.3"
 serde = "1.0"
-serde_json = "1.0.117"
-base64 = "0.22.1"
+serde_json = "1.0"
+base64 = "0.22"
 
 # macros
 proc-macro2 = "1.0"
@@ -56,12 +56,12 @@ quote = "1.0"
 syn = "2.0"
 
 # websocket
-async-tungstenite = { version = "0.26.2", default-features = false }
+async-tungstenite = { version = "0.28", default-features = false }
 
 # tls
-rustls-pki-types = "1.7.0"
-futures-rustls = "0.26.0"
-tokio-rustls = "0.26.0"
-rcgen = "0.13.1"
-yasna = "0.5.2"
-x509-parser = "0.16.0"
+rustls-pki-types = "1.9"
+futures-rustls = "0.26"
+tokio-rustls = "0.26"
+rcgen = "0.13"
+yasna = "0.5"
+x509-parser = "0.16"
