@@ -20,44 +20,40 @@ ws = ["tcp", "async-tungstenite"]
 udp = []
 unix = ["stream"]
 smol = [
-  "karyon_core/smol",
-  "async-tungstenite?/async-std-runtime",
-  "karyon_async_rustls?/smol",
+    "karyon_core/smol",
+    "async-tungstenite?/async-std-runtime",
+    "karyon_async_rustls?/smol",
 ]
 tokio = [
-  "karyon_core/tokio",
-  "async-tungstenite?/tokio-runtime",
-  "karyon_async_rustls?/tokio",
-  "dep:tokio",
+    "karyon_core/tokio",
+    "async-tungstenite?/tokio-runtime",
+    "karyon_async_rustls?/tokio",
+    "dep:tokio",
 ]
 serde = ["dep:serde"]
 
 [dependencies]
-karyon_core = { version = "0.1.6", path = "../core", default-features = false }
-karyon_async_rustls = { version = "0.1.6", path = "./async_rustls", default-features = false, optional = true }
+karyon_core = { workspace = true }
+karyon_async_rustls = { workspace = true, optional = true }
 
-log = "0.4.21"
-thiserror = "1.0.61"
-url = "2.5.2"
-
-# encode/decode 
-serde = { version = "1.0.203", features = ["derive"], optional = true }
-bincode = { version = "2.0.0-rc.3", features = ["derive"] }
+log = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+bincode = { workspace = true, features = ["derive"] }
 
 # async
-async-trait = "0.1.80"
-async-channel = "2.3.1"
-futures-util = { version = "0.3.30", default-features = false, features = [
-  "sink",
-], optional = true }
-pin-project-lite = { version = "0.2.14", optional = true }
-tokio = { version = "1.38.0", features = ["io-util"], optional = true }
+async-trait = { workspace = true }
+async-channel = { workspace = true }
+futures-util = { workspace = true, features = ["sink"], optional = true }
+pin-project-lite = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["io-util"], optional = true }
 
 # websocket
-async-tungstenite = { version = "0.26.2", default-features = false, optional = true }
+async-tungstenite = { workspace = true, optional = true }
 
 # tls
-rustls-pki-types = { version = "1.7.0", optional = true }
+rustls-pki-types = { workspace = true, optional = true }
 
 [dev-dependencies]
-smol = "2.0.0"
+smol = { workspace = true }

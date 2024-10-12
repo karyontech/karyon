@@ -17,39 +17,38 @@ tls = ["tcp", "karyon_net/tls"]
 ws = ["tcp", "karyon_net/ws", "async-tungstenite"]
 unix = ["karyon_net/unix"]
 smol = [
-  "karyon_core/smol",
-  "karyon_net/smol",
-  "karyon_jsonrpc_macro/smol",
-  "async-tungstenite?/async-std-runtime",
+    "karyon_core/smol",
+    "karyon_net/smol",
+    "karyon_jsonrpc_macro/smol",
+    "async-tungstenite?/async-std-runtime",
 ]
 tokio = [
-  "karyon_core/tokio",
-  "karyon_net/tokio",
-  "karyon_jsonrpc_macro/tokio",
-  "async-tungstenite?/tokio-runtime",
+    "karyon_core/tokio",
+    "karyon_net/tokio",
+    "karyon_jsonrpc_macro/tokio",
+    "async-tungstenite?/tokio-runtime",
 ]
 
 [dependencies]
-karyon_core = { version = "0.1.6", path = "../core", default-features = false }
-karyon_net = { version = "0.1.6", path = "../net", default-features = false }
+karyon_core = { workspace = true }
+karyon_net = { workspace = true }
+karyon_jsonrpc_macro = { workspace = true }
 
-karyon_jsonrpc_macro = { version = "0.1.6", path = "impl", default-features = false }
-
-log = "0.4.21"
-rand = "0.8.5"
-thiserror = "1.0.61"
+log = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }
 
 # encode/decode
-serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 # async 
-async-trait = "0.1.80"
-async-channel = "2.3.1"
+async-trait = { workspace = true }
+async-channel = { workspace = true }
 
 # websocket
-async-tungstenite = { version = "0.26.2", default-features = false, optional = true }
+async-tungstenite = { workspace = true, optional = true }
 
 [dev-dependencies]
+smol = { workspace = true }
 env_logger = "0.11.3"
-smol = "2.0.0"

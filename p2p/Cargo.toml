@@ -18,50 +18,40 @@ tokio = ["karyon_core/tokio", "karyon_net/tokio", "tokio-rustls"]
 serde = ["dep:serde", "karyon_net/serde"]
 
 [dependencies]
-karyon_core = { workspace = true, features = [
-  "crypto",
-], default-features = false }
-karyon_net = { workspace = true, default-features = false, features = [
-  "tcp",
-  "tls",
-  "udp",
-] }
+karyon_core = { workspace = true, features = ["crypto"] }
+karyon_net = { workspace = true, features = ["tcp", "tls", "udp"] }
 
 
-log = "0.4.21"
-chrono = "0.4.38"
-rand = "0.8.5"
-thiserror = "1.0.61"
-semver = "1.0.23"
-sha2 = "0.10.8"
-parking_lot = "0.12.3"
+log = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }
+semver = { workspace = true }
+sha2 = { workspace = true }
+parking_lot = { workspace = true }
 
 # encode/decode
-bincode = { version = "2.0.0-rc.3", features = ["derive"] }
-base64 = "0.22.1"
-serde = { version = "1.0.203", features = ["derive"], optional = true }
+bincode = { workspace = true, features = ["derive"] }
+base64 = { workspace = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 
 # async
-async-trait = "0.1.80"
-async-channel = "2.3.1"
-futures-util = { version = "0.3.5", features = [
-  "alloc",
-], default-features = false }
+async-trait = { workspace = true }
+async-channel = { workspace = true }
+futures-util = { workspace = true, features = ["alloc"] }
 
 # tls
-rcgen = "0.13.1"
-yasna = "0.5.2"
-x509-parser = "0.16.0"
-futures-rustls = { version = "0.26.0", features = [
-  "aws-lc-rs",
-], optional = true }
-tokio-rustls = { version = "0.26.0", features = ["aws-lc-rs"], optional = true }
-rustls-pki-types = "1.7.0"
+rcgen = { workspace = true }
+yasna = { workspace = true }
+x509-parser = { workspace = true }
+futures-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
+tokio-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
+rustls-pki-types = { workspace = true }
 
 [dev-dependencies]
+smol = { workspace = true }
 blocking = "1.6.1"
 clap = { version = "4.5.7", features = ["derive"] }
 ctrlc = "3.4.4"
 easy-parallel = "3.3.1"
 env_logger = "0.11.3"
-smol = "2.0.0"
