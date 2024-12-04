@@ -30,11 +30,11 @@ use karyon_core::{
     util::random_32,
 };
 
+use crate::codec::ClonableJsonCodec;
 #[cfg(feature = "ws")]
 use crate::codec::WsJsonCodec;
 
 use crate::{
-    codec::JsonCodec,
     message::{self, SubscriptionID},
     Error, Result,
 };
@@ -45,8 +45,9 @@ use subscriptions::Subscriptions;
 
 type RequestID = u32;
 
-struct ClientConfig {
+struct ClientConfig<C> {
     endpoint: Endpoint,
+    json_codec: C,
     #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
     #[cfg(feature = "tls")]
@@ -56,13 +57,13 @@ struct ClientConfig {
 }
 
 /// Represents an RPC client
-pub struct Client {
+pub struct Client<C> {
     disconnect: AtomicBool,
     message_dispatcher: MessageDispatcher,
     subscriptions: Arc<Subscriptions>,
     send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
     task_group: TaskGroup,
-    config: ClientConfig,
+    config: ClientConfig<C>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -72,7 +73,10 @@ enum NewMsg {
     Response(message::Response),
 }
 
-impl Client {
+impl<C> Client<C>
+where
+    C: ClonableJsonCodec,
+{
     /// Calls the provided method, waits for the response, and returns the result.
     pub async fn call<T: Serialize + DeserializeOwned, V: DeserializeOwned>(
         &self,
@@ -181,7 +185,7 @@ impl Client {
     }
 
     /// Initializes a new [`Client`] from the provided [`ClientConfig`].
-    async fn init(config: ClientConfig) -> Result<Arc<Self>> {
+    async fn init(config: ClientConfig<C>) -> Result<Arc<Self>> {
         let client = Arc::new(Client {
             disconnect: AtomicBool::new(false),
             subscriptions: Subscriptions::new(config.subscription_buffer_size),
@@ -202,10 +206,11 @@ impl Client {
 
     async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value>> {
         let endpoint = self.config.endpoint.clone();
+        let json_codec = self.config.json_codec.clone();
         let conn: Conn<serde_json::Value> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), JsonCodec {})
+                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), json_codec)
                     .await?,
             ),
             #[cfg(feature = "tls")]
@@ -218,7 +223,7 @@ impl Client {
                             client_config: conf.clone(),
                             tcp_config: self.config.tcp_config.clone(),
                         },
-                        JsonCodec {},
+                        json_codec,
                     )
                     .await?,
                 ),
@@ -252,7 +257,7 @@ impl Client {
             },
             #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => {
-                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), JsonCodec {}).await?)
+                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), json_codec).await?)
             }
             _ => return Err(Error::UnsupportedProtocol(endpoint.to_string())),
         };
