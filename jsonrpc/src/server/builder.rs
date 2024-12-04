@@ -9,6 +9,7 @@ use karyon_net::ToEndpoint;
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
 
+use crate::codec::{ClonableJsonCodec, JsonCodec};
 #[cfg(feature = "tcp")]
 use crate::{Error, TcpConfig};
 use crate::{PubSubRPCService, RPCService, Result};
@@ -16,11 +17,14 @@ use crate::{PubSubRPCService, RPCService, Result};
 use super::{Server, ServerConfig};
 
 /// Builder for constructing an RPC [`Server`].
-pub struct ServerBuilder {
-    inner: ServerConfig,
+pub struct ServerBuilder<C> {
+    inner: ServerConfig<C>,
 }
 
-impl ServerBuilder {
+impl<C> ServerBuilder<C>
+where
+    C: ClonableJsonCodec,
+{
     /// Adds a new RPC service to the server.
     ///
     /// # Example
@@ -136,7 +140,7 @@ impl ServerBuilder {
     ///
     /// This function will return an error if the endpoint does not support TCP protocols.
     #[cfg(feature = "tcp")]
-    pub fn tcp_config(mut self, config: TcpConfig) -> Result<ServerBuilder> {
+    pub fn tcp_config(mut self, config: TcpConfig) -> Result<ServerBuilder<C>> {
         match self.inner.endpoint {
             Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
                 self.inner.tcp_config = config;
@@ -167,7 +171,7 @@ impl ServerBuilder {
     ///
     /// This function will return an error if the endpoint does not support TLS protocols.
     #[cfg(feature = "tls")]
-    pub fn tls_config(mut self, config: rustls::ServerConfig) -> Result<ServerBuilder> {
+    pub fn tls_config(mut self, config: rustls::ServerConfig) -> Result<ServerBuilder<C>> {
         match self.inner.endpoint {
             Endpoint::Tls(..) | Endpoint::Wss(..) => {
                 self.inner.tls_config = Some(config);
@@ -181,17 +185,17 @@ impl ServerBuilder {
     }
 
     /// Builds the server with the configured options.
-    pub async fn build(self) -> Result<Arc<Server>> {
+    pub async fn build(self) -> Result<Arc<Server<C>>> {
         Server::init(self.inner, None).await
     }
 
     /// Builds the server with the configured options and an executor.
-    pub async fn build_with_executor(self, ex: Executor) -> Result<Arc<Server>> {
+    pub async fn build_with_executor(self, ex: Executor) -> Result<Arc<Server<C>>> {
         Server::init(self.inner, Some(ex)).await
     }
 }
 
-impl Server {
+impl Server<JsonCodec> {
     /// Creates a new [`ServerBuilder`]
     ///
     /// This function initializes a `ServerBuilder` with the specified endpoint.
@@ -207,11 +211,78 @@ impl Server {
     ///         .expect("Build the server");
     /// };
     /// ```
-    pub fn builder(endpoint: impl ToEndpoint) -> Result<ServerBuilder> {
+    pub fn builder(endpoint: impl ToEndpoint) -> Result<ServerBuilder<JsonCodec>> {
+        Server::<JsonCodec>::builder_with_json_codec(endpoint, JsonCodec {})
+    }
+}
+
+impl<C> Server<C> {
+    /// Creates a new [`ServerBuilder`]
+    ///
+    /// This function initializes a `ServerBuilder` with the specified endpoint
+    /// and the given json codec.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use karyon_jsonrpc::Server;
+    /// use karyon_net::{codec::{Codec, Decoder, Encoder}, Error, Result};
+    ///
+    /// use serde_json::Value;
+    ///
+    /// #[derive(Clone)]
+    /// pub struct CustomJsonCodec {}
+    ///
+    /// impl Codec for CustomJsonCodec {
+    ///     type Item = serde_json::Value;
+    /// }
+    ///
+    /// impl Encoder for CustomJsonCodec {
+    ///     type EnItem = serde_json::Value;
+    ///     fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    ///         let msg = match serde_json::to_string(src) {
+    ///             Ok(m) => m,
+    ///             Err(err) => return Err(Error::Encode(err.to_string())),
+    ///         };
+    ///         let buf = msg.as_bytes();
+    ///         dst[..buf.len()].copy_from_slice(buf);
+    ///         Ok(buf.len())
+    ///     }
+    /// }
+    ///
+    /// impl Decoder for CustomJsonCodec {
+    ///     type DeItem = serde_json::Value;
+    ///     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    ///         let de = serde_json::Deserializer::from_slice(src);
+    ///         let mut iter = de.into_iter::<serde_json::Value>();
+    ///
+    ///         let item = match iter.next() {
+    ///             Some(Ok(item)) => item,
+    ///             Some(Err(ref e)) if e.is_eof() => return Ok(None),
+    ///             Some(Err(e)) => return Err(Error::Decode(e.to_string())),
+    ///             None => return Ok(None),
+    ///         };
+    ///
+    ///         Ok(Some((iter.byte_offset(), item)))
+    ///     }
+    /// }
+    ///
+    /// async {
+    ///     let server = Server::builder_with_json_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
+    ///         .expect("Create a new server builder with custom json codec")
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    /// ```
+    pub fn builder_with_json_codec(
+        endpoint: impl ToEndpoint,
+        json_codec: C,
+    ) -> Result<ServerBuilder<C>> {
         let endpoint = endpoint.to_endpoint()?;
         Ok(ServerBuilder {
             inner: ServerConfig {
                 endpoint,
+                json_codec,
                 services: HashMap::new(),
                 pubsub_services: HashMap::new(),
                 #[cfg(feature = "tcp")]

@@ -7,6 +7,7 @@ use karyon_net::ToEndpoint;
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
 
+use crate::codec::{ClonableJsonCodec, JsonCodec};
 use crate::Result;
 #[cfg(feature = "tcp")]
 use crate::{Error, TcpConfig};
@@ -17,7 +18,7 @@ const DEFAULT_TIMEOUT: u64 = 3000; // 3s
 
 const DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE: usize = 20000;
 
-impl Client {
+impl Client<JsonCodec> {
     /// Creates a new [`ClientBuilder`]
     ///
     /// This function initializes a `ClientBuilder` with the specified endpoint.
@@ -34,11 +35,80 @@ impl Client {
     ///         .expect("Build a new client");
     /// };
     /// ```
-    pub fn builder(endpoint: impl ToEndpoint) -> Result<ClientBuilder> {
+    pub fn builder(endpoint: impl ToEndpoint) -> Result<ClientBuilder<JsonCodec>> {
+        Client::<JsonCodec>::builder_with_json_codec(endpoint, JsonCodec {})
+    }
+}
+
+impl<C> Client<C>
+where
+    C: ClonableJsonCodec,
+{
+    /// Creates a new [`ClientBuilder`]
+    ///
+    /// This function initializes a `ClientBuilder` with the specified endpoint
+    /// and the given json codec.
+    /// # Example
+    ///
+    /// ```
+    /// use karyon_jsonrpc::Client;
+    /// use karyon_net::{codec::{Codec, Decoder, Encoder}, Error, Result};
+    ///
+    /// use serde_json::Value;
+    ///
+    /// #[derive(Clone)]
+    /// pub struct CustomJsonCodec {}
+    ///
+    /// impl Codec for CustomJsonCodec {
+    ///     type Item = serde_json::Value;
+    /// }
+    ///
+    /// impl Encoder for CustomJsonCodec {
+    ///     type EnItem = serde_json::Value;
+    ///     fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    ///         let msg = match serde_json::to_string(src) {
+    ///             Ok(m) => m,
+    ///             Err(err) => return Err(Error::Encode(err.to_string())),
+    ///         };
+    ///         let buf = msg.as_bytes();
+    ///         dst[..buf.len()].copy_from_slice(buf);
+    ///         Ok(buf.len())
+    ///     }
+    /// }
+    ///
+    /// impl Decoder for CustomJsonCodec {
+    ///     type DeItem = serde_json::Value;
+    ///     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    ///         let de = serde_json::Deserializer::from_slice(src);
+    ///         let mut iter = de.into_iter::<serde_json::Value>();
+    ///
+    ///         let item = match iter.next() {
+    ///             Some(Ok(item)) => item,
+    ///             Some(Err(ref e)) if e.is_eof() => return Ok(None),
+    ///             Some(Err(e)) => return Err(Error::Decode(e.to_string())),
+    ///             None => return Ok(None),
+    ///         };
+    ///
+    ///         Ok(Some((iter.byte_offset(), item)))
+    ///     }
+    /// }
+    ///
+    /// async {
+    ///     let builder = Client::builder_with_json_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
+    ///         .expect("Create a new client builder with a custom json codec");
+    ///     let client = builder.build().await
+    ///         .expect("Build a new client");
+    /// };
+    /// ```
+    pub fn builder_with_json_codec(
+        endpoint: impl ToEndpoint,
+        json_codec: C,
+    ) -> Result<ClientBuilder<C>> {
         let endpoint = endpoint.to_endpoint()?;
         Ok(ClientBuilder {
             inner: ClientConfig {
                 endpoint,
+                json_codec,
                 timeout: Some(DEFAULT_TIMEOUT),
                 #[cfg(feature = "tcp")]
                 tcp_config: Default::default(),
@@ -51,11 +121,14 @@ impl Client {
 }
 
 /// Builder for constructing an RPC [`Client`].
-pub struct ClientBuilder {
-    inner: ClientConfig,
+pub struct ClientBuilder<C> {
+    inner: ClientConfig<C>,
 }
 
-impl ClientBuilder {
+impl<C> ClientBuilder<C>
+where
+    C: ClonableJsonCodec,
+{
     /// Set timeout for receiving messages, in milliseconds. Requests will
     /// fail if it takes longer.
     ///
@@ -191,7 +264,7 @@ impl ClientBuilder {
     /// };
     ///
     /// ```
-    pub async fn build(self) -> Result<Arc<Client>> {
+    pub async fn build(self) -> Result<Arc<Client<C>>> {
         let client = Client::init(self.inner).await?;
         Ok(client)
     }

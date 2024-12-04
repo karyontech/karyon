@@ -9,6 +9,17 @@ use karyon_net::{
 #[cfg(feature = "ws")]
 use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
+pub trait ClonableJsonCodec:
+    Codec<Item = serde_json::Value, DeItem = serde_json::Value, EnItem = serde_json::Value> + Clone
+{
+}
+impl<
+        T: Codec<Item = serde_json::Value, DeItem = serde_json::Value, EnItem = serde_json::Value>
+            + Clone,
+    > ClonableJsonCodec for T
+{
+}
+
 #[derive(Clone)]
 pub struct JsonCodec {}
 
