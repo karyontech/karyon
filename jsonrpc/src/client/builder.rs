@@ -94,7 +94,7 @@ where
     /// }
     ///
     /// async {
-    ///     let builder = Client::builder_with_json_codec("ws://127.0.0.1:3000", CustomJsonCodec {})
+    ///     let builder = Client::builder_with_json_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
     ///         .expect("Create a new client builder with a custom json codec");
     ///     let client = builder.build().await
     ///         .expect("Build a new client");
