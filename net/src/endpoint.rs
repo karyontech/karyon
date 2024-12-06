@@ -4,6 +4,7 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(target_family = "unix")]
 use std::os::unix::net::SocketAddr as UnixSocketAddr;
 
 use bincode::{Decode, Encode};
@@ -191,6 +192,7 @@ impl TryFrom<Endpoint> for PathBuf {
     }
 }
 
+#[cfg(all(feature = "unix", target_family = "unix"))]
 impl TryFrom<Endpoint> for UnixSocketAddr {
     type Error = Error;
     fn try_from(endpoint: Endpoint) -> std::result::Result<UnixSocketAddr, Self::Error> {
