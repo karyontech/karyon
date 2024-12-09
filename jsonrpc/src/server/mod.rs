@@ -249,7 +249,8 @@ where
         }
 
         let srvc_name = srvc_method[0].to_string();
-        let method_name = srvc_method[1].to_string();
+        // Method name is allowed to contain dots
+        let method_name = srvc_method[1..].join(".");
 
         SanityCheckResult::NewReq(NewRequest {
             srvc_name,
