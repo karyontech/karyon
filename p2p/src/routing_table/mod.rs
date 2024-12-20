@@ -287,8 +287,6 @@ fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
             }
             ip.octets()[0..3] == other_ip.octets()[0..3]
         }
-
-        // TODO:  
         // Assume that they have /64 prefix
         (Addr::Ip(IpAddr::V6(ip)), Addr::Ip(IpAddr::V6(other_ip))) => {
             if other_ip.is_loopback() && ip.is_loopback() {
