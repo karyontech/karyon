@@ -5,7 +5,6 @@ use std::net::IpAddr;
 
 use parking_lot::RwLock;
 
-
 use rand::{rngs::OsRng, seq::SliceRandom};
 
 use karyon_net::Addr;
@@ -506,19 +505,18 @@ mod tests {
         assert!(matches!(table.add_entry(entry), AddEntryResult::Ignored));
     }
 
-    use std::net::{Ipv6Addr,Ipv4Addr};
+    use std::net::{Ipv4Addr, Ipv6Addr};
     #[test]
-    fn check_subnet_match(){
+    fn check_subnet_match() {
         let addr_v4 = Addr::Ip(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
         let other_addr_v4 = Addr::Ip(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
-    
+
         let addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)));
         let other_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2)));
         let diff_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb7, 0, 0, 0, 0, 0, 2)));
-    
-        assert!(matches!( subnet_match(&addr_v4, &other_addr_v4),true)); 
-        assert!(matches!(subnet_match(&addr_v6, &other_addr_v6),true)); 
-        assert!(matches!(subnet_match(&addr_v6, &diff_addr_v6),false)); 
-    
+
+        assert!(matches!(subnet_match(&addr_v4, &other_addr_v4), true));
+        assert!(matches!(subnet_match(&addr_v6, &other_addr_v6), true));
+        assert!(matches!(subnet_match(&addr_v6, &diff_addr_v6), false));
     }
 }
