@@ -5,6 +5,7 @@ use std::net::IpAddr;
 
 use parking_lot::RwLock;
 
+
 use rand::{rngs::OsRng, seq::SliceRandom};
 
 use karyon_net::Addr;
@@ -287,7 +288,17 @@ fn subnet_match(addr: &Addr, other_addr: &Addr) -> bool {
             ip.octets()[0..3] == other_ip.octets()[0..3]
         }
 
-        // TODO:  check ipv6
+        // TODO:  
+        // Assume that they have /64 prefix
+        (Addr::Ip(IpAddr::V6(ip)), Addr::Ip(IpAddr::V6(other_ip))) => {
+            if other_ip.is_loopback() && ip.is_loopback() {
+                return false;
+            }
+            // Compare the first 4 segments (128 bits, 4 * 16 bits)
+            ip.segments()[0..4] == other_ip.segments()[0..4]
+        }
+
+        // If the address types don't match or are not handled
         _ => false,
     }
 }
@@ -495,5 +506,21 @@ mod tests {
         key[BUCKET_SIZE] += 1;
         let entry = new_entry(&key, &Addr::Ip("125.20.0.1".parse().unwrap()), 3000, 3010);
         assert!(matches!(table.add_entry(entry), AddEntryResult::Ignored));
+    }
+
+    use std::net::{Ipv6Addr,Ipv4Addr};
+    #[test]
+    fn check_subnet_match(){
+        let addr_v4 = Addr::Ip(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
+        let other_addr_v4 = Addr::Ip(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
+    
+        let addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)));
+        let other_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2)));
+        let diff_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb7, 0, 0, 0, 0, 0, 2)));
+    
+        assert!(matches!( subnet_match(&addr_v4, &other_addr_v4),true)); 
+        assert!(matches!(subnet_match(&addr_v6, &other_addr_v6),true)); 
+        assert!(matches!(subnet_match(&addr_v6, &diff_addr_v6),false)); 
+    
     }
 }
