@@ -15,15 +15,17 @@ use log::{debug, error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
-#[cfg(feature = "tcp")]
-use karyon_net::tcp::TcpConfig;
 #[cfg(feature = "ws")]
 use karyon_net::ws::ClientWsConfig;
 #[cfg(all(feature = "ws", feature = "tls"))]
 use karyon_net::ws::ClientWssConfig;
 #[cfg(feature = "tls")]
 use karyon_net::{async_rustls::rustls, tls::ClientTlsConfig};
-use karyon_net::{Conn, Endpoint};
+
+#[cfg(feature = "tcp")]
+use crate::net::TcpConfig;
+
+use karyon_net::Conn;
 
 use karyon_core::{
     async_util::{select, timeout, Either, TaskGroup, TaskResult},
@@ -31,23 +33,23 @@ use karyon_core::{
 };
 
 use crate::codec::ClonableJsonCodec;
-#[cfg(feature = "ws")]
-use crate::codec::WsJsonCodec;
 
 use crate::{
+    error::{Error, Result},
     message::{self, SubscriptionID},
-    Error, Result,
+    net::Endpoint,
 };
 
-use message_dispatcher::MessageDispatcher;
+pub use builder::ClientBuilder;
 pub use subscriptions::Subscription;
+
+use message_dispatcher::MessageDispatcher;
 use subscriptions::Subscriptions;
 
 type RequestID = u32;
 
-struct ClientConfig<C> {
+struct ClientConfig {
     endpoint: Endpoint,
-    json_codec: C,
     #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
     #[cfg(feature = "tls")]
@@ -63,7 +65,8 @@ pub struct Client<C> {
     subscriptions: Arc<Subscriptions>,
     send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
     task_group: TaskGroup,
-    config: ClientConfig<C>,
+    config: ClientConfig,
+    codec: C,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -75,7 +78,7 @@ enum NewMsg {
 
 impl<C> Client<C>
 where
-    C: ClonableJsonCodec,
+    C: ClonableJsonCodec + 'static,
 {
     /// Calls the provided method, waits for the response, and returns the result.
     pub async fn call<T: Serialize + DeserializeOwned, V: DeserializeOwned>(
@@ -185,7 +188,7 @@ where
     }
 
     /// Initializes a new [`Client`] from the provided [`ClientConfig`].
-    async fn init(config: ClientConfig<C>) -> Result<Arc<Self>> {
+    async fn init(config: ClientConfig, codec: C) -> Result<Arc<Self>> {
         let client = Arc::new(Client {
             disconnect: AtomicBool::new(false),
             subscriptions: Subscriptions::new(config.subscription_buffer_size),
@@ -193,6 +196,7 @@ where
             message_dispatcher: MessageDispatcher::new(),
             task_group: TaskGroup::new(),
             config,
+            codec,
         });
 
         let conn = client.connect().await?;
@@ -204,14 +208,13 @@ where
         Ok(client)
     }
 
-    async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value>> {
+    async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value, Error>> {
         let endpoint = self.config.endpoint.clone();
-        let json_codec = self.config.json_codec.clone();
-        let conn: Conn<serde_json::Value> = match endpoint {
+        let codec = self.codec.clone();
+        let conn: Conn<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), json_codec)
-                    .await?,
+                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), codec).await?,
             ),
             #[cfg(feature = "tls")]
             Endpoint::Tls(..) => match &self.config.tls_config {
@@ -223,7 +226,7 @@ where
                             client_config: conf.clone(),
                             tcp_config: self.config.tcp_config.clone(),
                         },
-                        json_codec,
+                        codec,
                     )
                     .await?,
                 ),
@@ -235,7 +238,7 @@ where
                     tcp_config: self.config.tcp_config.clone(),
                     wss_config: None,
                 };
-                Box::new(karyon_net::ws::dial(&endpoint, config, WsJsonCodec {}).await?)
+                Box::new(karyon_net::ws::dial(&endpoint, config, codec).await?)
             }
             #[cfg(all(feature = "ws", feature = "tls"))]
             Endpoint::Wss(..) => match &self.config.tls_config {
@@ -249,7 +252,7 @@ where
                                 client_config: conf.clone(),
                             }),
                         },
-                        WsJsonCodec {},
+                        codec,
                     )
                     .await?,
                 ),
@@ -257,7 +260,7 @@ where
             },
             #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => {
-                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), json_codec).await?)
+                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), codec).await?)
             }
             _ => return Err(Error::UnsupportedProtocol(endpoint.to_string())),
         };
@@ -265,7 +268,7 @@ where
         Ok(conn)
     }
 
-    fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value>) {
+    fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value, Error>) {
         let on_complete = {
             let this = self.clone();
             |result: TaskResult<Result<()>>| async move {
@@ -288,7 +291,7 @@ where
         );
     }
 
-    async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value>) -> Result<()> {
+    async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value, Error>) -> Result<()> {
         loop {
             match select(self.send_chan.1.recv(), conn.recv()).await {
                 Either::Left(req) => {

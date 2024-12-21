@@ -8,12 +8,12 @@ use karyon_core::{
     util::encode,
 };
 
-use karyon_net::{Conn, Endpoint};
+use karyon_net::Endpoint;
 
 use crate::{
     message::{NetMsg, NetMsgCmd, ProtocolMsg, ShutdownMsg},
     protocol::{Protocol, ProtocolEvent, ProtocolID},
-    Error, Result,
+    ConnRef, Error, Result,
 };
 
 /// Defines the direction of a network connection.
@@ -34,7 +34,7 @@ impl fmt::Display for ConnDirection {
 
 pub struct Connection {
     pub(crate) direction: ConnDirection,
-    conn: Conn<NetMsg>,
+    conn: ConnRef,
     disconnect_signal: Sender<Result<()>>,
     /// `EventEmitter` responsible for sending events to the registered protocols.
     protocol_events: Arc<EventEmitter<ProtocolID>>,
@@ -44,7 +44,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn new(
-        conn: Conn<NetMsg>,
+        conn: ConnRef,
         signal: Sender<Result<()>>,
         direction: ConnDirection,
         remote_endpoint: Endpoint,

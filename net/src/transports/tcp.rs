@@ -62,24 +62,25 @@ where
 }
 
 #[async_trait]
-impl<C> Connection for TcpConn<C>
+impl<C, E> Connection for TcpConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone,
 {
-    type Item = C::Item;
-    fn peer_endpoint(&self) -> Result<Endpoint> {
+    type Message = C::Message;
+    type Error = E;
+    fn peer_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         Ok(self.peer_endpoint.clone())
     }
 
-    fn local_endpoint(&self) -> Result<Endpoint> {
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         Ok(self.local_endpoint.clone())
     }
 
-    async fn recv(&self) -> Result<Self::Item> {
+    async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
         self.read_stream.lock().await.recv().await
     }
 
-    async fn send(&self, msg: Self::Item) -> Result<()> {
+    async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         self.write_stream.lock().await.send(msg).await
     }
 }
@@ -104,16 +105,18 @@ where
 }
 
 #[async_trait]
-impl<C> ConnListener for TcpListener<C>
+impl<C, E> ConnListener for TcpListener<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn local_endpoint(&self) -> Result<Endpoint> {
+    type Message = C::Message;
+    type Error = E;
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         Ok(Endpoint::new_tcp_addr(self.inner.local_addr()?))
     }
 
-    async fn accept(&self) -> Result<Conn<C::Item>> {
+    async fn accept(&self) -> std::result::Result<Conn<C::Message, C::Error>, Self::Error> {
         let (socket, _) = self.inner.accept().await?;
         socket.set_nodelay(self.config.nodelay)?;
 
@@ -154,31 +157,35 @@ where
     Ok(TcpListener::new(listener, config, codec))
 }
 
-impl<C> From<TcpListener<C>> for Box<dyn ConnListener<Item = C::Item>>
+impl<C, E> From<TcpListener<C>> for Box<dyn ConnListener<Message = C::Message, Error = E>>
 where
-    C: Clone + Codec,
+    C: Clone + Codec<Error = E> + 'static,
+    E: From<std::io::Error>,
 {
     fn from(listener: TcpListener<C>) -> Self {
         Box::new(listener)
     }
 }
 
-impl<C> ToConn for TcpConn<C>
+impl<C, E> ToConn for TcpConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
 {
-    type Item = C::Item;
-    fn to_conn(self) -> Conn<Self::Item> {
+    type Message = C::Message;
+    type Error = E;
+    fn to_conn(self) -> Conn<Self::Message, Self::Error> {
         Box::new(self)
     }
 }
 
-impl<C> ToListener for TcpListener<C>
+impl<C, E> ToListener for TcpListener<C>
 where
-    C: Clone + Codec,
+    C: Clone + Codec<Error = E> + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn to_listener(self) -> Listener<Self::Item> {
-        self.into()
+    type Message = C::Message;
+    type Error = E;
+    fn to_listener(self) -> Listener<Self::Message, Self::Error> {
+        Box::new(self)
     }
 }

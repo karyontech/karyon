@@ -4,7 +4,10 @@ use async_channel::{Receiver, Sender};
 
 use karyon_core::async_runtime::lock::Mutex;
 
-use crate::{message, Error, Result};
+use crate::{
+    error::{Error, Result},
+    message,
+};
 
 use super::RequestID;
 

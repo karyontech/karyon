@@ -1,11 +1,11 @@
 use karyon_core::util::{decode, encode, encode_into_slice};
 
-use karyon_net::{
-    codec::{Codec, Decoder, Encoder, LengthCodec},
-    Result,
-};
+use karyon_net::codec::{Codec, Decoder, Encoder, LengthCodec};
 
-use crate::message::{NetMsg, RefreshMsg};
+use crate::{
+    message::{NetMsg, RefreshMsg},
+    Error, Result,
+};
 
 #[derive(Clone)]
 pub struct NetMsgCodec {
@@ -21,23 +21,26 @@ impl NetMsgCodec {
 }
 
 impl Codec for NetMsgCodec {
-    type Item = NetMsg;
+    type Message = NetMsg;
+    type Error = Error;
 }
 
 impl Encoder for NetMsgCodec {
-    type EnItem = NetMsg;
-    fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    type EnMessage = NetMsg;
+    type EnError = Error;
+    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
         let src = encode(src)?;
-        self.inner_codec.encode(&src, dst)
+        Ok(self.inner_codec.encode(&src, dst)?)
     }
 }
 
 impl Decoder for NetMsgCodec {
-    type DeItem = NetMsg;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    type DeMessage = NetMsg;
+    type DeError = Error;
+    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
         match self.inner_codec.decode(src)? {
             Some((n, s)) => {
-                let (m, _) = decode::<Self::DeItem>(&s)?;
+                let (m, _) = decode::<Self::DeMessage>(&s)?;
                 Ok(Some((n, m)))
             }
             None => Ok(None),
@@ -49,21 +52,24 @@ impl Decoder for NetMsgCodec {
 pub struct RefreshMsgCodec {}
 
 impl Codec for RefreshMsgCodec {
-    type Item = RefreshMsg;
+    type Message = RefreshMsg;
+    type Error = Error;
 }
 
 impl Encoder for RefreshMsgCodec {
-    type EnItem = RefreshMsg;
-    fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    type EnMessage = RefreshMsg;
+    type EnError = Error;
+    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
         let n = encode_into_slice(src, dst)?;
         Ok(n)
     }
 }
 
 impl Decoder for RefreshMsgCodec {
-    type DeItem = RefreshMsg;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
-        let (m, n) = decode::<Self::DeItem>(src)?;
+    type DeMessage = RefreshMsg;
+    type DeError = Error;
+    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
+        let (m, n) = decode::<Self::DeMessage>(src)?;
         Ok(Some((n, m)))
     }
 }

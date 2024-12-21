@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::RPCError;
+use crate::error::RPCError;
 
 pub type ID = u64;
 

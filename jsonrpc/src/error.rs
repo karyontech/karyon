@@ -8,11 +8,17 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
-    #[error("Call Error: code: {0} msg: {1}")]
+    #[error("Call Error: code: {0} - msg: {1}")]
     CallError(i32, String),
 
-    #[error("Subscribe Error: code: {0} msg: {1}")]
+    #[error("Subscribe Error: code: {0} - msg: {1}")]
     SubscribeError(i32, String),
+
+    #[error("Encode Error: {0}")]
+    Encode(String),
+
+    #[error("Decode Error: {0}")]
+    Decode(String),
 
     #[error("Invalid Message Error: {0}")]
     InvalidMsg(&'static str),
@@ -26,16 +32,16 @@ pub enum Error {
     #[error("Tls config is required")]
     TLSConfigRequired,
 
-    #[error("Receive close message from connection: {0}")]
+    #[error("Receive Close Message From Connection: {0}")]
     CloseConnection(String),
 
-    #[error("Subscription not found: {0}")]
+    #[error("Subscription Not Found: {0}")]
     SubscriptionNotFound(String),
 
-    #[error("Subscription exceeds the maximum buffer size")]
+    #[error("Subscription Exceeds The Maximum Buffer Size")]
     SubscriptionBufferFull,
 
-    #[error("Subscription closed")]
+    #[error("Subscription Closed")]
     SubscriptionClosed,
 
     #[error("ClientDisconnected")]
@@ -46,6 +52,10 @@ pub enum Error {
 
     #[error("Channel send  Error: {0}")]
     ChannelSend(String),
+
+    #[cfg(feature = "ws")]
+    #[error(transparent)]
+    WebSocket(#[from] async_tungstenite::tungstenite::Error),
 
     #[error("Unexpected Error: {0}")]
     General(&'static str),

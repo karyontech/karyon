@@ -7,7 +7,7 @@ use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 
 use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair, util::decode};
 
-use karyon_net::{Conn, Endpoint};
+use karyon_net::Endpoint;
 
 use crate::{
     connector::Connector,
@@ -17,7 +17,7 @@ use crate::{
     routing_table::RoutingTable,
     slots::ConnectionSlots,
     version::version_match,
-    Config, Error, PeerID, Result,
+    Config, ConnRef, Error, PeerID, Result,
 };
 
 /// Maximum number of peers that can be returned in a PeersMsg.
@@ -256,7 +256,7 @@ impl LookupService {
     /// Handles outbound connection
     async fn handle_outbound(
         &self,
-        conn: Conn<NetMsg>,
+        conn: ConnRef,
         target_peer_id: &PeerID,
     ) -> Result<Vec<PeerMsg>> {
         trace!("Send Ping msg");
@@ -307,7 +307,7 @@ impl LookupService {
 
         let callback = {
             let this = self.clone();
-            |conn: Conn<NetMsg>| async move {
+            |conn: ConnRef| async move {
                 let t = Duration::from_secs(this.config.lookup_connection_lifespan);
                 timeout(t, this.handle_inbound(conn)).await??;
                 Ok(())
@@ -319,7 +319,7 @@ impl LookupService {
     }
 
     /// Handles inbound connection
-    async fn handle_inbound(self: &Arc<Self>, conn: Conn<NetMsg>) -> Result<()> {
+    async fn handle_inbound(self: &Arc<Self>, conn: ConnRef) -> Result<()> {
         loop {
             let msg: NetMsg = conn.recv().await?;
             trace!("Receive msg {:?}", msg.header.command);
@@ -352,7 +352,7 @@ impl LookupService {
     }
 
     /// Sends a Ping msg.
-    async fn send_ping_msg(&self, conn: &Conn<NetMsg>) -> Result<PingMsg> {
+    async fn send_ping_msg(&self, conn: &ConnRef) -> Result<PingMsg> {
         trace!("Send Pong msg");
         let mut nonce: [u8; 32] = [0; 32];
         RngCore::fill_bytes(&mut OsRng, &mut nonce);
@@ -366,7 +366,7 @@ impl LookupService {
     }
 
     /// Sends a Pong msg
-    async fn send_pong_msg(&self, nonce: [u8; 32], conn: &Conn<NetMsg>) -> Result<()> {
+    async fn send_pong_msg(&self, nonce: [u8; 32], conn: &ConnRef) -> Result<()> {
         trace!("Send Pong msg");
         conn.send(NetMsg::new(NetMsgCmd::Pong, PongMsg(nonce))?)
             .await?;
@@ -374,7 +374,7 @@ impl LookupService {
     }
 
     /// Sends a FindPeer msg
-    async fn send_findpeer_msg(&self, conn: &Conn<NetMsg>, peer_id: &PeerID) -> Result<()> {
+    async fn send_findpeer_msg(&self, conn: &ConnRef, peer_id: &PeerID) -> Result<()> {
         trace!("Send FindPeer msg");
         conn.send(NetMsg::new(
             NetMsgCmd::FindPeer,
@@ -385,7 +385,7 @@ impl LookupService {
     }
 
     /// Sends a Peers msg.
-    async fn send_peers_msg(&self, peer_id: &PeerID, conn: &Conn<NetMsg>) -> Result<()> {
+    async fn send_peers_msg(&self, peer_id: &PeerID, conn: &ConnRef) -> Result<()> {
         trace!("Send Peers msg");
         let entries = self
             .table
@@ -398,7 +398,7 @@ impl LookupService {
     }
 
     /// Sends a Peer msg.
-    async fn send_peer_msg(&self, conn: &Conn<NetMsg>, endpoint: Endpoint) -> Result<()> {
+    async fn send_peer_msg(&self, conn: &ConnRef, endpoint: Endpoint) -> Result<()> {
         trace!("Send Peer msg");
         let peer_msg = PeerMsg {
             addr: endpoint.addr()?.clone(),
@@ -411,7 +411,7 @@ impl LookupService {
     }
 
     /// Sends a Shutdown msg.
-    async fn send_shutdown_msg(&self, conn: &Conn<NetMsg>) -> Result<()> {
+    async fn send_shutdown_msg(&self, conn: &ConnRef) -> Result<()> {
         trace!("Send Shutdown msg");
         conn.send(NetMsg::new(NetMsgCmd::Shutdown, ShutdownMsg(0))?)
             .await?;

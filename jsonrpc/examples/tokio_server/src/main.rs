@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_jsonrpc::{
-    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, RPCError, Server,
+    error::RPCError,
+    message::SubscriptionID,
+    rpc_impl, rpc_pubsub_impl,
+    server::{Channel, ServerBuilder},
 };
 
 struct Calc {
@@ -84,7 +87,7 @@ async fn main() {
     });
 
     // Creates a new server
-    let server = Server::builder("ws://127.0.0.1:6000")
+    let server = ServerBuilder::new("ws://127.0.0.1:6000")
         .expect("Create a new server builder")
         .service(calc.clone())
         .pubsub_service(calc)

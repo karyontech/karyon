@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
 };
 
-#[cfg(target_family = "unix")]
+#[cfg(all(target_family = "unix", feature = "unix"))]
 use std::os::unix::net::SocketAddr as UnixSocketAddr;
 
 use bincode::{Decode, Encode};
@@ -231,16 +231,16 @@ impl FromStr for Endpoint {
                 "tls" => Ok(Endpoint::Tls(addr, port)),
                 "ws" => Ok(Endpoint::Ws(addr, port)),
                 "wss" => Ok(Endpoint::Wss(addr, port)),
-                _ => Err(Error::InvalidEndpoint(s.to_string())),
+                _ => Err(Error::UnsupportedEndpoint(s.to_string())),
             }
         } else {
             if url.path().is_empty() {
-                return Err(Error::InvalidEndpoint(s.to_string()));
+                return Err(Error::UnsupportedEndpoint(s.to_string()));
             }
 
             match url.scheme() {
                 "unix" => Ok(Endpoint::Unix(url.path().into())),
-                _ => Err(Error::InvalidEndpoint(s.to_string())),
+                _ => Err(Error::UnsupportedEndpoint(s.to_string())),
             }
         }
     }
@@ -255,11 +255,11 @@ pub enum Addr {
 }
 
 impl TryFrom<Addr> for IpAddr {
-    type Error = Error;
+    type Error = std::io::Error;
     fn try_from(addr: Addr) -> std::result::Result<IpAddr, Self::Error> {
         match addr {
             Addr::Ip(ip) => Ok(ip),
-            Addr::Domain(d) => Err(Error::InvalidAddress(d)),
+            Addr::Domain(_) => Err(std::io::ErrorKind::Unsupported.into()),
         }
     }
 }

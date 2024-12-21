@@ -15,18 +15,25 @@ use karyon_core::{
 
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
-#[cfg(feature = "tcp")]
-use karyon_net::tcp::TcpConfig;
 #[cfg(feature = "ws")]
 use karyon_net::ws::ServerWsConfig;
-use karyon_net::{Conn, Endpoint, Listener};
+use karyon_net::{Conn, Listener};
 
-use crate::codec::ClonableJsonCodec;
-#[cfg(feature = "ws")]
-use crate::codec::WsJsonCodec;
-use crate::{message, Error, PubSubRPCService, RPCService, Result};
+#[cfg(feature = "tcp")]
+use crate::net::TcpConfig;
 
-use channel::Channel;
+use crate::{
+    codec::ClonableJsonCodec,
+    error::{Error, Result},
+    message,
+    net::Endpoint,
+};
+
+pub use builder::ServerBuilder;
+pub use channel::Channel;
+pub use pubsub_service::{PubSubRPCMethod, PubSubRPCService};
+pub use service::{RPCMethod, RPCService};
+
 use response_queue::ResponseQueue;
 
 pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
@@ -47,9 +54,8 @@ enum SanityCheckResult {
     ErrRes(message::Response),
 }
 
-struct ServerConfig<C> {
+struct ServerConfig {
     endpoint: Endpoint,
-    json_codec: C,
     #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
     #[cfg(feature = "tls")]
@@ -59,16 +65,13 @@ struct ServerConfig<C> {
 }
 
 /// Represents an RPC server
-pub struct Server<C> {
-    listener: Listener<serde_json::Value>,
+pub struct Server {
+    listener: Listener<serde_json::Value, Error>,
     task_group: TaskGroup,
-    config: ServerConfig<C>,
+    config: ServerConfig,
 }
 
-impl<C> Server<C>
-where
-    C: ClonableJsonCodec,
-{
+impl Server {
     /// Starts the RPC server. This will spawn a new task for the main accept loop,
     /// which listens for incoming connections.
     pub fn start(self: &Arc<Self>) {
@@ -117,7 +120,7 @@ where
     }
 
     /// Handles a new connection
-    async fn handle_conn(self: &Arc<Self>, conn: Conn<serde_json::Value>) -> Result<()> {
+    async fn handle_conn(self: &Arc<Self>, conn: Conn<serde_json::Value, Error>) -> Result<()> {
         let endpoint: Option<Endpoint> = conn.peer_endpoint().ok();
         debug!("Handle a new connection {:?}", endpoint);
 
@@ -348,12 +351,16 @@ where
     }
 
     /// Initializes a new [`Server`] from the provided [`ServerConfig`]
-    async fn init(config: ServerConfig<C>, ex: Option<Executor>) -> Result<Arc<Self>> {
+    async fn init(
+        config: ServerConfig,
+        ex: Option<Executor>,
+        codec: impl ClonableJsonCodec + 'static,
+    ) -> Result<Arc<Self>> {
         let task_group = match ex {
             Some(ex) => TaskGroup::with_executor(ex),
             None => TaskGroup::new(),
         };
-        let listener = Self::listen(&config).await?;
+        let listener = Self::listen(&config, codec).await?;
         info!("RPC server listens to the endpoint: {}", config.endpoint);
 
         let server = Arc::new(Server {
@@ -365,13 +372,15 @@ where
         Ok(server)
     }
 
-    async fn listen(config: &ServerConfig<C>) -> Result<Listener<serde_json::Value>> {
+    async fn listen(
+        config: &ServerConfig,
+        codec: impl ClonableJsonCodec + 'static,
+    ) -> Result<Listener<serde_json::Value, Error>> {
         let endpoint = config.endpoint.clone();
-        let json_codec = config.json_codec.clone();
-        let listener: Listener<serde_json::Value> = match endpoint {
+        let listener: Listener<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::listen(&endpoint, config.tcp_config.clone(), json_codec).await?,
+                karyon_net::tcp::listen(&endpoint, config.tcp_config.clone(), codec).await?,
             ),
             #[cfg(feature = "tls")]
             Endpoint::Tls(..) => match &config.tls_config {
@@ -382,7 +391,7 @@ where
                             server_config: conf.clone(),
                             tcp_config: config.tcp_config.clone(),
                         },
-                        json_codec,
+                        codec,
                     )
                     .await?,
                 ),
@@ -394,7 +403,7 @@ where
                     tcp_config: config.tcp_config.clone(),
                     wss_config: None,
                 };
-                Box::new(karyon_net::ws::listen(&endpoint, config, WsJsonCodec {}).await?)
+                Box::new(karyon_net::ws::listen(&endpoint, config, codec).await?)
             }
             #[cfg(all(feature = "ws", feature = "tls"))]
             Endpoint::Wss(..) => match &config.tls_config {
@@ -407,7 +416,7 @@ where
                                 server_config: conf.clone(),
                             }),
                         },
-                        WsJsonCodec {},
+                        codec,
                     )
                     .await?,
                 ),
@@ -417,7 +426,7 @@ where
             Endpoint::Unix(..) => Box::new(karyon_net::unix::listen(
                 &endpoint,
                 Default::default(),
-                json_codec,
+                codec,
             )?),
 
             _ => return Err(Error::UnsupportedProtocol(endpoint.to_string())),

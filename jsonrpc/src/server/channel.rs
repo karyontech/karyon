@@ -2,7 +2,10 @@ use std::sync::{Arc, Weak};
 
 use karyon_core::{async_runtime::lock::Mutex, util::random_32};
 
-use crate::{message::SubscriptionID, Error, Result};
+use crate::{
+    error::{Error, Result},
+    message::SubscriptionID,
+};
 
 #[derive(Debug)]
 pub(crate) struct NewNotification {

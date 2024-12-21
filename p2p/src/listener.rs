@@ -8,7 +8,7 @@ use karyon_core::{
     crypto::KeyPair,
 };
 
-use karyon_net::{tcp, tls, Conn, Endpoint};
+use karyon_net::{tcp, tls, Endpoint};
 
 use crate::{
     codec::NetMsgCodec,
@@ -16,7 +16,7 @@ use crate::{
     monitor::{ConnEvent, Monitor},
     slots::ConnectionSlots,
     tls_config::tls_server_config,
-    Error, Result,
+    ConnRef, Error, ListenerRef, Result,
 };
 
 /// Responsible for creating inbound connections with other peers.
@@ -64,7 +64,7 @@ impl Listener {
         self: &Arc<Self>,
         endpoint: Endpoint,
         // https://github.com/rust-lang/rfcs/pull/2132
-        callback: impl FnOnce(Conn<NetMsg>) -> Fut + Clone + Send + 'static,
+        callback: impl FnOnce(ConnRef) -> Fut + Clone + Send + 'static,
     ) -> Result<Endpoint>
     where
         Fut: Future<Output = Result<()>> + Send + 'static,
@@ -104,8 +104,8 @@ impl Listener {
 
     async fn listen_loop<Fut>(
         self: Arc<Self>,
-        listener: karyon_net::Listener<NetMsg>,
-        callback: impl FnOnce(Conn<NetMsg>) -> Fut + Clone + Send + 'static,
+        listener: karyon_net::Listener<NetMsg, Error>,
+        callback: impl FnOnce(ConnRef) -> Fut + Clone + Send + 'static,
     ) where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
@@ -155,7 +155,7 @@ impl Listener {
         }
     }
 
-    async fn listen(&self, endpoint: &Endpoint) -> Result<karyon_net::Listener<NetMsg>> {
+    async fn listen(&self, endpoint: &Endpoint) -> Result<ListenerRef> {
         if self.enable_tls {
             if !endpoint.is_tcp() && !endpoint.is_tls() {
                 return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
@@ -165,18 +165,15 @@ impl Listener {
                 tcp_config: Default::default(),
                 server_config: tls_server_config(&self.key_pair)?,
             };
-            tls::listen(endpoint, tls_config, NetMsgCodec::new())
-                .await
-                .map(|l| Box::new(l) as karyon_net::Listener<NetMsg>)
+            let l = tls::listen(endpoint, tls_config, NetMsgCodec::new()).await?;
+            Ok(Box::new(l))
         } else {
             if !endpoint.is_tcp() {
                 return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
             }
 
-            tcp::listen(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new())
-                .await
-                .map(|l| Box::new(l) as karyon_net::Listener<NetMsg>)
+            let l = tcp::listen(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new()).await?;
+            Ok(Box::new(l))
         }
-        .map_err(Error::KaryonNet)
     }
 }

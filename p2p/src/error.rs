@@ -8,23 +8,26 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
-    #[error("Unsupported protocol error: {0}")]
+    #[error("Unsupported Protocol Error: {0}")]
     UnsupportedProtocol(String),
 
     #[error("Unsupported Endpoint: {0}")]
     UnsupportedEndpoint(String),
 
-    #[error("PeerID try from PublicKey Error")]
+    #[error("PeerID Try From PublicKey Error")]
     PeerIDTryFromPublicKey,
 
-    #[error("PeerID try from String Error")]
+    #[error("PeerID Try From String Error")]
     PeerIDTryFromString,
 
-    #[error("Invalid message error: {0}")]
+    #[error("Invalid Message Error: {0}")]
     InvalidMsg(String),
 
     #[error("Incompatible Peer")]
     IncompatiblePeer,
+
+    #[error("Timeout Error")]
+    Timeout,
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
@@ -41,13 +44,13 @@ pub enum Error {
     #[error("Parse Error: {0}")]
     ParseError(String),
 
-    #[error("Incompatible version error: {0}")]
+    #[error("Incompatible Version Error: {0}")]
     IncompatibleVersion(String),
 
-    #[error("Config error: {0}")]
+    #[error("Config Error: {0}")]
     Config(String),
 
-    #[error("Peer shutdown")]
+    #[error("Peer Shutdown")]
     PeerShutdown,
 
     #[error("Invalid Pong Msg")]
@@ -59,7 +62,7 @@ pub enum Error {
     #[error("Lookup error: {0}")]
     Lookup(&'static str),
 
-    #[error("Peer already connected")]
+    #[error("Peer Already Connected")]
     PeerAlreadyConnected,
 
     #[error("Yasna Error: {0}")]

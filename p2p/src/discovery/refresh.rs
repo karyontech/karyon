@@ -10,7 +10,7 @@ use karyon_core::{
     async_util::{sleep, timeout, Backoff, TaskGroup, TaskResult},
 };
 
-use karyon_net::{udp, Connection, Endpoint, Error as NetError};
+use karyon_net::{udp, Connection, Endpoint};
 
 use crate::{
     codec::RefreshMsgCodec,
@@ -184,7 +184,7 @@ impl RefreshService {
         while retry < self.config.refresh_connect_retries {
             match self.send_ping_msg(&conn, &endpoint).await {
                 Ok(()) => return Ok(()),
-                Err(Error::KaryonNet(NetError::Timeout)) => {
+                Err(Error::Timeout) => {
                     retry += 1;
                     backoff.sleep().await;
                 }
@@ -194,7 +194,7 @@ impl RefreshService {
             }
         }
 
-        Err(NetError::Timeout.into())
+        Err(Error::Timeout)
     }
 
     /// Set up a UDP listener and start listening for Ping messages from other

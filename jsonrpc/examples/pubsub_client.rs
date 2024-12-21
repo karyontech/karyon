@@ -4,13 +4,13 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use smol::Timer;
 
-use karyon_jsonrpc::Client;
+use karyon_jsonrpc::client::ClientBuilder;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Pong {}
 
 async fn run_client() {
-    let client = Client::builder("tcp://127.0.0.1:6000")
+    let client = ClientBuilder::new("tcp://127.0.0.1:6000")
         .expect("Create client builder")
         .build()
         .await

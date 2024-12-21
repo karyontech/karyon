@@ -1,4 +1,4 @@
-use karyon_jsonrpc::{rpc_impl, RPCError, RPCService};
+use karyon_jsonrpc::{error::RPCError, rpc_impl, server::RPCService};
 use serde_json::Value;
 
 #[test]

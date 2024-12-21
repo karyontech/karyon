@@ -53,11 +53,11 @@ pub fn rpc_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let item: TokenStream2 = item.into();
     quote! {
-        impl karyon_jsonrpc::RPCService for #self_ty {
+        impl karyon_jsonrpc::server::RPCService for #self_ty {
             fn get_method(
                 &self,
                 name: &str
-            ) -> Option<karyon_jsonrpc::RPCMethod> {
+            ) -> Option<karyon_jsonrpc::server::RPCMethod> {
                 match name {
                 #(#impl_methods)*
                     _ => None,
@@ -105,7 +105,7 @@ pub fn rpc_pubsub_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         |m| quote! {
             stringify!(#m) => {
                 Some(Box::new(
-                    move |chan: std::sync::Arc<karyon_jsonrpc::Channel>, method: String, params: serde_json::Value| {
+                    move |chan: std::sync::Arc<karyon_jsonrpc::server::channel::Channel>, method: String, params: serde_json::Value| {
                     Box::pin(self.#m(chan, method, params))
                 }))
             },
@@ -114,11 +114,11 @@ pub fn rpc_pubsub_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let item: TokenStream2 = item.into();
     quote! {
-        impl karyon_jsonrpc::PubSubRPCService for #self_ty {
+        impl karyon_jsonrpc::server::PubSubRPCService for #self_ty {
             fn get_pubsub_method(
                 &self,
                 name: &str
-            ) -> Option<karyon_jsonrpc::PubSubRPCMethod> {
+            ) -> Option<karyon_jsonrpc::server::PubSubRPCMethod> {
                 match name {
                 #(#impl_methods)*
                     _ => None,

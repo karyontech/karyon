@@ -28,7 +28,7 @@ impl Executor {
 
     #[cfg(feature = "tokio")]
     pub fn handle(&self) -> &tokio::runtime::Handle {
-        return self.inner.handle();
+        self.inner.handle()
     }
 }
 

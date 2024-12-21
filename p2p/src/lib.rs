@@ -76,3 +76,6 @@ pub mod keypair {
 }
 
 pub use error::{Error, Result};
+
+type ListenerRef = karyon_net::Listener<message::NetMsg, Error>;
+type ConnRef = karyon_net::Conn<message::NetMsg, Error>;

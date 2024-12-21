@@ -13,7 +13,7 @@ use crate::{
     endpoint::Endpoint,
     listener::{ConnListener, Listener, ToListener},
     stream::{ReadStream, WriteStream},
-    Error, Result,
+    Result,
 };
 
 /// Unix Conn config
@@ -66,28 +66,32 @@ where
 }
 
 #[async_trait]
-impl<C> Connection for UnixConn<C>
+impl<C, E> Connection for UnixConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn peer_endpoint(&self) -> Result<Endpoint> {
-        self.peer_endpoint
+    type Message = C::Message;
+    type Error = E;
+    fn peer_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
+        Ok(self
+            .peer_endpoint
             .clone()
-            .ok_or(Error::IO(std::io::ErrorKind::AddrNotAvailable.into()))
+            .ok_or(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable))?)
     }
 
-    fn local_endpoint(&self) -> Result<Endpoint> {
-        self.local_endpoint
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
+        Ok(self
+            .local_endpoint
             .clone()
-            .ok_or(Error::IO(std::io::ErrorKind::AddrNotAvailable.into()))
+            .ok_or(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable))?)
     }
 
-    async fn recv(&self) -> Result<Self::Item> {
+    async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
         self.read_stream.lock().await.recv().await
     }
 
-    async fn send(&self, msg: Self::Item) -> Result<()> {
+    async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         self.write_stream.lock().await.send(msg).await
     }
 }
@@ -113,24 +117,23 @@ where
 }
 
 #[async_trait]
-impl<C> ConnListener for UnixListener<C>
+impl<C, E> ConnListener for UnixListener<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn local_endpoint(&self) -> Result<Endpoint> {
-        self.inner
-            .local_addr()
-            .and_then(|a| {
-                Ok(Endpoint::new_unix_addr(
-                    a.as_pathname()
-                        .ok_or(std::io::ErrorKind::AddrNotAvailable)?,
-                ))
-            })
-            .map_err(Error::from)
+    type Message = C::Message;
+    type Error = E;
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
+        Ok(self.inner.local_addr().and_then(|a| {
+            Ok(Endpoint::new_unix_addr(
+                a.as_pathname()
+                    .ok_or(std::io::ErrorKind::AddrNotAvailable)?,
+            ))
+        })?)
     }
 
-    async fn accept(&self) -> Result<Conn<C::Item>> {
+    async fn accept(&self) -> std::result::Result<Conn<C::Message, E>, Self::Error> {
         let (conn, _) = self.inner.accept().await?;
         Ok(Box::new(UnixConn::new(conn, self.codec.clone())))
     }
@@ -162,31 +165,36 @@ where
 //     }
 // }
 
-impl<C> From<UnixListener<C>> for Listener<C::Item>
+impl<C, E> From<UnixListener<C>> for Listener<C::Message, E>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
     fn from(listener: UnixListener<C>) -> Self {
         Box::new(listener)
     }
 }
 
-impl<C> ToConn for UnixConn<C>
+impl<C, E> ToConn for UnixConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn to_conn(self) -> Conn<Self::Item> {
+    type Message = C::Message;
+    type Error = E;
+    fn to_conn(self) -> Conn<Self::Message, Self::Error> {
         Box::new(self)
     }
 }
 
-impl<C> ToListener for UnixListener<C>
+impl<C, E> ToListener for UnixListener<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn to_listener(self) -> Listener<Self::Item> {
-        self.into()
+    type Message = C::Message;
+    type Error = E;
+    fn to_listener(self) -> Listener<Self::Message, Self::Error> {
+        Box::new(self)
     }
 }

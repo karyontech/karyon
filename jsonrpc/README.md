@@ -5,12 +5,12 @@ A fast and lightweight async implementation of [JSON-RPC
 
 features: 
 - Supports TCP, TLS, WebSocket, and Unix protocols.
-- Uses `smol`(async-std) as the async runtime, but also supports `tokio` via the 
+- Uses `smol`(async-std) as the async runtime, with support for `tokio` via the 
   `tokio` feature.
-- Allows registration of multiple services (structs) of different types on a
-  single server.
-- Supports pub/sub  
-- Allows passing an `async_executors::Executor` or tokio's `Runtime` when building
+- Enables the registration of multiple services (structs) on a single server.
+- Offers support for custom JSON codec.
+- Includes support for pub/sub.  
+- Allows the use of an `async_executors::Executor` or `tokio::Runtime` when building
   the server.
 
 
@@ -31,7 +31,8 @@ use serde_json::Value;
 use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
-    RPCError, Server, Client, rpc_impl, rpc_pubsub_impl, SubscriptionID, Channel
+    error::RPCError, server::{Server, ServerBuilder, Channel}, client::ClientBuilder,
+    rpc_impl, rpc_pubsub_impl, message::SubscriptionID,
 };
 
 struct HelloWorld {}
@@ -84,7 +85,7 @@ async {
     let service = Arc::new(HelloWorld {});
     // Creates a new server
 
-    let server = Server::builder("tcp://127.0.0.1:60000")
+    let server = ServerBuilder::new("tcp://127.0.0.1:60000")
         .expect("create new server builder")
         .service(service.clone())
         .pubsub_service(service)
@@ -101,7 +102,7 @@ async {
 // Client
 async {
     // Creates a new client
-    let client = Client::builder("tcp://127.0.0.1:60000")
+    let client = ClientBuilder::new("tcp://127.0.0.1:60000")
         .expect("create new client builder")
         .build()
         .await

@@ -1,20 +1,29 @@
 #[cfg(feature = "ws")]
 use async_tungstenite::tungstenite::Message;
 
-use karyon_net::{
-    codec::{Codec, Decoder, Encoder},
-    Error, Result,
-};
+pub use karyon_net::codec::{Codec, Decoder, Encoder};
 
 #[cfg(feature = "ws")]
-use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
+pub use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
+use crate::error::Error;
+
+#[cfg(not(feature = "ws"))]
+pub trait ClonableJsonCodec: Codec<Message = serde_json::Value, Error = Error> + Clone {}
+#[cfg(not(feature = "ws"))]
+impl<T: Codec<Message = serde_json::Value, Error = Error> + Clone> ClonableJsonCodec for T {}
+
+#[cfg(feature = "ws")]
 pub trait ClonableJsonCodec:
-    Codec<Item = serde_json::Value, DeItem = serde_json::Value, EnItem = serde_json::Value> + Clone
+    Codec<Message = serde_json::Value, Error = Error>
+    + WebSocketCodec<Message = serde_json::Value, Error = Error>
+    + Clone
 {
 }
+#[cfg(feature = "ws")]
 impl<
-        T: Codec<Item = serde_json::Value, DeItem = serde_json::Value, EnItem = serde_json::Value>
+        T: Codec<Message = serde_json::Value, Error = Error>
+            + WebSocketCodec<Message = serde_json::Value, Error = Error>
             + Clone,
     > ClonableJsonCodec for T
 {
@@ -24,12 +33,14 @@ impl<
 pub struct JsonCodec {}
 
 impl Codec for JsonCodec {
-    type Item = serde_json::Value;
+    type Message = serde_json::Value;
+    type Error = Error;
 }
 
 impl Encoder for JsonCodec {
-    type EnItem = serde_json::Value;
-    fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    type EnMessage = serde_json::Value;
+    type EnError = Error;
+    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize, Self::EnError> {
         let msg = match serde_json::to_string(src) {
             Ok(m) => m,
             Err(err) => return Err(Error::Encode(err.to_string())),
@@ -41,8 +52,9 @@ impl Encoder for JsonCodec {
 }
 
 impl Decoder for JsonCodec {
-    type DeItem = serde_json::Value;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    type DeMessage = serde_json::Value;
+    type DeError = Error;
+    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
         let de = serde_json::Deserializer::from_slice(src);
         let mut iter = de.into_iter::<serde_json::Value>();
 
@@ -62,14 +74,17 @@ impl Decoder for JsonCodec {
 pub struct WsJsonCodec {}
 
 #[cfg(feature = "ws")]
-impl WebSocketCodec for WsJsonCodec {
-    type Item = serde_json::Value;
+impl WebSocketCodec for JsonCodec {
+    type Message = serde_json::Value;
+    type Error = Error;
 }
 
 #[cfg(feature = "ws")]
-impl WebSocketEncoder for WsJsonCodec {
-    type EnItem = serde_json::Value;
-    fn encode(&self, src: &Self::EnItem) -> Result<Message> {
+impl WebSocketEncoder for JsonCodec {
+    type EnMessage = serde_json::Value;
+    type EnError = Error;
+
+    fn encode(&self, src: &Self::EnMessage) -> Result<Message, Self::EnError> {
         let msg = match serde_json::to_string(src) {
             Ok(m) => m,
             Err(err) => return Err(Error::Encode(err.to_string())),
@@ -79,9 +94,11 @@ impl WebSocketEncoder for WsJsonCodec {
 }
 
 #[cfg(feature = "ws")]
-impl WebSocketDecoder for WsJsonCodec {
-    type DeItem = serde_json::Value;
-    fn decode(&self, src: &Message) -> Result<Option<Self::DeItem>> {
+impl WebSocketDecoder for JsonCodec {
+    type DeMessage = serde_json::Value;
+    type DeError = Error;
+
+    fn decode(&self, src: &Message) -> Result<Option<Self::DeMessage>, Self::DeError> {
         match src {
             Message::Text(s) => match serde_json::from_str(s) {
                 Ok(m) => Ok(Some(m)),

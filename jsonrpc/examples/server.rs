@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_core::async_util::sleep;
-use karyon_jsonrpc::{rpc_impl, RPCError, Server};
+use karyon_jsonrpc::{error::RPCError, rpc_impl, server::ServerBuilder};
 
 struct Calc {
     version: String,
@@ -49,7 +49,7 @@ fn main() {
         };
 
         // Creates a new server
-        let server = Server::builder("tcp://127.0.0.1:6000")
+        let server = ServerBuilder::new("tcp://127.0.0.1:6000")
             .expect("Create a new server builder")
             .service(Arc::new(calc))
             .build()
