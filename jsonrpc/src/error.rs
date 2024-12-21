@@ -79,13 +79,13 @@ pub type RPCResult<T> = std::result::Result<T, RPCError>;
 #[derive(ThisError, Debug)]
 pub enum RPCError {
     #[error("Custom Error:  code: {0} msg: {1}")]
-    CustomError(i32, &'static str),
+    CustomError(i32, String),
 
     #[error("Invalid Params: {0}")]
-    InvalidParams(&'static str),
+    InvalidParams(String),
 
     #[error("Invalid Request: {0}")]
-    InvalidRequest(&'static str),
+    InvalidRequest(String),
 
     #[error("Parse Error: {0}")]
     ParseError(String),
