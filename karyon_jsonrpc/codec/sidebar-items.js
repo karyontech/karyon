@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["JsonCodec"],"trait":["ClonableJsonCodec","Codec","Decoder","Encoder"]};
