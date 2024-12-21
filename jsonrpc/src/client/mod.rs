@@ -31,8 +31,6 @@ use karyon_core::{
 };
 
 use crate::codec::ClonableJsonCodec;
-#[cfg(feature = "ws")]
-use crate::codec::WsJsonCodec;
 
 use crate::{
     message::{self, SubscriptionID},
@@ -75,7 +73,7 @@ enum NewMsg {
 
 impl<C> Client<C>
 where
-    C: ClonableJsonCodec,
+    C: ClonableJsonCodec + 'static,
 {
     /// Calls the provided method, waits for the response, and returns the result.
     pub async fn call<T: Serialize + DeserializeOwned, V: DeserializeOwned>(
@@ -204,10 +202,10 @@ where
         Ok(client)
     }
 
-    async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value>> {
+    async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value, Error>> {
         let endpoint = self.config.endpoint.clone();
         let json_codec = self.config.json_codec.clone();
-        let conn: Conn<serde_json::Value> = match endpoint {
+        let conn: Conn<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
                 karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), json_codec)
@@ -235,7 +233,7 @@ where
                     tcp_config: self.config.tcp_config.clone(),
                     wss_config: None,
                 };
-                Box::new(karyon_net::ws::dial(&endpoint, config, WsJsonCodec {}).await?)
+                Box::new(karyon_net::ws::dial(&endpoint, config, json_codec).await?)
             }
             #[cfg(all(feature = "ws", feature = "tls"))]
             Endpoint::Wss(..) => match &self.config.tls_config {
@@ -249,7 +247,7 @@ where
                                 client_config: conf.clone(),
                             }),
                         },
-                        WsJsonCodec {},
+                        json_codec,
                     )
                     .await?,
                 ),
@@ -265,7 +263,7 @@ where
         Ok(conn)
     }
 
-    fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value>) {
+    fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value, Error>) {
         let on_complete = {
             let this = self.clone();
             |result: TaskResult<Result<()>>| async move {
@@ -288,7 +286,7 @@ where
         );
     }
 
-    async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value>) -> Result<()> {
+    async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value, Error>) -> Result<()> {
         loop {
             match select(self.send_chan.1.recv(), conn.recv()).await {
                 Either::Left(req) => {

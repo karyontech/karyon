@@ -1,9 +1,8 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use karyon_core::{async_runtime::lock::Mutex, async_util::CondVar};
-use karyon_net::Conn;
 
-use crate::{connection::ConnDirection, connection::Connection, message::NetMsg, Result};
+use crate::{connection::ConnDirection, connection::Connection, ConnRef, Result};
 
 /// Connection queue
 pub struct ConnQueue {
@@ -20,7 +19,7 @@ impl ConnQueue {
     }
 
     /// Handle a connection by pushing it into the queue and wait for the disconnect signal
-    pub async fn handle(&self, conn: Conn<NetMsg>, direction: ConnDirection) -> Result<()> {
+    pub async fn handle(&self, conn: ConnRef, direction: ConnDirection) -> Result<()> {
         let endpoint = conn.peer_endpoint()?;
 
         let (disconnect_tx, disconnect_rx) = async_channel::bounded(1);

@@ -7,15 +7,14 @@ use karyon_core::{
     async_util::{Backoff, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
-use karyon_net::{tcp, tls, Conn, Endpoint, Error as NetError};
+use karyon_net::{tcp, tls, Endpoint};
 
 use crate::{
     codec::NetMsgCodec,
-    message::NetMsg,
     monitor::{ConnEvent, Monitor},
     slots::ConnectionSlots,
     tls_config::tls_client_config,
-    Error, PeerID, Result,
+    ConnRef, Error, PeerID, Result,
 };
 
 static DNS_NAME: &str = "karyontech.net";
@@ -73,11 +72,7 @@ impl Connector {
     /// `Conn` instance.
     ///
     /// This method will block until it finds an available slot.
-    pub async fn connect(
-        &self,
-        endpoint: &Endpoint,
-        peer_id: &Option<PeerID>,
-    ) -> Result<Conn<NetMsg>> {
+    pub async fn connect(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<ConnRef> {
         self.connection_slots.wait_for_slot().await;
         self.connection_slots.add();
 
@@ -111,7 +106,7 @@ impl Connector {
             .await;
 
         self.connection_slots.remove().await;
-        Err(NetError::Timeout.into())
+        Err(Error::Timeout)
     }
 
     /// Establish a connection to the given `endpoint`. For each new connection,
@@ -120,7 +115,7 @@ impl Connector {
         self: &Arc<Self>,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
-        callback: impl FnOnce(Conn<NetMsg>) -> Fut + Send + 'static,
+        callback: impl FnOnce(ConnRef) -> Fut + Send + 'static,
     ) -> Result<()>
     where
         Fut: Future<Output = Result<()>> + Send + 'static,
@@ -146,7 +141,7 @@ impl Connector {
         Ok(())
     }
 
-    async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<Conn<NetMsg>> {
+    async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<ConnRef> {
         if self.enable_tls {
             if !endpoint.is_tcp() && !endpoint.is_tls() {
                 return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
@@ -157,18 +152,15 @@ impl Connector {
                 client_config: tls_client_config(&self.key_pair, peer_id.clone())?,
                 dns_name: DNS_NAME.to_string(),
             };
-            tls::dial(endpoint, tls_config, NetMsgCodec::new())
-                .await
-                .map(|l| Box::new(l) as karyon_net::Conn<NetMsg>)
+            let c = tls::dial(endpoint, tls_config, NetMsgCodec::new()).await?;
+            Ok(Box::new(c))
         } else {
             if !endpoint.is_tcp() {
                 return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
             }
 
-            tcp::dial(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new())
-                .await
-                .map(|l| Box::new(l) as karyon_net::Conn<NetMsg>)
+            let c = tcp::dial(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new()).await?;
+            Ok(Box::new(c))
         }
-        .map_err(Error::KaryonNet)
     }
 }

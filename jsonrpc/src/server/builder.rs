@@ -23,7 +23,7 @@ pub struct ServerBuilder<C> {
 
 impl<C> ServerBuilder<C>
 where
-    C: ClonableJsonCodec,
+    C: ClonableJsonCodec + 'static,
 {
     /// Adds a new RPC service to the server.
     ///
@@ -225,21 +225,33 @@ impl<C> Server<C> {
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::Server;
-    /// use karyon_net::{codec::{Codec, Decoder, Encoder}, Error, Result};
     ///
+    /// #[cfg(feature = "ws")]
+    /// use async_tungstenite::tungstenite::Message;
     /// use serde_json::Value;
+    /// #[cfg(feature = "ws")]
+    /// use karyon_jsonrpc::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
+    /// use karyon_jsonrpc::{Server, codec::{Codec, Decoder, Encoder, }, Error, Result};
+    ///
     ///
     /// #[derive(Clone)]
     /// pub struct CustomJsonCodec {}
     ///
     /// impl Codec for CustomJsonCodec {
-    ///     type Item = serde_json::Value;
+    ///     type Message = serde_json::Value;
+    ///     type Error = Error;
+    /// }
+    ///
+    /// #[cfg(feature = "ws")]
+    /// impl WebSocketCodec for CustomJsonCodec {
+    ///     type Message = serde_json::Value;
+    ///     type Error = Error;
     /// }
     ///
     /// impl Encoder for CustomJsonCodec {
-    ///     type EnItem = serde_json::Value;
-    ///     fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    ///     type EnMessage = serde_json::Value;
+    ///     type EnError = Error;
+    ///     fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
     ///         let msg = match serde_json::to_string(src) {
     ///             Ok(m) => m,
     ///             Err(err) => return Err(Error::Encode(err.to_string())),
@@ -251,8 +263,9 @@ impl<C> Server<C> {
     /// }
     ///
     /// impl Decoder for CustomJsonCodec {
-    ///     type DeItem = serde_json::Value;
-    ///     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    ///     type DeMessage = serde_json::Value;
+    ///     type DeError = Error;
+    ///     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
     ///         let de = serde_json::Deserializer::from_slice(src);
     ///         let mut iter = de.into_iter::<serde_json::Value>();
     ///
@@ -265,6 +278,44 @@ impl<C> Server<C> {
     ///
     ///         Ok(Some((iter.byte_offset(), item)))
     ///     }
+    /// }
+    ///
+    ///
+    /// #[cfg(feature = "ws")]
+    /// impl WebSocketEncoder for CustomJsonCodec {
+    ///     type EnMessage = serde_json::Value;
+    ///     type EnError = Error;
+    ///
+    ///     fn encode(&self, src: &Self::EnMessage) -> Result<Message> {
+    ///         let msg = match serde_json::to_string(src) {
+    ///             Ok(m) => m,
+    ///             Err(err) => return Err(Error::Encode(err.to_string())),
+    ///         };
+    ///         Ok(Message::Text(msg))
+    ///     }
+    /// }
+    ///
+    /// #[cfg(feature = "ws")]
+    /// impl WebSocketDecoder for CustomJsonCodec {
+    ///     type DeMessage = serde_json::Value;
+    ///     type DeError = Error;
+    ///     fn decode(&self, src: &Message) -> Result<Option<Self::DeMessage>> {
+    ///          match src {
+    ///              Message::Text(s) => match serde_json::from_str(s) {
+    ///                  Ok(m) => Ok(Some(m)),
+    ///                  Err(err) => Err(Error::Decode(err.to_string())),
+    ///              },
+    ///              Message::Binary(s) => match serde_json::from_slice(s) {
+    ///                  Ok(m) => Ok(m),
+    ///                  Err(err) => Err(Error::Decode(err.to_string())),
+    ///              },
+    ///              Message::Close(_) => Err(Error::IO(std::io::ErrorKind::ConnectionAborted.into())),
+    ///              m => Err(Error::Decode(format!(
+    ///                  "Receive unexpected message: {:?}",
+    ///                  m
+    ///              ))),
+    ///          }
+    ///      }
     /// }
     ///
     /// async {

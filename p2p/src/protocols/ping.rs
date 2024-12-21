@@ -12,13 +12,11 @@ use karyon_core::{
     util::decode,
 };
 
-use karyon_net::Error as NetError;
-
 use crate::{
     peer::Peer,
     protocol::{Protocol, ProtocolEvent, ProtocolID},
     version::Version,
-    Result,
+    Error, Result,
 };
 
 const MAX_FAILUERS: u32 = 3;
@@ -114,7 +112,7 @@ impl PingProtocol {
             retry = 0;
         }
 
-        Err(NetError::Timeout.into())
+        Err(Error::Timeout)
     }
 }
 

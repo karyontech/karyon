@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod client;
-mod codec;
+pub mod codec;
 mod error;
 pub mod message;
 mod server;
@@ -19,7 +19,7 @@ pub use server::{
 
 pub use karyon_jsonrpc_macro::{rpc_impl, rpc_pubsub_impl};
 
-pub use karyon_net::Endpoint;
+pub use karyon_net::{Addr, Endpoint};
 
 #[cfg(feature = "tcp")]
 pub use karyon_net::tcp::TcpConfig;

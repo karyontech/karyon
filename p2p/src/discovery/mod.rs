@@ -12,7 +12,7 @@ use karyon_core::{
     crypto::KeyPair,
 };
 
-use karyon_net::{Conn, Endpoint};
+use karyon_net::Endpoint;
 
 use crate::{
     config::Config,
@@ -20,14 +20,13 @@ use crate::{
     connection::ConnDirection,
     connector::Connector,
     listener::Listener,
-    message::NetMsg,
     monitor::Monitor,
     routing_table::{
         RoutingTable, CONNECTED_ENTRY, DISCONNECTED_ENTRY, INCOMPATIBLE_ENTRY, PENDING_ENTRY,
         UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
     },
     slots::ConnectionSlots,
-    Error, PeerID, Result,
+    ConnRef, Error, PeerID, Result,
 };
 
 use lookup::LookupService;
@@ -179,7 +178,7 @@ impl Discovery {
     async fn start_listener(self: &Arc<Self>, endpoint: &Endpoint) -> Result<Endpoint> {
         let callback = {
             let this = self.clone();
-            |c: Conn<NetMsg>| async move {
+            |c: ConnRef| async move {
                 this.conn_queue.handle(c, ConnDirection::Inbound).await?;
                 Ok(())
             }
@@ -218,7 +217,7 @@ impl Discovery {
             let this = self.clone();
             let endpoint = endpoint.clone();
             let pid = pid.clone();
-            |conn: Conn<NetMsg>| async move {
+            |conn: ConnRef| async move {
                 let result = this.conn_queue.handle(conn, ConnDirection::Outbound).await;
 
                 // If the entry is not in the routing table, ignore the result
