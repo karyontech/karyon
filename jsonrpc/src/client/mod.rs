@@ -33,12 +33,14 @@ use karyon_core::{
 use crate::codec::ClonableJsonCodec;
 
 use crate::{
+    error::{Error, Result},
     message::{self, SubscriptionID},
-    Error, Result,
 };
 
-use message_dispatcher::MessageDispatcher;
+pub use builder::ClientBuilder;
 pub use subscriptions::Subscription;
+
+use message_dispatcher::MessageDispatcher;
 use subscriptions::Subscriptions;
 
 type RequestID = u32;

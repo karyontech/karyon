@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_core::async_util::sleep;
-use karyon_jsonrpc::{rpc_impl, RPCError, ServerBuilder};
+use karyon_jsonrpc::{error::RPCError, rpc_impl, server::ServerBuilder};
 
 struct Calc {
     version: String,

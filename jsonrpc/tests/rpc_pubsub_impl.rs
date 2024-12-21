@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use karyon_jsonrpc::{rpc_pubsub_impl, Channel, PubSubRPCService, RPCError};
+use karyon_jsonrpc::{
+    error::RPCError,
+    rpc_pubsub_impl,
+    server::{Channel, PubSubRPCService},
+};
 use serde_json::Value;
 
 #[test]

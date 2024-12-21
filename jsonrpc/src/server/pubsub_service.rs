@@ -1,6 +1,6 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use crate::RPCResult;
+use crate::error::RPCResult;
 
 use super::channel::Channel;
 

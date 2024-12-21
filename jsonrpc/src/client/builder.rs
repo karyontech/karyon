@@ -7,10 +7,12 @@ use karyon_net::ToEndpoint;
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
 
-use crate::codec::{ClonableJsonCodec, JsonCodec};
-use crate::Result;
+use crate::{
+    codec::{ClonableJsonCodec, JsonCodec},
+    error::Result,
+};
 #[cfg(feature = "tcp")]
-use crate::{Error, TcpConfig};
+use crate::{error::Error, net::TcpConfig};
 
 use super::{Client, ClientConfig};
 
@@ -32,7 +34,7 @@ impl ClientBuilder<JsonCodec> {
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::ClientBuilder;
+    /// use karyon_jsonrpc::client::ClientBuilder;
     ///  
     /// async {
     ///     let builder = ClientBuilder::new("ws://127.0.0.1:3000")
@@ -64,7 +66,10 @@ where
     /// use async_tungstenite::tungstenite::Message;
     /// use serde_json::Value;
     ///
-    /// use karyon_jsonrpc::{ClientBuilder, codec::{Codec, Decoder, Encoder}, Error, Result};
+    /// use karyon_jsonrpc::{
+    ///     client::ClientBuilder, codec::{Codec, Decoder, Encoder},
+    ///     error::{Error, Result}
+    /// };
     ///
     /// #[derive(Clone)]
     /// pub struct CustomJsonCodec {}
@@ -178,7 +183,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::ClientBuilder;
+    /// use karyon_jsonrpc::client::ClientBuilder;
     ///  
     /// async {
     ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
@@ -204,7 +209,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::ClientBuilder;
+    /// use karyon_jsonrpc::client::ClientBuilder;
     ///  
     /// async {
     ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
@@ -224,7 +229,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::{ClientBuilder, TcpConfig};
+    /// use karyon_jsonrpc::{client::ClientBuilder, net::TcpConfig};
     ///  
     /// async {
     ///     let tcp_config = TcpConfig::default();
@@ -255,7 +260,7 @@ where
     /// # Example
     ///
     /// ```ignore
-    /// use karyon_jsonrpc::ClientBuilder;
+    /// use karyon_jsonrpc::client::ClientBuilder;
     /// use futures_rustls::rustls;
     ///  
     /// async {
@@ -293,7 +298,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::{ClientBuilder, TcpConfig};
+    /// use karyon_jsonrpc::{client::ClientBuilder, net::TcpConfig};
     ///  
     /// async {
     ///     let tcp_config = TcpConfig::default();

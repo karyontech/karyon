@@ -1,6 +1,6 @@
 use std::{future::Future, pin::Pin};
 
-use crate::RPCResult;
+use crate::error::RPCResult;
 
 /// Represents the RPC method
 pub type RPCMethod<'a> = Box<dyn Fn(serde_json::Value) -> RPCMethodOutput<'a> + Send + 'a>;

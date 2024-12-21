@@ -11,8 +11,8 @@ use karyon_net::async_rustls::rustls;
 
 use crate::codec::{ClonableJsonCodec, JsonCodec};
 #[cfg(feature = "tcp")]
-use crate::{Error, TcpConfig};
-use crate::{PubSubRPCService, RPCService, Result};
+use crate::{error::Error, net::TcpConfig};
+use crate::{error::Result, server::PubSubRPCService, server::RPCService};
 
 use super::{Server, ServerConfig};
 
@@ -41,7 +41,7 @@ where
     /// use serde_json::Value;
     /// #[cfg(feature = "ws")]
     /// use karyon_jsonrpc::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
-    /// use karyon_jsonrpc::{Server, ServerBuilder, codec::{Codec, Decoder, Encoder, }, Error, Result};
+    /// use karyon_jsonrpc::{server::ServerBuilder, codec::{Codec, Decoder, Encoder, }, error::{Error, Result}};
     ///
     ///
     /// #[derive(Clone)]
@@ -161,7 +161,7 @@ where
     ///
     /// use serde_json::Value;
     ///
-    /// use karyon_jsonrpc::{Server, rpc_impl, RPCError, ServerBuilder};
+    /// use karyon_jsonrpc::{rpc_impl, error::RPCError, server::ServerBuilder};
     ///
     /// struct Ping {}
     ///
@@ -195,8 +195,8 @@ where
     /// use serde_json::Value;
     ///
     /// use karyon_jsonrpc::{
-    ///     Server, rpc_impl, rpc_pubsub_impl, RPCError, Channel, SubscriptionID,
-    ///     ServerBuilder,
+    ///     rpc_impl, rpc_pubsub_impl, error::RPCError, message::SubscriptionID,
+    ///     server::{ServerBuilder, Channel},
     /// };
     ///
     /// struct Ping {}
@@ -254,7 +254,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::{ServerBuilder, TcpConfig};
+    /// use karyon_jsonrpc::{server::ServerBuilder, net::TcpConfig};
     ///
     /// async {
     ///     let tcp_config = TcpConfig::default();
@@ -333,7 +333,8 @@ impl ServerBuilder<JsonCodec> {
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::ServerBuilder;
+    /// use karyon_jsonrpc::server::ServerBuilder;
+    ///
     /// async {
     ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new server builder")

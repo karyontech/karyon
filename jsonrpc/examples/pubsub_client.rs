@@ -4,7 +4,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use smol::Timer;
 
-use karyon_jsonrpc::ClientBuilder;
+use karyon_jsonrpc::client::ClientBuilder;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Pong {}

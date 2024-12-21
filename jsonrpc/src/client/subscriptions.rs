@@ -7,8 +7,8 @@ use serde_json::Value;
 use karyon_core::async_runtime::lock::Mutex;
 
 use crate::{
+    error::{Error, Result},
     message::{Notification, NotificationResult, SubscriptionID},
-    Error, Result,
 };
 
 /// A subscription established when the client's subscribe to a method

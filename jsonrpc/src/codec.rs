@@ -6,7 +6,7 @@ pub use karyon_net::codec::{Codec, Decoder, Encoder};
 #[cfg(feature = "ws")]
 pub use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
-use crate::Error;
+use crate::error::Error;
 
 #[cfg(not(feature = "ws"))]
 pub trait ClonableJsonCodec: Codec<Message = serde_json::Value, Error = Error> + Clone {}

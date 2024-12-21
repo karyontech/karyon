@@ -21,9 +21,17 @@ use karyon_net::tcp::TcpConfig;
 use karyon_net::ws::ServerWsConfig;
 use karyon_net::{Conn, Endpoint, Listener};
 
-use crate::{codec::ClonableJsonCodec, message, Error, PubSubRPCService, RPCService, Result};
+use crate::{
+    codec::ClonableJsonCodec,
+    error::{Error, Result},
+    message,
+};
 
-use channel::Channel;
+pub use builder::ServerBuilder;
+pub use channel::Channel;
+pub use pubsub_service::{PubSubRPCMethod, PubSubRPCService};
+pub use service::{RPCMethod, RPCService};
+
 use response_queue::ResponseQueue;
 
 pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
