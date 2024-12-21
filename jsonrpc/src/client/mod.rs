@@ -214,8 +214,7 @@ where
         let conn: Conn<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), codec)
-                    .await?,
+                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), codec).await?,
             ),
             #[cfg(feature = "tls")]
             Endpoint::Tls(..) => match &self.config.tls_config {
