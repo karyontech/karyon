@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use karyon_core::async_util::sleep;
 use karyon_jsonrpc::{
-    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, RPCError, Server,
+    message::SubscriptionID, rpc_impl, rpc_pubsub_impl, Channel, RPCError, ServerBuilder,
 };
 
 struct Calc {}
@@ -69,7 +69,7 @@ fn main() {
         let calc = Arc::new(Calc {});
 
         // Creates a new server
-        let server = Server::builder("tcp://127.0.0.1:6000")
+        let server = ServerBuilder::new("tcp://127.0.0.1:6000")
             .expect("Create a new server builder")
             .service(calc.clone())
             .pubsub_service(calc)

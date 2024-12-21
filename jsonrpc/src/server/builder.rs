@@ -18,209 +18,19 @@ use super::{Server, ServerConfig};
 
 /// Builder for constructing an RPC [`Server`].
 pub struct ServerBuilder<C> {
-    inner: ServerConfig<C>,
+    config: ServerConfig,
+    codec: C,
+    executor: Option<Executor>,
 }
 
 impl<C> ServerBuilder<C>
 where
     C: ClonableJsonCodec + 'static,
 {
-    /// Adds a new RPC service to the server.
-    ///
-    /// # Example
-    /// ```
-    /// use std::sync::Arc;
-    ///
-    /// use serde_json::Value;
-    ///
-    /// use karyon_jsonrpc::{Server, rpc_impl, RPCError};
-    ///
-    /// struct Ping {}
-    ///
-    /// #[rpc_impl]
-    /// impl Ping {
-    ///     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
-    ///         Ok(serde_json::json!("Pong"))
-    ///     }
-    /// }
-    ///
-    /// async {
-    ///     let server = Server::builder("ws://127.0.0.1:3000")
-    ///         .expect("Create a new server builder")
-    ///         .service(Arc::new(Ping{}))
-    ///         .build().await
-    ///         .expect("Build the server");
-    /// };
-    ///
-    /// ```
-    pub fn service(mut self, service: Arc<dyn RPCService>) -> Self {
-        self.inner.services.insert(service.name(), service);
-        self
-    }
-
-    /// Adds a new PubSub RPC service to the server.
-    ///
-    /// # Example
-    /// ```
-    /// use std::sync::Arc;
-    ///
-    /// use serde_json::Value;
-    ///
-    /// use karyon_jsonrpc::{
-    ///     Server, rpc_impl, rpc_pubsub_impl, RPCError, Channel, SubscriptionID,
-    /// };
-    ///
-    /// struct Ping {}
-    ///
-    /// #[rpc_impl]
-    /// impl Ping {
-    ///     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
-    ///         Ok(serde_json::json!("Pong"))
-    ///     }
-    /// }
-    ///
-    /// #[rpc_pubsub_impl]
-    /// impl Ping {
-    ///    async fn log_subscribe(
-    ///         &self,
-    ///         chan: Arc<Channel>,
-    ///         method: String,
-    ///         _params: Value,
-    ///     ) -> Result<Value, RPCError> {
-    ///         let sub = chan.new_subscription(&method).await;
-    ///         let sub_id = sub.id.clone();
-    ///         Ok(serde_json::json!(sub_id))
-    ///     }
-    ///
-    ///     async fn log_unsubscribe(
-    ///         &self,
-    ///         chan: Arc<Channel>,
-    ///         _method: String,
-    ///         params: Value,
-    ///     ) -> Result<Value, RPCError> {
-    ///         let sub_id: SubscriptionID = serde_json::from_value(params)?;
-    ///         chan.remove_subscription(&sub_id).await;
-    ///         Ok(serde_json::json!(true))
-    ///     }
-    /// }
-    ///
-    /// async {
-    ///     let ping_service = Arc::new(Ping{});
-    ///     let server = Server::builder("ws://127.0.0.1:3000")
-    ///         .expect("Create a new server builder")
-    ///         .service(ping_service.clone())
-    ///         .pubsub_service(ping_service)
-    ///         .build().await
-    ///         .expect("Build the server");
-    /// };
-    ///
-    /// ```
-    pub fn pubsub_service(mut self, service: Arc<dyn PubSubRPCService>) -> Self {
-        self.inner.pubsub_services.insert(service.name(), service);
-        self
-    }
-
-    /// Configure TCP settings for the server.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use karyon_jsonrpc::{Server, TcpConfig};
-    ///
-    /// async {
-    ///     let tcp_config = TcpConfig::default();
-    ///     let server = Server::builder("ws://127.0.0.1:3000")
-    ///         .expect("Create a new server builder")
-    ///         .tcp_config(tcp_config)
-    ///         .expect("Add tcp config")
-    ///         .build().await
-    ///         .expect("Build the server");
-    /// };
-    /// ```
-    ///
-    /// This function will return an error if the endpoint does not support TCP protocols.
-    #[cfg(feature = "tcp")]
-    pub fn tcp_config(mut self, config: TcpConfig) -> Result<ServerBuilder<C>> {
-        match self.inner.endpoint {
-            Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
-                self.inner.tcp_config = config;
-                Ok(self)
-            }
-            _ => Err(Error::UnsupportedProtocol(self.inner.endpoint.to_string())),
-        }
-    }
-
-    /// Configure TLS settings for the server.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use karon_jsonrpc::Server;
-    /// use futures_rustls::rustls;
-    ///
-    /// async {
-    ///     let tls_config = rustls::ServerConfig::new(...);
-    ///     let server = Server::builder("ws://127.0.0.1:3000")
-    ///         .expect("Create a new server builder")
-    ///         .tls_config(tls_config)
-    ///         .expect("Add tls config")
-    ///         .build().await
-    ///         .expect("Build the server");
-    /// };
-    /// ```
-    ///
-    /// This function will return an error if the endpoint does not support TLS protocols.
-    #[cfg(feature = "tls")]
-    pub fn tls_config(mut self, config: rustls::ServerConfig) -> Result<ServerBuilder<C>> {
-        match self.inner.endpoint {
-            Endpoint::Tls(..) | Endpoint::Wss(..) => {
-                self.inner.tls_config = Some(config);
-                Ok(self)
-            }
-            _ => Err(Error::UnsupportedProtocol(format!(
-                "Invalid tls config for endpoint: {}",
-                self.inner.endpoint
-            ))),
-        }
-    }
-
-    /// Builds the server with the configured options.
-    pub async fn build(self) -> Result<Arc<Server<C>>> {
-        Server::init(self.inner, None).await
-    }
-
-    /// Builds the server with the configured options and an executor.
-    pub async fn build_with_executor(self, ex: Executor) -> Result<Arc<Server<C>>> {
-        Server::init(self.inner, Some(ex)).await
-    }
-}
-
-impl Server<JsonCodec> {
-    /// Creates a new [`ServerBuilder`]
-    ///
-    /// This function initializes a `ServerBuilder` with the specified endpoint.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use karyon_jsonrpc::Server;
-    /// async {
-    ///     let server = Server::builder("ws://127.0.0.1:3000")
-    ///         .expect("Create a new server builder")
-    ///         .build().await
-    ///         .expect("Build the server");
-    /// };
-    /// ```
-    pub fn builder(endpoint: impl ToEndpoint) -> Result<ServerBuilder<JsonCodec>> {
-        Server::<JsonCodec>::builder_with_json_codec(endpoint, JsonCodec {})
-    }
-}
-
-impl<C> Server<C> {
-    /// Creates a new [`ServerBuilder`]
+    /// Creates a new [`ServerBuilder`] With a custom codec.
     ///
     /// This function initializes a `ServerBuilder` with the specified endpoint
-    /// and the given json codec.
+    /// and custom codec.
     ///
     /// # Example
     ///
@@ -231,7 +41,7 @@ impl<C> Server<C> {
     /// use serde_json::Value;
     /// #[cfg(feature = "ws")]
     /// use karyon_jsonrpc::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
-    /// use karyon_jsonrpc::{Server, codec::{Codec, Decoder, Encoder, }, Error, Result};
+    /// use karyon_jsonrpc::{Server, ServerBuilder, codec::{Codec, Decoder, Encoder, }, Error, Result};
     ///
     ///
     /// #[derive(Clone)]
@@ -319,21 +129,18 @@ impl<C> Server<C> {
     /// }
     ///
     /// async {
-    ///     let server = Server::builder_with_json_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
-    ///         .expect("Create a new server builder with custom json codec")
+    ///     let server = ServerBuilder::new_with_codec("tcp://127.0.0.1:3000", CustomJsonCodec{})
+    ///         .expect("Create a new server builder")
     ///         .build().await
     ///         .expect("Build the server");
     /// };
     /// ```
-    pub fn builder_with_json_codec(
-        endpoint: impl ToEndpoint,
-        json_codec: C,
-    ) -> Result<ServerBuilder<C>> {
+    ///
+    pub fn new_with_codec(endpoint: impl ToEndpoint, codec: C) -> Result<ServerBuilder<C>> {
         let endpoint = endpoint.to_endpoint()?;
         Ok(ServerBuilder {
-            inner: ServerConfig {
+            config: ServerConfig {
                 endpoint,
-                json_codec,
                 services: HashMap::new(),
                 pubsub_services: HashMap::new(),
                 #[cfg(feature = "tcp")]
@@ -341,6 +148,200 @@ impl<C> Server<C> {
                 #[cfg(feature = "tls")]
                 tls_config: None,
             },
+            codec,
+            executor: None,
         })
+    }
+
+    /// Adds a new RPC service to the server.
+    ///
+    /// # Example
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use serde_json::Value;
+    ///
+    /// use karyon_jsonrpc::{Server, rpc_impl, RPCError, ServerBuilder};
+    ///
+    /// struct Ping {}
+    ///
+    /// #[rpc_impl]
+    /// impl Ping {
+    ///     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
+    ///         Ok(serde_json::json!("Pong"))
+    ///     }
+    /// }
+    ///
+    /// async {
+    ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .service(Arc::new(Ping{}))
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    ///
+    /// ```
+    pub fn service(mut self, service: Arc<dyn RPCService>) -> Self {
+        self.config.services.insert(service.name(), service);
+        self
+    }
+
+    /// Adds a new PubSub RPC service to the server.
+    ///
+    /// # Example
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use serde_json::Value;
+    ///
+    /// use karyon_jsonrpc::{
+    ///     Server, rpc_impl, rpc_pubsub_impl, RPCError, Channel, SubscriptionID,
+    ///     ServerBuilder,
+    /// };
+    ///
+    /// struct Ping {}
+    ///
+    /// #[rpc_impl]
+    /// impl Ping {
+    ///     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
+    ///         Ok(serde_json::json!("Pong"))
+    ///     }
+    /// }
+    ///
+    /// #[rpc_pubsub_impl]
+    /// impl Ping {
+    ///    async fn log_subscribe(
+    ///         &self,
+    ///         chan: Arc<Channel>,
+    ///         method: String,
+    ///         _params: Value,
+    ///     ) -> Result<Value, RPCError> {
+    ///         let sub = chan.new_subscription(&method).await;
+    ///         let sub_id = sub.id.clone();
+    ///         Ok(serde_json::json!(sub_id))
+    ///     }
+    ///
+    ///     async fn log_unsubscribe(
+    ///         &self,
+    ///         chan: Arc<Channel>,
+    ///         _method: String,
+    ///         params: Value,
+    ///     ) -> Result<Value, RPCError> {
+    ///         let sub_id: SubscriptionID = serde_json::from_value(params)?;
+    ///         chan.remove_subscription(&sub_id).await;
+    ///         Ok(serde_json::json!(true))
+    ///     }
+    /// }
+    ///
+    /// async {
+    ///     let ping_service = Arc::new(Ping{});
+    ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .service(ping_service.clone())
+    ///         .pubsub_service(ping_service)
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    ///
+    /// ```
+    pub fn pubsub_service(mut self, service: Arc<dyn PubSubRPCService>) -> Self {
+        self.config.pubsub_services.insert(service.name(), service);
+        self
+    }
+
+    /// Configure TCP settings for the server.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use karyon_jsonrpc::{ServerBuilder, TcpConfig};
+    ///
+    /// async {
+    ///     let tcp_config = TcpConfig::default();
+    ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .tcp_config(tcp_config)
+    ///         .expect("Add tcp config")
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    /// ```
+    ///
+    /// This function will return an error if the endpoint does not support TCP protocols.
+    #[cfg(feature = "tcp")]
+    pub fn tcp_config(mut self, config: TcpConfig) -> Result<ServerBuilder<C>> {
+        match self.config.endpoint {
+            Endpoint::Tcp(..) | Endpoint::Tls(..) | Endpoint::Ws(..) | Endpoint::Wss(..) => {
+                self.config.tcp_config = config;
+                Ok(self)
+            }
+            _ => Err(Error::UnsupportedProtocol(self.config.endpoint.to_string())),
+        }
+    }
+
+    /// Configure TLS settings for the server.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use karon_jsonrpc::ServerBuilder;
+    /// use futures_rustls::rustls;
+    ///
+    /// async {
+    ///     let tls_config = rustls::ServerConfig::new(...);
+    ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .tls_config(tls_config)
+    ///         .expect("Add tls config")
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    /// ```
+    ///
+    /// This function will return an error if the endpoint does not support TLS protocols.
+    #[cfg(feature = "tls")]
+    pub fn tls_config(mut self, config: rustls::ServerConfig) -> Result<ServerBuilder<C>> {
+        match self.config.endpoint {
+            Endpoint::Tls(..) | Endpoint::Wss(..) => {
+                self.config.tls_config = Some(config);
+                Ok(self)
+            }
+            _ => Err(Error::UnsupportedProtocol(format!(
+                "Invalid tls config for endpoint: {}",
+                self.config.endpoint
+            ))),
+        }
+    }
+
+    /// With an executor.
+    pub async fn with_executor(mut self, ex: Executor) -> Self {
+        self.executor = Some(ex);
+        self
+    }
+
+    /// Builds the server with the configured options.
+    pub async fn build(self) -> Result<Arc<Server>> {
+        Server::init(self.config, self.executor, self.codec).await
+    }
+}
+
+impl ServerBuilder<JsonCodec> {
+    /// Creates a new [`ServerBuilder`]
+    ///
+    /// This function initializes a `ServerBuilder` with the specified endpoint.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use karyon_jsonrpc::ServerBuilder;
+    /// async {
+    ///     let server = ServerBuilder::new("ws://127.0.0.1:3000")
+    ///         .expect("Create a new server builder")
+    ///         .build().await
+    ///         .expect("Build the server");
+    /// };
+    /// ```
+    pub fn new(endpoint: impl ToEndpoint) -> Result<ServerBuilder<JsonCodec>> {
+        Self::new_with_codec(endpoint, JsonCodec {})
     }
 }

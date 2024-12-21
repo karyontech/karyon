@@ -18,7 +18,13 @@ const DEFAULT_TIMEOUT: u64 = 3000; // 3s
 
 const DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE: usize = 20000;
 
-impl Client<JsonCodec> {
+/// Builder for constructing an RPC [`Client`].
+pub struct ClientBuilder<C> {
+    inner: ClientConfig,
+    codec: C,
+}
+
+impl ClientBuilder<JsonCodec> {
     /// Creates a new [`ClientBuilder`]
     ///
     /// This function initializes a `ClientBuilder` with the specified endpoint.
@@ -26,23 +32,23 @@ impl Client<JsonCodec> {
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::Client;
+    /// use karyon_jsonrpc::ClientBuilder;
     ///  
     /// async {
-    ///     let builder = Client::builder("ws://127.0.0.1:3000")
+    ///     let builder = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder");
     ///     let client = builder.build().await
     ///         .expect("Build a new client");
     /// };
     /// ```
-    pub fn builder(endpoint: impl ToEndpoint) -> Result<ClientBuilder<JsonCodec>> {
-        Client::<JsonCodec>::builder_with_json_codec(endpoint, JsonCodec {})
+    pub fn new(endpoint: impl ToEndpoint) -> Result<ClientBuilder<JsonCodec>> {
+        ClientBuilder::new_with_codec(endpoint, JsonCodec {})
     }
 }
 
-impl<C> Client<C>
+impl<C> ClientBuilder<C>
 where
-    C: ClonableJsonCodec,
+    C: ClonableJsonCodec + 'static,
 {
     /// Creates a new [`ClientBuilder`]
     ///
@@ -58,7 +64,7 @@ where
     /// use async_tungstenite::tungstenite::Message;
     /// use serde_json::Value;
     ///
-    /// use karyon_jsonrpc::{Client, codec::{Codec, Decoder, Encoder}, Error, Result};
+    /// use karyon_jsonrpc::{ClientBuilder, codec::{Codec, Decoder, Encoder}, Error, Result};
     ///
     /// #[derive(Clone)]
     /// pub struct CustomJsonCodec {}
@@ -144,21 +150,17 @@ where
     /// }
     ///
     /// async {
-    ///     let builder = Client::builder_with_json_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
+    ///     let builder = ClientBuilder::new_with_codec("tcp://127.0.0.1:3000", CustomJsonCodec {})
     ///         .expect("Create a new client builder with a custom json codec");
     ///     let client = builder.build().await
     ///         .expect("Build a new client");
     /// };
     /// ```
-    pub fn builder_with_json_codec(
-        endpoint: impl ToEndpoint,
-        json_codec: C,
-    ) -> Result<ClientBuilder<C>> {
+    pub fn new_with_codec(endpoint: impl ToEndpoint, codec: C) -> Result<ClientBuilder<C>> {
         let endpoint = endpoint.to_endpoint()?;
         Ok(ClientBuilder {
             inner: ClientConfig {
                 endpoint,
-                json_codec,
                 timeout: Some(DEFAULT_TIMEOUT),
                 #[cfg(feature = "tcp")]
                 tcp_config: Default::default(),
@@ -166,29 +168,20 @@ where
                 tls_config: None,
                 subscription_buffer_size: DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE,
             },
+            codec,
         })
     }
-}
 
-/// Builder for constructing an RPC [`Client`].
-pub struct ClientBuilder<C> {
-    inner: ClientConfig<C>,
-}
-
-impl<C> ClientBuilder<C>
-where
-    C: ClonableJsonCodec + 'static,
-{
     /// Set timeout for receiving messages, in milliseconds. Requests will
     /// fail if it takes longer.
     ///
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::Client;
+    /// use karyon_jsonrpc::ClientBuilder;
     ///  
     /// async {
-    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder")
     ///         .set_timeout(5000)
     ///         .build().await
@@ -211,10 +204,10 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::Client;
+    /// use karyon_jsonrpc::ClientBuilder;
     ///  
     /// async {
-    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder")
     ///         .set_max_subscription_buffer_size(10000)
     ///         .build().await
@@ -231,12 +224,12 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::{Client, TcpConfig};
+    /// use karyon_jsonrpc::{ClientBuilder, TcpConfig};
     ///  
     /// async {
     ///     let tcp_config = TcpConfig::default();
     ///
-    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder")
     ///         .tcp_config(tcp_config)
     ///         .expect("Add tcp config")
@@ -262,13 +255,13 @@ where
     /// # Example
     ///
     /// ```ignore
-    /// use karyon_jsonrpc::Client;
+    /// use karyon_jsonrpc::ClientBuilder;
     /// use futures_rustls::rustls;
     ///  
     /// async {
     ///     let tls_config = rustls::ClientConfig::new(...);
     ///
-    ///     let client_builder = Client::builder("ws://127.0.0.1:3000")
+    ///     let client_builder = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder")
     ///         .tls_config(tls_config, "example.com")
     ///         .expect("Add tls config")
@@ -300,11 +293,11 @@ where
     /// # Example
     ///
     /// ```
-    /// use karyon_jsonrpc::{Client, TcpConfig};
+    /// use karyon_jsonrpc::{ClientBuilder, TcpConfig};
     ///  
     /// async {
     ///     let tcp_config = TcpConfig::default();
-    ///     let client = Client::builder("ws://127.0.0.1:3000")
+    ///     let client = ClientBuilder::new("ws://127.0.0.1:3000")
     ///         .expect("Create a new client builder")
     ///         .tcp_config(tcp_config)
     ///         .expect("Add tcp config")
@@ -315,7 +308,7 @@ where
     ///
     /// ```
     pub async fn build(self) -> Result<Arc<Client<C>>> {
-        let client = Client::init(self.inner).await?;
+        let client = Client::init(self.inner, self.codec).await?;
         Ok(client)
     }
 }

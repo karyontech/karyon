@@ -17,7 +17,7 @@ impl Codec for NewLineCodec {
 
 impl Encoder for NewLineCodec {
     type EnMessage = String;
-    type EncodeError = Error;
+    type EnError = Error;
     fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
         dst[..src.len()].copy_from_slice(src.as_bytes());
         Ok(src.len())
@@ -26,7 +26,7 @@ impl Encoder for NewLineCodec {
 
 impl Decoder for NewLineCodec {
     type DeMessage = String;
-    type DecodeError = Error;
+    type DeError = Error;
     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
         match src.iter().position(|&b| b == b'\n') {
             Some(i) => Ok(Some((i + 1, String::from_utf8(src[..i].to_vec()).unwrap()))),

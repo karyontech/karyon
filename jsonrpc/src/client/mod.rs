@@ -43,9 +43,8 @@ use subscriptions::Subscriptions;
 
 type RequestID = u32;
 
-struct ClientConfig<C> {
+struct ClientConfig {
     endpoint: Endpoint,
-    json_codec: C,
     #[cfg(feature = "tcp")]
     tcp_config: TcpConfig,
     #[cfg(feature = "tls")]
@@ -61,7 +60,8 @@ pub struct Client<C> {
     subscriptions: Arc<Subscriptions>,
     send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
     task_group: TaskGroup,
-    config: ClientConfig<C>,
+    config: ClientConfig,
+    codec: C,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -183,7 +183,7 @@ where
     }
 
     /// Initializes a new [`Client`] from the provided [`ClientConfig`].
-    async fn init(config: ClientConfig<C>) -> Result<Arc<Self>> {
+    async fn init(config: ClientConfig, codec: C) -> Result<Arc<Self>> {
         let client = Arc::new(Client {
             disconnect: AtomicBool::new(false),
             subscriptions: Subscriptions::new(config.subscription_buffer_size),
@@ -191,6 +191,7 @@ where
             message_dispatcher: MessageDispatcher::new(),
             task_group: TaskGroup::new(),
             config,
+            codec,
         });
 
         let conn = client.connect().await?;
@@ -204,7 +205,7 @@ where
 
     async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value, Error>> {
         let endpoint = self.config.endpoint.clone();
-        let json_codec = self.config.json_codec.clone();
+        let json_codec = self.codec.clone();
         let conn: Conn<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
