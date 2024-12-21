@@ -1,18 +1,15 @@
 use std::sync::Arc;
 
-#[cfg(feature = "tcp")]
-use karyon_net::Endpoint;
-use karyon_net::ToEndpoint;
-
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
 
 use crate::{
     codec::{ClonableJsonCodec, JsonCodec},
     error::Result,
+    net::ToEndpoint,
 };
 #[cfg(feature = "tcp")]
-use crate::{error::Error, net::TcpConfig};
+use crate::{error::Error, net::Endpoint, net::TcpConfig};
 
 use super::{Client, ClientConfig};
 

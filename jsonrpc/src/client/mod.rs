@@ -15,15 +15,17 @@ use log::{debug, error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
-#[cfg(feature = "tcp")]
-use karyon_net::tcp::TcpConfig;
 #[cfg(feature = "ws")]
 use karyon_net::ws::ClientWsConfig;
 #[cfg(all(feature = "ws", feature = "tls"))]
 use karyon_net::ws::ClientWssConfig;
 #[cfg(feature = "tls")]
 use karyon_net::{async_rustls::rustls, tls::ClientTlsConfig};
-use karyon_net::{Conn, Endpoint};
+
+#[cfg(feature = "tcp")]
+use crate::net::TcpConfig;
+
+use karyon_net::Conn;
 
 use karyon_core::{
     async_util::{select, timeout, Either, TaskGroup, TaskResult},
@@ -35,6 +37,7 @@ use crate::codec::ClonableJsonCodec;
 use crate::{
     error::{Error, Result},
     message::{self, SubscriptionID},
+    net::Endpoint,
 };
 
 pub use builder::ClientBuilder;
@@ -207,11 +210,11 @@ where
 
     async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value, Error>> {
         let endpoint = self.config.endpoint.clone();
-        let json_codec = self.codec.clone();
+        let codec = self.codec.clone();
         let conn: Conn<serde_json::Value, Error> = match endpoint {
             #[cfg(feature = "tcp")]
             Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), json_codec)
+                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), codec)
                     .await?,
             ),
             #[cfg(feature = "tls")]
@@ -224,7 +227,7 @@ where
                             client_config: conf.clone(),
                             tcp_config: self.config.tcp_config.clone(),
                         },
-                        json_codec,
+                        codec,
                     )
                     .await?,
                 ),
@@ -236,7 +239,7 @@ where
                     tcp_config: self.config.tcp_config.clone(),
                     wss_config: None,
                 };
-                Box::new(karyon_net::ws::dial(&endpoint, config, json_codec).await?)
+                Box::new(karyon_net::ws::dial(&endpoint, config, codec).await?)
             }
             #[cfg(all(feature = "ws", feature = "tls"))]
             Endpoint::Wss(..) => match &self.config.tls_config {
@@ -250,7 +253,7 @@ where
                                 client_config: conf.clone(),
                             }),
                         },
-                        json_codec,
+                        codec,
                     )
                     .await?,
                 ),
@@ -258,7 +261,7 @@ where
             },
             #[cfg(all(feature = "unix", target_family = "unix"))]
             Endpoint::Unix(..) => {
-                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), json_codec).await?)
+                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), codec).await?)
             }
             _ => return Err(Error::UnsupportedProtocol(endpoint.to_string())),
         };

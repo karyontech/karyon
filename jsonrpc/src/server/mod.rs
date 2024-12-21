@@ -15,16 +15,18 @@ use karyon_core::{
 
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls;
-#[cfg(feature = "tcp")]
-use karyon_net::tcp::TcpConfig;
 #[cfg(feature = "ws")]
 use karyon_net::ws::ServerWsConfig;
-use karyon_net::{Conn, Endpoint, Listener};
+use karyon_net::{Conn, Listener};
+
+#[cfg(feature = "tcp")]
+use crate::net::TcpConfig;
 
 use crate::{
     codec::ClonableJsonCodec,
     error::{Error, Result},
     message,
+    net::Endpoint,
 };
 
 pub use builder::ServerBuilder;
