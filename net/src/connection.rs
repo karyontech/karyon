@@ -1,14 +1,17 @@
+use std::result::Result;
+
 use async_trait::async_trait;
 
-use crate::{Endpoint, Result};
+use crate::Endpoint;
 
 /// Alias for `Box<dyn Connection>`
-pub type Conn<T> = Box<dyn Connection<Item = T>>;
+pub type Conn<C, E> = Box<dyn Connection<Message = C, Error = E>>;
 
 /// A trait for objects which can be converted to [`Conn`].
 pub trait ToConn {
-    type Item;
-    fn to_conn(self) -> Conn<Self::Item>;
+    type Message;
+    type Error;
+    fn to_conn(self) -> Conn<Self::Message, Self::Error>;
 }
 
 /// Connection is a generic network connection interface for
@@ -19,16 +22,17 @@ pub trait ToConn {
 /// [Conn](https://pkg.go.dev/net#Conn) interface
 #[async_trait]
 pub trait Connection: Send + Sync {
-    type Item;
+    type Message;
+    type Error;
     /// Returns the remote peer endpoint of this connection
-    fn peer_endpoint(&self) -> Result<Endpoint>;
+    fn peer_endpoint(&self) -> Result<Endpoint, Self::Error>;
 
     /// Returns the local socket endpoint of this connection
-    fn local_endpoint(&self) -> Result<Endpoint>;
+    fn local_endpoint(&self) -> Result<Endpoint, Self::Error>;
 
     /// Recvs data from this connection.  
-    async fn recv(&self) -> Result<Self::Item>;
+    async fn recv(&self) -> Result<Self::Message, Self::Error>;
 
     /// Sends data to this connection
-    async fn send(&self, msg: Self::Item) -> Result<()>;
+    async fn send(&self, msg: Self::Message) -> Result<(), Self::Error>;
 }

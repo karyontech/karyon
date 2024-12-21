@@ -4,27 +4,30 @@ use karyon_core::async_util::sleep;
 
 use karyon_net::{
     codec::{Codec, Decoder, Encoder},
-    tcp, ConnListener, Connection, Endpoint, Result,
+    tcp, ConnListener, Connection, Endpoint, Error, Result,
 };
 
 #[derive(Clone)]
 struct NewLineCodec {}
 
 impl Codec for NewLineCodec {
-    type Item = String;
+    type Message = String;
+    type Error = Error;
 }
 
 impl Encoder for NewLineCodec {
-    type EnItem = String;
-    fn encode(&self, src: &Self::EnItem, dst: &mut [u8]) -> Result<usize> {
+    type EnMessage = String;
+    type EncodeError = Error;
+    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
         dst[..src.len()].copy_from_slice(src.as_bytes());
         Ok(src.len())
     }
 }
 
 impl Decoder for NewLineCodec {
-    type DeItem = String;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeItem)>> {
+    type DeMessage = String;
+    type DecodeError = Error;
+    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
         match src.iter().position(|&b| b == b'\n') {
             Some(i) => Ok(Some((i + 1, String::from_utf8(src[..i].to_vec()).unwrap()))),
             None => Ok(None),

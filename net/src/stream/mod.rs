@@ -8,6 +8,7 @@ pub use websocket::{ReadWsStream, WriteWsStream, WsStream};
 use std::{
     io::ErrorKind,
     pin::Pin,
+    result::Result,
     task::{Context, Poll},
 };
 
@@ -20,10 +21,7 @@ use pin_project_lite::pin_project;
 
 use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
 
-use crate::{
-    codec::{Decoder, Encoder},
-    Error, Result,
-};
+use crate::codec::{Decoder, Encoder};
 
 use buffer::Buffer;
 
@@ -49,10 +47,10 @@ where
         }
     }
 
-    pub async fn recv(&mut self) -> Result<C::DeItem> {
+    pub async fn recv(&mut self) -> Result<C::DeMessage, C::DeError> {
         match self.next().await {
             Some(m) => m,
-            None => Err(Error::IO(std::io::ErrorKind::ConnectionAborted.into())),
+            None => todo!(),
         }
     }
 }
@@ -87,7 +85,7 @@ where
     T: AsyncRead + Unpin,
     C: Decoder + Unpin,
 {
-    type Item = Result<C::DeItem>;
+    type Item = Result<C::DeMessage, C::DeError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
@@ -141,14 +139,14 @@ where
     }
 }
 
-impl<T, C> Sink<C::EnItem> for WriteStream<T, C>
+impl<T, C> Sink<C::EnMessage> for WriteStream<T, C>
 where
     T: AsyncWrite + Unpin,
     C: Encoder + Unpin,
 {
-    type Error = Error;
+    type Error = C::EnError;
 
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<()>> {
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         let this = &mut *self;
         while !this.buffer.is_empty() {
             let n = ready!(Pin::new(&mut this.inner).poll_write(cx, this.buffer.as_ref()))?;
@@ -167,7 +165,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn start_send(mut self: Pin<&mut Self>, item: C::EnItem) -> Result<()> {
+    fn start_send(mut self: Pin<&mut Self>, item: C::EnMessage) -> Result<(), Self::Error> {
         let this = &mut *self;
         let mut buf = [0u8; INITIAL_BUFFER_SIZE];
         let n = this.encoder.encode(&item, &mut buf)?;
@@ -175,22 +173,17 @@ where
         Ok(())
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         ready!(self.as_mut().poll_ready(cx))?;
         self.project().inner.poll_flush(cx).map_err(Into::into)
     }
 
-    fn poll_close(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         ready!(self.as_mut().poll_flush(cx))?;
         #[cfg(feature = "smol")]
-        return self.project().inner.poll_close(cx).map_err(Error::from);
+        return self.project().inner.poll_close(cx).map_err(|e| e.into());
+
         #[cfg(feature = "tokio")]
-        return self.project().inner.poll_shutdown(cx).map_err(Error::from);
+        return self.project().inner.poll_shutdown(cx).map_err(|e| e.into());
     }
 }

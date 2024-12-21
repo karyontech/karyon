@@ -7,8 +7,13 @@ use async_trait::async_trait;
 #[cfg(feature = "tls")]
 use rustls_pki_types as pki_types;
 
+use async_tungstenite::tungstenite::Error;
+
+#[cfg(feature = "smol")]
+use async_tungstenite::{accept_async, client_async};
+
 #[cfg(feature = "tokio")]
-use async_tungstenite::tokio as async_tungstenite;
+use async_tungstenite::tokio::{accept_async, client_async};
 
 use karyon_core::async_runtime::{
     lock::Mutex,
@@ -83,24 +88,26 @@ where
 }
 
 #[async_trait]
-impl<C> Connection for WsConn<C>
+impl<C, E> Connection for WsConn<C>
 where
-    C: WebSocketCodec,
+    C: WebSocketCodec<Error = E>,
+    E: From<Error>,
 {
-    type Item = C::Item;
-    fn peer_endpoint(&self) -> Result<Endpoint> {
+    type Message = C::Message;
+    type Error = E;
+    fn peer_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         Ok(self.peer_endpoint.clone())
     }
 
-    fn local_endpoint(&self) -> Result<Endpoint> {
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         Ok(self.local_endpoint.clone())
     }
 
-    async fn recv(&self) -> Result<Self::Item> {
+    async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
         self.read_stream.lock().await.recv().await
     }
 
-    async fn send(&self, msg: Self::Item) -> Result<()> {
+    async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         self.write_stream.lock().await.send(msg).await
     }
 }
@@ -115,19 +122,21 @@ pub struct WsListener<C> {
 }
 
 #[async_trait]
-impl<C> ConnListener for WsListener<C>
+impl<C, E> ConnListener for WsListener<C>
 where
-    C: WebSocketCodec + Clone,
+    C: WebSocketCodec<Error = E> + Clone + 'static,
+    E: From<Error> + From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn local_endpoint(&self) -> Result<Endpoint> {
+    type Message = C::Message;
+    type Error = E;
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
         match self.config.wss_config {
             Some(_) => Ok(Endpoint::new_wss_addr(self.inner.local_addr()?)),
             None => Ok(Endpoint::new_ws_addr(self.inner.local_addr()?)),
         }
     }
 
-    async fn accept(&self) -> Result<Conn<Self::Item>> {
+    async fn accept(&self) -> std::result::Result<Conn<Self::Message, Self::Error>, Self::Error> {
         let (socket, _) = self.inner.accept().await?;
         socket.set_nodelay(self.config.tcp_config.nodelay)?;
 
@@ -139,7 +148,7 @@ where
                     let local_endpoint = socket.local_addr().map(Endpoint::new_wss_addr)?;
 
                     let tls_conn = acceptor.accept(socket).await?.into();
-                    let conn = async_tungstenite::accept_async(tls_conn).await?;
+                    let conn = accept_async(tls_conn).await?;
                     Ok(Box::new(WsConn::new(
                         WsStream::new_wss(conn, self.codec.clone()),
                         peer_endpoint,
@@ -152,7 +161,7 @@ where
                 let peer_endpoint = socket.peer_addr().map(Endpoint::new_ws_addr)?;
                 let local_endpoint = socket.local_addr().map(Endpoint::new_ws_addr)?;
 
-                let conn = async_tungstenite::accept_async(socket).await?;
+                let conn = accept_async(socket).await?;
 
                 Ok(Box::new(WsConn::new(
                     WsStream::new_ws(conn, self.codec.clone()),
@@ -185,8 +194,7 @@ where
 
             let altname = pki_types::ServerName::try_from(conf.dns_name.clone())?;
             let tls_conn = connector.connect(altname, socket).await?.into();
-            let (conn, _resp) =
-                async_tungstenite::client_async(endpoint.to_string(), tls_conn).await?;
+            let (conn, _resp) = client_async(endpoint.to_string(), tls_conn).await?;
             Ok(WsConn::new(
                 WsStream::new_wss(conn, codec),
                 peer_endpoint,
@@ -196,8 +204,7 @@ where
         None => {
             let peer_endpoint = socket.peer_addr().map(Endpoint::new_ws_addr)?;
             let local_endpoint = socket.local_addr().map(Endpoint::new_ws_addr)?;
-            let (conn, _resp) =
-                async_tungstenite::client_async(endpoint.to_string(), socket).await?;
+            let (conn, _resp) = client_async(endpoint.to_string(), socket).await?;
             Ok(WsConn::new(
                 WsStream::new_ws(conn, codec),
                 peer_endpoint,
@@ -241,31 +248,36 @@ pub async fn listen<C>(
     }
 }
 
-impl<C> From<WsListener<C>> for Listener<C::Item>
+impl<C, E> From<WsListener<C>> for Listener<C::Message, E>
 where
-    C: WebSocketCodec + Clone,
+    C: WebSocketCodec<Error = E> + Clone + 'static,
+    E: From<Error> + From<std::io::Error>,
 {
     fn from(listener: WsListener<C>) -> Self {
         Box::new(listener)
     }
 }
 
-impl<C> ToConn for WsConn<C>
+impl<C, E> ToConn for WsConn<C>
 where
-    C: WebSocketCodec,
+    C: WebSocketCodec<Error = E> + 'static,
+    E: From<Error>,
 {
-    type Item = C::Item;
-    fn to_conn(self) -> Conn<Self::Item> {
+    type Message = C::Message;
+    type Error = E;
+    fn to_conn(self) -> Conn<Self::Message, Self::Error> {
         Box::new(self)
     }
 }
 
-impl<C> ToListener for WsListener<C>
+impl<C, E> ToListener for WsListener<C>
 where
-    C: WebSocketCodec + Clone,
+    C: WebSocketCodec<Error = E> + Clone + 'static,
+    E: From<Error> + From<std::io::Error>,
 {
-    type Item = C::Item;
-    fn to_listener(self) -> Listener<Self::Item> {
-        self.into()
+    type Message = C::Message;
+    type Error = E;
+    fn to_listener(self) -> Listener<Self::Message, Self::Error> {
+        Box::new(self)
     }
 }

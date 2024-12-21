@@ -7,7 +7,7 @@ use crate::{
     codec::Codec,
     connection::{Conn, Connection, ToConn},
     endpoint::Endpoint,
-    Error, Result,
+    Result,
 };
 
 const BUFFER_SIZE: usize = 64 * 1024;
@@ -39,39 +39,40 @@ where
 }
 
 #[async_trait]
-impl<C> Connection for UdpConn<C>
+impl<C, E> Connection for UdpConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone,
+    E: From<std::io::Error>,
 {
-    type Item = (C::Item, Endpoint);
-    fn peer_endpoint(&self) -> Result<Endpoint> {
-        self.inner
-            .peer_addr()
-            .map(Endpoint::new_udp_addr)
-            .map_err(Error::from)
+    type Message = (C::Message, Endpoint);
+    type Error = E;
+    fn peer_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
+        Ok(self.inner.peer_addr().map(Endpoint::new_udp_addr)?)
     }
 
-    fn local_endpoint(&self) -> Result<Endpoint> {
-        self.inner
-            .local_addr()
-            .map(Endpoint::new_udp_addr)
-            .map_err(Error::from)
+    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
+        Ok(self.inner.local_addr().map(Endpoint::new_udp_addr)?)
     }
 
-    async fn recv(&self) -> Result<Self::Item> {
+    async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
         let mut buf = [0u8; BUFFER_SIZE];
         let (_, addr) = self.inner.recv_from(&mut buf).await?;
         match self.codec.decode(&mut buf)? {
-            Some((_, item)) => Ok((item, Endpoint::new_udp_addr(addr))),
-            None => Err(Error::Decode("Unable to decode".into())),
+            Some((_, msg)) => Ok((msg, Endpoint::new_udp_addr(addr))),
+            None => Err(std::io::Error::from(std::io::ErrorKind::ConnectionAborted).into()),
         }
     }
 
-    async fn send(&self, msg: Self::Item) -> Result<()> {
+    async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         let (msg, out_addr) = msg;
         let mut buf = [0u8; BUFFER_SIZE];
         self.codec.encode(&msg, &mut buf)?;
-        let addr: SocketAddr = out_addr.try_into()?;
+        let addr: SocketAddr = out_addr.try_into().map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Convert Endpoint to SocketAddress",
+            )
+        })?;
         self.inner.send_to(&buf, addr).await?;
         Ok(())
     }
@@ -100,12 +101,14 @@ where
     Ok(UdpConn::new(conn, config, codec))
 }
 
-impl<C> ToConn for UdpConn<C>
+impl<C, E> ToConn for UdpConn<C>
 where
-    C: Codec + Clone,
+    C: Codec<Error = E> + Clone + 'static,
+    E: From<std::io::Error>,
 {
-    type Item = (C::Item, Endpoint);
-    fn to_conn(self) -> Conn<Self::Item> {
+    type Message = (C::Message, Endpoint);
+    type Error = E;
+    fn to_conn(self) -> Conn<Self::Message, Self::Error> {
         Box::new(self)
     }
 }
