@@ -72,41 +72,42 @@ pub struct Server {
 }
 
 impl Server {
-    /// Starts the RPC server. This will spawn a new task for the main accept loop,
-    /// which listens for incoming connections.
-    pub fn start(self: &Arc<Self>) {
-        // Handle the completion of the accept loop task
-        let on_complete = {
-            let this = self.clone();
-            |result: TaskResult<Result<()>>| async move {
-                if let TaskResult::Completed(Err(err)) = result {
-                    error!("Main accept loop stopped: {err}");
-                    this.shutdown().await;
-                }
-            }
-        };
-
+    /// Starts the RPC server by spawning a new task for the main accept loop.
+    /// The accept loop listens for incoming connections.
+    ///
+    /// This function does not block the current thread. If you need the thread to block,
+    /// use the [`start_block`] method instead.
+    pub fn start(self: Arc<Self>) {
         // Spawns a new task for the main accept loop
-        self.task_group.spawn(
-            {
-                let this = self.clone();
-                async move {
-                    loop {
-                        match this.listener.accept().await {
-                            Ok(conn) => {
-                                if let Err(err) = this.handle_conn(conn).await {
-                                    error!("Handle a new connection: {err}")
-                                }
-                            }
-                            Err(err) => {
-                                error!("Accept a new connection: {err}")
-                            }
-                        }
+        self.task_group
+            .spawn(self.clone().start_block(), |_| async {});
+    }
+
+    /// Starts the RPC server by running the main accept loop.
+    /// The accept loop listens for incoming connections and blocks the current thread.
+    ///
+    /// If you prefer a non-blocking implementation, use the [`start`] method instead.
+    pub async fn start_block(self: Arc<Self>) -> Result<()> {
+        if let Err(err) = self.accept_loop().await {
+            error!("Main accept loop stopped: {err}");
+            self.shutdown().await;
+        };
+        Ok(())
+    }
+
+    async fn accept_loop(self: &Arc<Self>) -> Result<()> {
+        loop {
+            match self.listener.accept().await {
+                Ok(conn) => {
+                    if let Err(err) = self.handle_conn(conn).await {
+                        error!("Handle a new connection: {err}")
                     }
                 }
-            },
-            on_complete,
-        );
+                Err(err) => {
+                    error!("Accept a new connection: {err}")
+                }
+            }
+        }
     }
 
     /// Returns the local endpoint.

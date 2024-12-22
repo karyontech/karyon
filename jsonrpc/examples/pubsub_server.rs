@@ -81,8 +81,6 @@ fn main() {
             .expect("Build a new server");
 
         // Start the server
-        server.start();
-
-        sleep(Duration::MAX).await;
+        server.start_block().await.expect("Start the server");
     });
 }

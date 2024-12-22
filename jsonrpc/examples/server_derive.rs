@@ -1,9 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use karyon_core::async_util::sleep;
 use karyon_jsonrpc::{error::RPCError, rpc_impl, rpc_method, server::ServerBuilder};
 
 struct Calc {
@@ -59,8 +58,6 @@ fn main() {
             .expect("start a new server");
 
         // Start the server
-        server.start();
-
-        sleep(Duration::MAX).await;
+        server.start_block().await.expect("Start the server");
     });
 }

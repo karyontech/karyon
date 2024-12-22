@@ -98,9 +98,10 @@ async {
         .expect("build the server");
 
     // Starts the server
-    server.start();
+    server.start_block()
+        .await
+        .expect("Start the server");
 
-    smol::Timer::after(Duration::MAX).await;
 };
 
 // Client
