@@ -32,11 +32,12 @@ use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
     error::RPCError, server::{Server, ServerBuilder, Channel}, client::ClientBuilder,
-    rpc_impl, rpc_pubsub_impl, message::SubscriptionID,
+    rpc_impl, rpc_pubsub_impl, rpc_method, message::SubscriptionID,
 };
 
 struct HelloWorld {}
 
+// It is possible to change the service name by adding a `name` attribute 
 #[rpc_impl]
 impl HelloWorld {
     async fn say_hello(&self, params: Value) -> Result<Value, RPCError> {
@@ -44,6 +45,7 @@ impl HelloWorld {
         Ok(serde_json::json!(format!("Hello {msg}!")))
     }
 
+    #[rpc_method(name = "foo_method")]
     async fn foo(&self, params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!("foo!"))
     }
@@ -53,6 +55,8 @@ impl HelloWorld {
     }
 }
 
+
+// It is possible to change the service name by adding a `name` attribute 
 #[rpc_pubsub_impl]
 impl HelloWorld {
     async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, RPCError> {
@@ -109,6 +113,10 @@ async {
         .expect("build the client");
 
     let result: String = client.call("HelloWorld.say_hello", "world".to_string())
+        .await
+        .expect("send a request");
+
+    let result: String = client.call("HelloWorld.foo_method", ())
         .await
         .expect("send a request");
 

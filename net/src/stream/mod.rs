@@ -50,7 +50,7 @@ where
     pub async fn recv(&mut self) -> Result<C::DeMessage, C::DeError> {
         match self.next().await {
             Some(m) => m,
-            None => todo!(),
+            None => Err(std::io::Error::from(std::io::ErrorKind::ConnectionAborted).into()),
         }
     }
 }

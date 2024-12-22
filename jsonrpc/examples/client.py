@@ -11,30 +11,6 @@ s.connect((HOST, PORT))
 req = {
     "jsonrpc": "2.0",
     "id": str(random.randint(0, 1000)),
-    "method": "Calc.add",
-    "params": {"x": 4, "y": 3},
-}
-print("Send: ", req)
-s.sendall((json.dumps(req)).encode())
-res = s.recv(1024)
-res = json.loads(res)
-print("Received: ", res)
-
-req = {
-    "jsonrpc": "2.0",
-    "id": str(random.randint(0, 1000)),
-    "method": "Calc.sub",
-    "params": {"x": 4, "y": 3},
-}
-print("Send: ", req)
-s.sendall((json.dumps(req)).encode())
-res = s.recv(1024)
-res = json.loads(res)
-print("Received: ", res)
-
-req = {
-    "jsonrpc": "2.0",
-    "id": str(random.randint(0, 1000)),
     "method": "Calc.ping",
     "params": None,
 }

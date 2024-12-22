@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_core::async_util::sleep;
-use karyon_jsonrpc::{
-    error::RPCError,
-    server::{RPCMethod, RPCService, ServerBuilder},
-};
+use karyon_jsonrpc::{error::RPCError, rpc_impl, rpc_method, server::ServerBuilder};
 
 struct Calc {
     version: String,
@@ -22,25 +19,22 @@ struct Req {
 #[derive(Deserialize, Serialize)]
 struct Pong {}
 
-impl RPCService for Calc {
-    fn get_method(&self, name: &str) -> Option<RPCMethod> {
-        match name {
-            "ping" => Some(Box::new(move |params: Value| Box::pin(self.ping(params)))),
-            "version" => Some(Box::new(move |params: Value| {
-                Box::pin(self.version(params))
-            })),
-            _ => unimplemented!(),
-        }
-    }
-
-    fn name(&self) -> String {
-        "Calc".to_string()
-    }
-}
-
+#[rpc_impl(name = "calculator")]
 impl Calc {
     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!(Pong {}))
+    }
+
+    #[rpc_method(name = "math.add")]
+    async fn add(&self, params: Value) -> Result<Value, RPCError> {
+        let params: Req = serde_json::from_value(params)?;
+        Ok(serde_json::json!(params.x + params.y))
+    }
+
+    #[rpc_method(name = "math.sub")]
+    async fn sub(&self, params: Value) -> Result<Value, RPCError> {
+        let params: Req = serde_json::from_value(params)?;
+        Ok(serde_json::json!(params.x - params.y))
     }
 
     async fn version(&self, _params: Value) -> Result<Value, RPCError> {

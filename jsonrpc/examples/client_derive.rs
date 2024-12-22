@@ -24,18 +24,32 @@ fn main() {
             .await
             .expect("Create rpc client");
 
-        let result: String = client
-            .call("Calc.version", ())
+        let params = Req { x: 10, y: 7 };
+        let result: u32 = client
+            .call("calculator.math.add", params)
             .await
-            .expect("Call Calc.version method");
+            .expect("Call calculator.math.add method");
+        info!("Add result: {result}");
+
+        let params = Req { x: 10, y: 7 };
+        let result: u32 = client
+            .call("calculator.math.sub", params)
+            .await
+            .expect("Call calculator.math.sub method");
+        info!("Sub result: {result}");
+
+        let result: String = client
+            .call("calculator.version", ())
+            .await
+            .expect("Call calculator.version method");
         info!("Version result: {result}");
 
         loop {
             Timer::after(Duration::from_millis(100)).await;
             let result: Pong = client
-                .call("Calc.ping", ())
+                .call("calculator.ping", ())
                 .await
-                .expect("Call Calc.ping method");
+                .expect("Call calculator.ping method");
             info!("Ping result:  {:?}", result);
         }
     });

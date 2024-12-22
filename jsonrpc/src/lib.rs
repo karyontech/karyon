@@ -7,4 +7,4 @@ pub mod message;
 pub mod net;
 pub mod server;
 
-pub use karyon_jsonrpc_macro::{rpc_impl, rpc_pubsub_impl};
+pub use karyon_jsonrpc_macro::{rpc_impl, rpc_method, rpc_pubsub_impl};
