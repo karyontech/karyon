@@ -279,7 +279,9 @@ impl LookupService {
                 NetMsgCmd::Peers => {
                     peers = decode::<PeersMsg>(&msg.payload)?.0.peers;
                     if peers.len() >= MAX_PEERS_IN_PEERSMSG {
-                        return Err(Error::Lookup("Received too many peers in PeersMsg"));
+                        return Err(Error::Lookup(
+                            "Received too many peers in PeersMsg".to_string(),
+                        ));
                     }
                     break;
                 }

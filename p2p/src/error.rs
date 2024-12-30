@@ -57,10 +57,10 @@ pub enum Error {
     InvalidPongMsg,
 
     #[error("Discovery error: {0}")]
-    Discovery(&'static str),
+    Discovery(String),
 
     #[error("Lookup error: {0}")]
-    Lookup(&'static str),
+    Lookup(String),
 
     #[error("Peer Already Connected")]
     PeerAlreadyConnected,

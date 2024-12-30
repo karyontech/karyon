@@ -5,7 +5,7 @@ use crate::{error::Error, Result};
 /// Returns the user's home directory as a `PathBuf`.
 #[allow(dead_code)]
 pub fn home_dir() -> Result<PathBuf> {
-    dirs::home_dir().ok_or(Error::PathNotFound("Home dir not found"))
+    dirs::home_dir().ok_or(Error::PathNotFound("Home dir not found".to_string()))
 }
 
 /// Expands a tilde (~) in a path and returns the expanded `PathBuf`.

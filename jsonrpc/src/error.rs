@@ -21,7 +21,7 @@ pub enum Error {
     Decode(String),
 
     #[error("Invalid Message Error: {0}")]
-    InvalidMsg(&'static str),
+    InvalidMsg(String),
 
     #[error(transparent)]
     ParseJSON(#[from] serde_json::Error),
@@ -58,7 +58,7 @@ pub enum Error {
     WebSocket(#[from] async_tungstenite::tungstenite::Error),
 
     #[error("Unexpected Error: {0}")]
-    General(&'static str),
+    General(String),
 
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),
