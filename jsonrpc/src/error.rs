@@ -21,7 +21,7 @@ pub enum Error {
     Decode(String),
 
     #[error("Invalid Message Error: {0}")]
-    InvalidMsg(&'static str),
+    InvalidMsg(String),
 
     #[error(transparent)]
     ParseJSON(#[from] serde_json::Error),
@@ -58,7 +58,7 @@ pub enum Error {
     WebSocket(#[from] async_tungstenite::tungstenite::Error),
 
     #[error("Unexpected Error: {0}")]
-    General(&'static str),
+    General(String),
 
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),
@@ -79,13 +79,13 @@ pub type RPCResult<T> = std::result::Result<T, RPCError>;
 #[derive(ThisError, Debug)]
 pub enum RPCError {
     #[error("Custom Error:  code: {0} msg: {1}")]
-    CustomError(i32, &'static str),
+    CustomError(i32, String),
 
     #[error("Invalid Params: {0}")]
-    InvalidParams(&'static str),
+    InvalidParams(String),
 
     #[error("Invalid Request: {0}")]
-    InvalidRequest(&'static str),
+    InvalidRequest(String),
 
     #[error("Parse Error: {0}")]
     ParseError(String),

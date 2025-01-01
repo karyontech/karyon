@@ -8,13 +8,13 @@ pub enum Error {
     IO(#[from] std::io::Error),
 
     #[error("TryInto Error: {0}")]
-    TryInto(&'static str),
+    TryInto(String),
 
     #[error("Timeout Error")]
     Timeout,
 
     #[error("Path Not Found Error: {0}")]
-    PathNotFound(&'static str),
+    PathNotFound(String),
 
     #[error("Event Emit Error: {0}")]
     EventEmitError(String),

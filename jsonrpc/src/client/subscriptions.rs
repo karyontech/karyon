@@ -87,13 +87,13 @@ impl Subscriptions {
     pub(super) async fn notify(&self, nt: Notification) -> Result<()> {
         let nt_res: NotificationResult = match nt.params {
             Some(ref p) => serde_json::from_value(p.clone())?,
-            None => return Err(Error::InvalidMsg("Invalid notification msg")),
+            None => return Err(Error::InvalidMsg("Invalid notification msg".to_string())),
         };
 
         match self.subs.lock().await.get(&nt_res.subscription) {
             Some(s) => s.notify(nt_res.result.unwrap_or(json!(""))).await?,
             None => {
-                return Err(Error::InvalidMsg("Unknown notification"));
+                return Err(Error::InvalidMsg("Unknown notification".to_string()));
             }
         }
 

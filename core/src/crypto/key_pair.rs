@@ -122,7 +122,7 @@ impl Ed25519PublicKey {
     pub fn from_bytes(pk: &[u8]) -> Result<Self> {
         let pk_bytes: [u8; 32] = pk
             .try_into()
-            .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 32]"))?;
+            .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 32]".to_string()))?;
 
         Ok(Self(ed25519_dalek::VerifyingKey::from_bytes(&pk_bytes)?))
     }
@@ -136,7 +136,7 @@ impl PublicKeyExt for Ed25519PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<()> {
         let sig_bytes: [u8; 64] = signature
             .try_into()
-            .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 64]"))?;
+            .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 64]".to_string()))?;
         self.0
             .verify(msg, &ed25519_dalek::Signature::from_bytes(&sig_bytes))?;
         Ok(())

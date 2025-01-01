@@ -90,7 +90,7 @@ where
 
         match response.result {
             Some(result) => Ok(serde_json::from_value::<V>(result)?),
-            None => Err(Error::InvalidMsg("Invalid response result")),
+            None => Err(Error::InvalidMsg("Invalid response result".to_string())),
         }
     }
 
@@ -108,7 +108,7 @@ where
 
         let sub_id = match response.result {
             Some(result) => serde_json::from_value::<SubscriptionID>(result)?,
-            None => return Err(Error::InvalidMsg("Invalid subscription id")),
+            None => return Err(Error::InvalidMsg("Invalid subscription id".to_string())),
         };
 
         let sub = self.subscriptions.subscribe(sub_id).await;
@@ -172,7 +172,7 @@ where
         // It should be OK to unwrap here, as the message dispatcher checks
         // for the response id.
         if *response.id.as_ref().expect("Get response id") != id {
-            return Err(Error::InvalidMsg("Invalid response id"));
+            return Err(Error::InvalidMsg("Invalid response id".to_string()));
         }
 
         Ok(response)
@@ -325,7 +325,7 @@ where
             },
             Err(err) => {
                 error!("Receive unexpected msg {msg}: {err}");
-                Err(Error::InvalidMsg("Unexpected msg"))
+                Err(Error::InvalidMsg("Unexpected msg".to_string()))
             }
         }
     }

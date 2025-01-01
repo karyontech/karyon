@@ -54,14 +54,14 @@ impl MessageDispatcher {
         let res_id = match res.id {
             Some(ref rid) => rid.clone(),
             None => {
-                return Err(Error::InvalidMsg("Response id is none"));
+                return Err(Error::InvalidMsg("Response id is none".to_string()));
             }
         };
         let id: RequestID = serde_json::from_value(res_id)?;
         let val = self.chans.lock().await.remove(&id);
         match val {
             Some(tx) => tx.send(res).await.map_err(Error::from),
-            None => Err(Error::InvalidMsg("Receive unknown message")),
+            None => Err(Error::InvalidMsg("Receive unknown message".to_string())),
         }
     }
 }
