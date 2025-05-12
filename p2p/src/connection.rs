@@ -68,7 +68,7 @@ impl Connection {
         };
 
         let msg = NetMsg::new(NetMsgCmd::Protocol, &proto_msg)?;
-        self.conn.send(msg).await.map_err(Error::from)
+        self.conn.send(msg).await
     }
 
     pub async fn recv<P: Protocol>(&self) -> Result<ProtocolEvent> {
@@ -90,11 +90,11 @@ impl Connection {
     }
 
     pub async fn recv_inner(&self) -> Result<NetMsg> {
-        self.conn.recv().await.map_err(Error::from)
+        self.conn.recv().await
     }
 
     pub async fn send_inner(&self, msg: NetMsg) -> Result<()> {
-        self.conn.send(msg).await.map_err(Error::from)
+        self.conn.send(msg).await
     }
 
     pub async fn disconnect(&self, res: Result<()>) -> Result<()> {
@@ -102,7 +102,7 @@ impl Connection {
         self.disconnect_signal.send(res).await?;
 
         let m = NetMsg::new(NetMsgCmd::Shutdown, ShutdownMsg(0)).expect("Create shutdown message");
-        self.conn.send(m).await.map_err(Error::from)?;
+        self.conn.send(m).await?;
 
         Ok(())
     }

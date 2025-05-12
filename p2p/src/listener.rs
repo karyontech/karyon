@@ -83,7 +83,7 @@ impl Listener {
             }
         };
 
-        let resolved_endpoint = listener.local_endpoint().map_err(Error::from)?;
+        let resolved_endpoint = listener.local_endpoint()?;
 
         info!("Start listening on {resolved_endpoint}");
 

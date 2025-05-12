@@ -127,7 +127,7 @@ impl Server {
 
     /// Returns the local endpoint.
     pub fn local_endpoint(&self) -> Result<Endpoint> {
-        self.listener.local_endpoint().map_err(Error::from)
+        self.listener.local_endpoint()
     }
 
     /// Shuts down the RPC server
