@@ -14,7 +14,10 @@ use crate::{error::Error, net::TcpConfig};
 use crate::{
     codec::{ClonableJsonCodec, JsonCodec},
     error::Result,
+    message::Notification,
     net::ToEndpoint,
+    server::channel::NewNotification,
+    server::default_notification_encoder,
     server::PubSubRPCService,
     server::RPCService,
 };
@@ -152,6 +155,7 @@ where
                 tcp_config: Default::default(),
                 #[cfg(feature = "tls")]
                 tls_config: None,
+                notification_encoder: default_notification_encoder,
             },
             codec,
             executor: None,
@@ -321,6 +325,15 @@ where
     /// With an executor.
     pub async fn with_executor(mut self, ex: Executor) -> Self {
         self.executor = Some(ex);
+        self
+    }
+
+    /// With a custom notification encoder
+    pub fn with_notification_encoder(
+        mut self,
+        notification_encoder: fn(NewNotification) -> Notification,
+    ) -> Self {
+        self.config.notification_encoder = notification_encoder;
         self
     }
 
