@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) struct NewNotification {
+pub struct NewNotification {
     pub sub_id: SubscriptionID,
     pub result: serde_json::Value,
     pub method: String,

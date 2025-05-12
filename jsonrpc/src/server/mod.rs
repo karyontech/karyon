@@ -27,6 +27,7 @@ use crate::{
     error::{Error, Result},
     message,
     net::Endpoint,
+    server::channel::NewNotification,
 };
 
 pub use builder::ServerBuilder;
@@ -54,6 +55,19 @@ enum SanityCheckResult {
     ErrRes(message::Response),
 }
 
+fn default_notification_encoder(nt: NewNotification) -> message::Notification {
+    let params = Some(serde_json::json!(message::NotificationResult {
+        subscription: nt.sub_id,
+        result: Some(nt.result),
+    }));
+
+    message::Notification {
+        jsonrpc: message::JSONRPC_VERSION.to_string(),
+        method: nt.method,
+        params,
+    }
+}
+
 struct ServerConfig {
     endpoint: Endpoint,
     #[cfg(feature = "tcp")]
@@ -62,6 +76,7 @@ struct ServerConfig {
     tls_config: Option<rustls::ServerConfig>,
     services: HashMap<String, Arc<dyn RPCService + 'static>>,
     pubsub_services: HashMap<String, Arc<dyn PubSubRPCService + 'static>>,
+    notification_encoder: fn(NewNotification) -> message::Notification,
 }
 
 /// Represents an RPC server
@@ -143,6 +158,8 @@ impl Server {
             chan.close();
         };
 
+        let notification_encoder = self.config.notification_encoder;
+
         // Start listening for new responses in the queue or new notifications
         self.task_group.spawn(
             {
@@ -158,15 +175,7 @@ impl Server {
                             }
                             Either::Right(notification) => {
                                 let nt = notification?;
-                                let params = Some(serde_json::json!(message::NotificationResult {
-                                    subscription: nt.sub_id,
-                                    result: Some(nt.result),
-                                }));
-                                let notification = message::Notification {
-                                    jsonrpc: message::JSONRPC_VERSION.to_string(),
-                                    method: nt.method,
-                                    params,
-                                };
+                                let notification = (notification_encoder)(nt);
                                 debug!("--> {notification}");
                                 conn.send(serde_json::json!(notification)).await?;
                             }
