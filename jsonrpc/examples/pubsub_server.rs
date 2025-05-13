@@ -4,7 +4,7 @@ use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use karyon_core::async_util::sleep;
+use karyon_core::{async_util::sleep, util::random_32};
 use karyon_jsonrpc::{
     error::RPCError,
     message::SubscriptionID,
@@ -38,7 +38,10 @@ impl Calc {
         method: String,
         _params: Value,
     ) -> Result<Value, RPCError> {
-        let sub = chan.new_subscription(&method).await;
+        let sub = chan
+            .new_subscription(&method, Some(random_32()))
+            .await
+            .map_err(|_| RPCError::InvalidRequest("Duplicated subscription".into()))?;
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
@@ -61,8 +64,8 @@ impl Calc {
         params: Value,
     ) -> Result<Value, RPCError> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
-        chan.remove_subscription(&sub_id).await;
-        Ok(serde_json::json!(true))
+        let success = chan.remove_subscription(&sub_id).await.is_ok();
+        Ok(serde_json::json!(success))
     }
 }
 

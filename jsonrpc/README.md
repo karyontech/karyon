@@ -60,7 +60,7 @@ impl HelloWorld {
 #[rpc_pubsub_impl]
 impl HelloWorld {
     async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, RPCError> {
-        let sub = chan.new_subscription(&method).await;
+        let sub = chan.new_subscription(&method, None).await.expect("Failed to subscribe");
         let sub_id = sub.id.clone();
         smol::spawn(async move {
             loop {
