@@ -44,6 +44,9 @@ pub enum Error {
     #[error("Subscription Closed")]
     SubscriptionClosed,
 
+    #[error("Subscription duplicated: {0}")]
+    SubscriptionDuplicated(String),
+
     #[error("ClientDisconnected")]
     ClientDisconnected,
 

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::{Arc, Weak};
 
 use karyon_core::{async_runtime::lock::Mutex, util::random_32};
@@ -66,7 +67,7 @@ impl Subscription {
 /// Represents a connection channel for creating/removing subscriptions
 pub struct Channel {
     chan: async_channel::Sender<NewNotification>,
-    subs: Mutex<Vec<SubscriptionID>>,
+    subs: Mutex<HashSet<SubscriptionID>>,
 }
 
 impl Channel {
@@ -74,26 +75,32 @@ impl Channel {
     pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> Arc<Channel> {
         Arc::new(Self {
             chan,
-            subs: Mutex::new(Vec::new()),
+            subs: Mutex::new(HashSet::new()),
         })
     }
 
     /// Creates a new [`Subscription`]
-    pub async fn new_subscription(self: &Arc<Self>, method: &str) -> Subscription {
-        let sub_id = random_32();
+    pub async fn new_subscription(
+        self: &Arc<Self>,
+        method: &str,
+        sub_id: Option<SubscriptionID>,
+    ) -> Result<Subscription> {
+        let sub_id = sub_id.unwrap_or_else(random_32);
+        if !self.subs.lock().await.insert(sub_id) {
+            return Err(Error::SubscriptionDuplicated(sub_id.to_string()));
+        }
+
         let sub = Subscription::new(Arc::downgrade(self), sub_id, self.chan.clone(), method);
-        self.subs.lock().await.push(sub_id);
-        sub
+        Ok(sub)
     }
 
     /// Removes a [`Subscription`]
-    pub async fn remove_subscription(&self, id: &SubscriptionID) {
+    pub async fn remove_subscription(&self, id: &SubscriptionID) -> Result<()> {
         let mut subs = self.subs.lock().await;
-        let i = match subs.iter().position(|i| i == id) {
-            Some(i) => i,
-            None => return,
-        };
-        subs.remove(i);
+        if !subs.remove(id) {
+            return Err(Error::SubscriptionNotFound(id.to_string()));
+        }
+        Ok(())
     }
 
     /// Closes the [`Channel`]

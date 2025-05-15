@@ -225,7 +225,7 @@ where
     ///         method: String,
     ///         _params: Value,
     ///     ) -> Result<Value, RPCError> {
-    ///         let sub = chan.new_subscription(&method).await;
+    ///         let sub = chan.new_subscription(&method, None).await.expect("Failed to subscribe");
     ///         let sub_id = sub.id.clone();
     ///         Ok(serde_json::json!(sub_id))
     ///     }
