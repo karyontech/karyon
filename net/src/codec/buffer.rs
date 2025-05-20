@@ -1,3 +1,5 @@
+pub type ByteBuffer = Buffer<Vec<u8>>;
+
 #[derive(Debug)]
 pub struct Buffer<B> {
     inner: B,

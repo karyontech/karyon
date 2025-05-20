@@ -49,7 +49,7 @@ where
     /// use serde_json::Value;
     /// #[cfg(feature = "ws")]
     /// use karyon_jsonrpc::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
-    /// use karyon_jsonrpc::{server::ServerBuilder, codec::{Codec, Decoder, Encoder, }, error::{Error, Result}};
+    /// use karyon_jsonrpc::{server::ServerBuilder, codec::{Codec, Decoder, Encoder, ByteBuffer}, error::{Error, Result}};
     ///
     ///
     /// #[derive(Clone)]
@@ -69,13 +69,13 @@ where
     /// impl Encoder for CustomJsonCodec {
     ///     type EnMessage = serde_json::Value;
     ///     type EnError = Error;
-    ///     fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
+    ///     fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
     ///         let msg = match serde_json::to_string(src) {
     ///             Ok(m) => m,
     ///             Err(err) => return Err(Error::Encode(err.to_string())),
     ///         };
     ///         let buf = msg.as_bytes();
-    ///         dst[..buf.len()].copy_from_slice(buf);
+    ///         dst.extend_from_slice(buf);
     ///         Ok(buf.len())
     ///     }
     /// }
@@ -83,8 +83,8 @@ where
     /// impl Decoder for CustomJsonCodec {
     ///     type DeMessage = serde_json::Value;
     ///     type DeError = Error;
-    ///     fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
-    ///         let de = serde_json::Deserializer::from_slice(src);
+    ///     fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
+    ///         let de = serde_json::Deserializer::from_slice(src.as_ref());
     ///         let mut iter = de.into_iter::<serde_json::Value>();
     ///
     ///         let item = match iter.next() {
