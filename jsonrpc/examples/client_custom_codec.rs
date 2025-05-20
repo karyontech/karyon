@@ -6,7 +6,7 @@ use smol::Timer;
 
 use karyon_jsonrpc::{
     client::ClientBuilder,
-    codec::{Codec, Decoder, Encoder},
+    codec::{ByteBuffer, Codec, Decoder, Encoder},
     error::Error,
 };
 
@@ -33,14 +33,14 @@ impl Encoder for CustomJsonCodec {
     fn encode(
         &self,
         src: &Self::EnMessage,
-        dst: &mut [u8],
+        dst: &mut ByteBuffer,
     ) -> std::result::Result<usize, Self::EnError> {
         let msg = match serde_json::to_string(src) {
             Ok(m) => m,
             Err(err) => return Err(Error::Encode(err.to_string())),
         };
         let buf = msg.as_bytes();
-        dst[..buf.len()].copy_from_slice(buf);
+        dst.extend_from_slice(buf);
         Ok(buf.len())
     }
 }
@@ -50,9 +50,9 @@ impl Decoder for CustomJsonCodec {
     type DeError = Error;
     fn decode(
         &self,
-        src: &mut [u8],
+        src: &mut ByteBuffer,
     ) -> std::result::Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
-        let de = serde_json::Deserializer::from_slice(src);
+        let de = serde_json::Deserializer::from_slice(src.as_ref());
         let mut iter = de.into_iter::<serde_json::Value>();
 
         let item = match iter.next() {

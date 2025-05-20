@@ -1,6 +1,6 @@
 use karyon_core::util::{decode, encode, encode_into_slice};
 
-use karyon_net::codec::{Codec, Decoder, Encoder, LengthCodec};
+use karyon_net::codec::{ByteBuffer, Codec, Decoder, Encoder, LengthCodec};
 
 use crate::{
     message::{NetMsg, RefreshMsg},
@@ -28,7 +28,7 @@ impl Codec for NetMsgCodec {
 impl Encoder for NetMsgCodec {
     type EnMessage = NetMsg;
     type EnError = Error;
-    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
+    fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
         let src = encode(src)?;
         Ok(self.inner_codec.encode(&src, dst)?)
     }
@@ -37,7 +37,7 @@ impl Encoder for NetMsgCodec {
 impl Decoder for NetMsgCodec {
     type DeMessage = NetMsg;
     type DeError = Error;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
         match self.inner_codec.decode(src)? {
             Some((n, s)) => {
                 let (m, _) = decode::<Self::DeMessage>(&s)?;
@@ -59,8 +59,8 @@ impl Codec for RefreshMsgCodec {
 impl Encoder for RefreshMsgCodec {
     type EnMessage = RefreshMsg;
     type EnError = Error;
-    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
-        let n = encode_into_slice(src, dst)?;
+    fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
+        let n = encode_into_slice(src, dst.as_mut())?;
         Ok(n)
     }
 }
@@ -68,8 +68,8 @@ impl Encoder for RefreshMsgCodec {
 impl Decoder for RefreshMsgCodec {
     type DeMessage = RefreshMsg;
     type DeError = Error;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
-        let (m, n) = decode::<Self::DeMessage>(src)?;
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
+        let (m, n) = decode::<Self::DeMessage>(src.as_ref())?;
         Ok(Some((n, m)))
     }
 }

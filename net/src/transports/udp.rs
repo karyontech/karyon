@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use karyon_core::async_runtime::net::UdpSocket;
 
 use crate::{
-    codec::Codec,
+    codec::{Buffer, Codec},
     connection::{Conn, Connection, ToConn},
     endpoint::Endpoint,
     Result,
@@ -55,8 +55,8 @@ where
     }
 
     async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
-        let mut buf = [0u8; BUFFER_SIZE];
-        let (_, addr) = self.inner.recv_from(&mut buf).await?;
+        let mut buf = Buffer::new(vec![0; BUFFER_SIZE]);
+        let (_, addr) = self.inner.recv_from(buf.as_mut()).await?;
         match self.codec.decode(&mut buf)? {
             Some((_, msg)) => Ok((msg, Endpoint::new_udp_addr(addr))),
             None => Err(std::io::Error::from(std::io::ErrorKind::ConnectionAborted).into()),
@@ -65,7 +65,7 @@ where
 
     async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         let (msg, out_addr) = msg;
-        let mut buf = [0u8; BUFFER_SIZE];
+        let mut buf = Buffer::new(vec![0; BUFFER_SIZE]);
         self.codec.encode(&msg, &mut buf)?;
         let addr: SocketAddr = out_addr.try_into().map_err(|_| {
             std::io::Error::new(
@@ -73,7 +73,7 @@ where
                 "Convert Endpoint to SocketAddress",
             )
         })?;
-        self.inner.send_to(&buf, addr).await?;
+        self.inner.send_to(buf.as_ref(), addr).await?;
         Ok(())
     }
 }

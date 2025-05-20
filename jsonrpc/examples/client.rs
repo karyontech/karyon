@@ -18,7 +18,7 @@ struct Pong {}
 fn main() {
     env_logger::init();
     smol::future::block_on(async {
-        let client = ClientBuilder::new("tcp://127.0.0.1:6000")
+        let client = ClientBuilder::new("tcp://127.0.0.1:7878")
             .expect("Create client builder")
             .build()
             .await
