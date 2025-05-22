@@ -1,20 +1,17 @@
-pub type ByteBuffer = Buffer<Vec<u8>>;
+pub type ByteBuffer = Buffer;
 
 #[derive(Debug)]
-pub struct Buffer<B> {
-    inner: B,
+pub struct Buffer {
+    inner: Vec<u8>,
     len: usize,
     cap: usize,
 }
 
-impl<B> Buffer<B>
-where
-    B: AsMut<[u8]> + AsRef<[u8]>,
-{
-    /// Constructs a new, empty Buffer<B>.
-    pub fn new(b: B) -> Self {
+impl Buffer {
+    /// Constructs a new, empty Buffer.
+    pub fn new(b: Vec<u8>) -> Self {
         Self {
-            cap: b.as_ref().len(),
+            cap: b.len(),
             inner: b,
             len: 0,
         }
@@ -36,14 +33,14 @@ where
     pub fn extend_from_slice(&mut self, bytes: &[u8]) {
         let old_len = self.len;
         self.resize(self.len + bytes.len());
-        self.inner.as_mut()[old_len..bytes.len() + old_len].copy_from_slice(bytes);
+        self.inner[old_len..bytes.len() + old_len].copy_from_slice(bytes);
     }
 
     /// Shortens the buffer, dropping the first `cnt` bytes and keeping the
     /// rest.
     pub fn advance(&mut self, cnt: usize) {
         assert!(self.len >= cnt);
-        self.inner.as_mut().rotate_left(cnt);
+        self.inner.rotate_left(cnt);
         self.resize(self.len - cnt);
     }
 
@@ -53,21 +50,15 @@ where
     }
 }
 
-impl<B> AsMut<[u8]> for Buffer<B>
-where
-    B: AsMut<[u8]> + AsRef<[u8]>,
-{
+impl AsMut<[u8]> for Buffer {
     fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.inner.as_mut()[..self.len]
+        &mut self.inner[..self.len]
     }
 }
 
-impl<B> AsRef<[u8]> for Buffer<B>
-where
-    B: AsMut<[u8]> + AsRef<[u8]>,
-{
+impl AsRef<[u8]> for Buffer {
     fn as_ref(&self) -> &[u8] {
-        &self.inner.as_ref()[..self.len]
+        &self.inner[..self.len]
     }
 }
 
@@ -77,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_buffer_advance() {
-        let mut buf = Buffer::new([0u8; 32]);
+        let mut buf = Buffer::new(vec![0u8; 32]);
         buf.extend_from_slice(&[1, 2, 3]);
         assert_eq!([1, 2, 3], buf.as_ref());
     }
