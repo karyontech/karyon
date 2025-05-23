@@ -18,7 +18,7 @@ pub enum Error {
 
     #[cfg(feature = "ws")]
     #[error("Ws Error: {0}")]
-    WsError(#[from] async_tungstenite::tungstenite::Error),
+    WsError(#[from] Box<async_tungstenite::tungstenite::Error>),
 
     #[cfg(feature = "tls")]
     #[error("Invalid DNS Name: {0}")]

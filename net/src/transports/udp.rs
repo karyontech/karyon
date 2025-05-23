@@ -67,12 +67,9 @@ where
         let (msg, out_addr) = msg;
         let mut buf = [0u8; BUFFER_SIZE];
         self.codec.encode(&msg, &mut buf)?;
-        let addr: SocketAddr = out_addr.try_into().map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Convert Endpoint to SocketAddress",
-            )
-        })?;
+        let addr: SocketAddr = out_addr
+            .try_into()
+            .map_err(|_| std::io::Error::other("Convert Endpoint to SocketAddress"))?;
         self.inner.send_to(&buf, addr).await?;
         Ok(())
     }

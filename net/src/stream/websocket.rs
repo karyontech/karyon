@@ -38,7 +38,7 @@ where
 {
     pub fn new_ws(conn: WebSocketStream<TcpStream>, codec: C) -> Self {
         Self {
-            inner: InnerWSConn::Plain(conn),
+            inner: InnerWSConn::Plain(Box::new(conn)),
             codec,
         }
     }
@@ -46,7 +46,7 @@ where
     #[cfg(feature = "tls")]
     pub fn new_wss(conn: WebSocketStream<TlsStream<TcpStream>>, codec: C) -> Self {
         Self {
-            inner: InnerWSConn::Tls(conn),
+            inner: InnerWSConn::Tls(Box::new(conn)),
             codec,
         }
     }
@@ -139,9 +139,9 @@ impl<C> Stream for ReadWsStream<C> {
 }
 
 enum InnerWSConn {
-    Plain(WebSocketStream<TcpStream>),
+    Plain(Box<WebSocketStream<TcpStream>>),
     #[cfg(feature = "tls")]
-    Tls(WebSocketStream<TlsStream<TcpStream>>),
+    Tls(Box<WebSocketStream<TlsStream<TcpStream>>>),
 }
 
 impl Sink<Message> for InnerWSConn {
@@ -149,33 +149,33 @@ impl Sink<Message> for InnerWSConn {
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match &mut *self {
-            InnerWSConn::Plain(s) => Pin::new(s).poll_ready(cx),
+            InnerWSConn::Plain(s) => Pin::new(s.as_mut()).poll_ready(cx),
             #[cfg(feature = "tls")]
-            InnerWSConn::Tls(s) => Pin::new(s).poll_ready(cx),
+            InnerWSConn::Tls(s) => Pin::new(s.as_mut()).poll_ready(cx),
         }
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
         match &mut *self {
-            InnerWSConn::Plain(s) => Pin::new(s).start_send(item),
+            InnerWSConn::Plain(s) => Pin::new(s.as_mut()).start_send(item),
             #[cfg(feature = "tls")]
-            InnerWSConn::Tls(s) => Pin::new(s).start_send(item),
+            InnerWSConn::Tls(s) => Pin::new(s.as_mut()).start_send(item),
         }
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match &mut *self {
-            InnerWSConn::Plain(s) => Pin::new(s).poll_flush(cx),
+            InnerWSConn::Plain(s) => Pin::new(s.as_mut()).poll_flush(cx),
             #[cfg(feature = "tls")]
-            InnerWSConn::Tls(s) => Pin::new(s).poll_flush(cx),
+            InnerWSConn::Tls(s) => Pin::new(s.as_mut()).poll_flush(cx),
         }
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match &mut *self {
-            InnerWSConn::Plain(s) => Pin::new(s).poll_close(cx),
+            InnerWSConn::Plain(s) => Pin::new(s.as_mut()).poll_close(cx),
             #[cfg(feature = "tls")]
-            InnerWSConn::Tls(s) => Pin::new(s).poll_close(cx),
+            InnerWSConn::Tls(s) => Pin::new(s.as_mut()).poll_close(cx),
         }
     }
 }
@@ -187,7 +187,7 @@ impl Stream for InnerWSConn {
         match &mut *self {
             InnerWSConn::Plain(s) => Pin::new(s).poll_next(cx),
             #[cfg(feature = "tls")]
-            InnerWSConn::Tls(s) => Pin::new(s).poll_next(cx),
+            InnerWSConn::Tls(s) => Pin::new(s.as_mut()).poll_next(cx),
         }
     }
 }
