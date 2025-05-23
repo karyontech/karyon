@@ -22,8 +22,21 @@ use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
 
 use crate::codec::{Buffer, ByteBuffer, Decoder, Encoder};
 
-const BUFFER_SIZE: usize = 4096 * 4096; // 16MB
-const INITIAL_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
+/// The stream buffer size is limited by this value. This can be overridden by
+/// setting the KARYON_MAX_BUFFER_SIZE environment variable at compile time.
+const DEFAULT_MAX_BUFFER_SIZE: usize = 4096 * 4096; // 16MB
+
+/// Maximum number of bytes to read at a time to construct the stream buffer.
+const BUFFER_CHUNK_SIZE: usize = 1024 * 1024; // 1MB
+
+fn get_max_buffer_size() -> usize {
+    match std::option_env!("KARYON_MAX_BUFFER_SIZE") {
+        Some(max_buffer_size) => max_buffer_size
+            .parse::<usize>()
+            .unwrap_or(DEFAULT_MAX_BUFFER_SIZE),
+        None => DEFAULT_MAX_BUFFER_SIZE,
+    }
+}
 
 pub struct ReadStream<T, C> {
     inner: T,
@@ -40,7 +53,7 @@ where
         Self {
             inner,
             decoder,
-            buffer: Buffer::new(BUFFER_SIZE),
+            buffer: Buffer::new(get_max_buffer_size()),
         }
     }
 
@@ -72,7 +85,7 @@ where
             inner,
             encoder,
             high_water_mark: 131072,
-            buffer: Buffer::new(BUFFER_SIZE),
+            buffer: Buffer::new(get_max_buffer_size()),
         }
     }
 }
@@ -92,7 +105,7 @@ where
             return Poll::Ready(Some(Ok(item)));
         }
 
-        let mut buf = [0u8; INITIAL_BUFFER_SIZE];
+        let mut buf = [0u8; BUFFER_CHUNK_SIZE];
         #[cfg(feature = "tokio")]
         let mut buf = tokio::io::ReadBuf::new(&mut buf);
 
