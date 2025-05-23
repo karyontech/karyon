@@ -1,4 +1,3 @@
-mod buffer;
 #[cfg(feature = "ws")]
 mod websocket;
 
@@ -21,17 +20,15 @@ use pin_project_lite::pin_project;
 
 use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
 
-use crate::codec::{Decoder, Encoder};
+use crate::codec::{Buffer, ByteBuffer, Decoder, Encoder};
 
-use buffer::Buffer;
-
-const BUFFER_SIZE: usize = 2048 * 2048; // 4MB
+const BUFFER_SIZE: usize = 4096 * 4096; // 16MB
 const INITIAL_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
 
 pub struct ReadStream<T, C> {
     inner: T,
     decoder: C,
-    buffer: Buffer<Vec<u8>>,
+    buffer: ByteBuffer,
 }
 
 impl<T, C> ReadStream<T, C>
@@ -43,7 +40,7 @@ where
         Self {
             inner,
             decoder,
-            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(BUFFER_SIZE),
         }
     }
 
@@ -61,7 +58,7 @@ pin_project! {
         inner: T,
         encoder: C,
         high_water_mark: usize,
-        buffer: Buffer<Vec<u8>>,
+        buffer: ByteBuffer,
     }
 }
 
@@ -75,7 +72,7 @@ where
             inner,
             encoder,
             high_water_mark: 131072,
-            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(BUFFER_SIZE),
         }
     }
 }
@@ -90,7 +87,7 @@ where
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
 
-        if let Some((n, item)) = this.decoder.decode(this.buffer.as_mut())? {
+        if let Some((n, item)) = this.decoder.decode(&mut this.buffer)? {
             this.buffer.advance(n);
             return Poll::Ready(Some(Ok(item)));
         }
@@ -117,7 +114,7 @@ where
             #[cfg(feature = "tokio")]
             buf.clear();
 
-            match this.decoder.decode(this.buffer.as_mut())? {
+            match this.decoder.decode(&mut this.buffer)? {
                 Some((cn, item)) => {
                     this.buffer.advance(cn);
                     return Poll::Ready(Some(Ok(item)));
@@ -167,9 +164,7 @@ where
 
     fn start_send(mut self: Pin<&mut Self>, item: C::EnMessage) -> Result<(), Self::Error> {
         let this = &mut *self;
-        let mut buf = [0u8; INITIAL_BUFFER_SIZE];
-        let n = this.encoder.encode(&item, &mut buf)?;
-        this.buffer.extend_from_slice(&buf[..n]);
+        this.encoder.encode(&item, &mut this.buffer)?;
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 use crate::{
-    codec::{Codec, Decoder, Encoder},
+    codec::{ByteBuffer, Codec, Decoder, Encoder},
     Error, Result,
 };
 
@@ -13,8 +13,8 @@ impl Codec for BytesCodec {
 impl Encoder for BytesCodec {
     type EnMessage = Vec<u8>;
     type EnError = Error;
-    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
-        dst[..src.len()].copy_from_slice(src);
+    fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
+        dst.extend_from_slice(src);
         Ok(src.len())
     }
 }
@@ -22,11 +22,11 @@ impl Encoder for BytesCodec {
 impl Decoder for BytesCodec {
     type DeMessage = Vec<u8>;
     type DeError = Error;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
         if src.is_empty() {
             Ok(None)
         } else {
-            Ok(Some((src.len(), src.to_vec())))
+            Ok(Some((src.len(), src.as_ref().to_vec())))
         }
     }
 }

@@ -1,8 +1,10 @@
+mod buffer;
 mod bytes_codec;
 mod length_codec;
 #[cfg(feature = "ws")]
 mod websocket;
 
+pub use buffer::{Buffer, ByteBuffer};
 pub use bytes_codec::BytesCodec;
 pub use length_codec::LengthCodec;
 
@@ -26,7 +28,7 @@ pub trait Encoder {
     fn encode(
         &self,
         src: &Self::EnMessage,
-        dst: &mut [u8],
+        dst: &mut ByteBuffer,
     ) -> std::result::Result<usize, Self::EnError>;
 }
 
@@ -35,6 +37,6 @@ pub trait Decoder {
     type DeError: From<std::io::Error>;
     fn decode(
         &self,
-        src: &mut [u8],
+        src: &mut ByteBuffer,
     ) -> std::result::Result<Option<(usize, Self::DeMessage)>, Self::DeError>;
 }

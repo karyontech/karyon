@@ -3,7 +3,7 @@ use std::time::Duration;
 use karyon_core::async_util::sleep;
 
 use karyon_net::{
-    codec::{Codec, Decoder, Encoder},
+    codec::{ByteBuffer, Codec, Decoder, Encoder},
     tcp, ConnListener, Connection, Endpoint, Error, Result,
 };
 
@@ -18,8 +18,8 @@ impl Codec for NewLineCodec {
 impl Encoder for NewLineCodec {
     type EnMessage = String;
     type EnError = Error;
-    fn encode(&self, src: &Self::EnMessage, dst: &mut [u8]) -> Result<usize> {
-        dst[..src.len()].copy_from_slice(src.as_bytes());
+    fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
+        dst.extend_from_slice(src.as_bytes());
         Ok(src.len())
     }
 }
@@ -27,9 +27,12 @@ impl Encoder for NewLineCodec {
 impl Decoder for NewLineCodec {
     type DeMessage = String;
     type DeError = Error;
-    fn decode(&self, src: &mut [u8]) -> Result<Option<(usize, Self::DeMessage)>> {
-        match src.iter().position(|&b| b == b'\n') {
-            Some(i) => Ok(Some((i + 1, String::from_utf8(src[..i].to_vec()).unwrap()))),
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
+        match src.as_ref().iter().position(|&b| b == b'\n') {
+            Some(i) => Ok(Some((
+                i + 1,
+                String::from_utf8(src.consume(i).to_vec()).unwrap(),
+            ))),
             None => Ok(None),
         }
     }
