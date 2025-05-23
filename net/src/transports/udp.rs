@@ -55,7 +55,7 @@ where
     }
 
     async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
-        let mut buf = Buffer::new(vec![0; BUFFER_SIZE]);
+        let mut buf = Buffer::new(BUFFER_SIZE);
         let (_, addr) = self.inner.recv_from(buf.as_mut()).await?;
         match self.codec.decode(&mut buf)? {
             Some((_, msg)) => Ok((msg, Endpoint::new_udp_addr(addr))),
@@ -65,7 +65,7 @@ where
 
     async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
         let (msg, out_addr) = msg;
-        let mut buf = Buffer::new(vec![0; BUFFER_SIZE]);
+        let mut buf = Buffer::new(BUFFER_SIZE);
         self.codec.encode(&msg, &mut buf)?;
         let addr: SocketAddr = out_addr
             .try_into()

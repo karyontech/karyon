@@ -40,7 +40,7 @@ where
         Self {
             inner,
             decoder,
-            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(BUFFER_SIZE),
         }
     }
 
@@ -72,7 +72,7 @@ where
             inner,
             encoder,
             high_water_mark: 131072,
-            buffer: Buffer::new(vec![0u8; BUFFER_SIZE]),
+            buffer: Buffer::new(BUFFER_SIZE),
         }
     }
 }
