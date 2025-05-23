@@ -49,7 +49,9 @@ pin-project-lite = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["io-util"], optional = true }
 
 # websocket
-async-tungstenite = { workspace = true, optional = true }
+async-tungstenite = { workspace = true, optional = true, features = [
+    "futures-03-sink",
+] }
 
 # tls
 rustls-pki-types = { workspace = true, optional = true }

@@ -194,7 +194,9 @@ where
 
             let altname = pki_types::ServerName::try_from(conf.dns_name.clone())?;
             let tls_conn = connector.connect(altname, socket).await?.into();
-            let (conn, _resp) = client_async(endpoint.to_string(), tls_conn).await?;
+            let (conn, _resp) = client_async(endpoint.to_string(), tls_conn)
+                .await
+                .map_err(Box::new)?;
             Ok(WsConn::new(
                 WsStream::new_wss(conn, codec),
                 peer_endpoint,
@@ -204,7 +206,9 @@ where
         None => {
             let peer_endpoint = socket.peer_addr().map(Endpoint::new_ws_addr)?;
             let local_endpoint = socket.local_addr().map(Endpoint::new_ws_addr)?;
-            let (conn, _resp) = client_async(endpoint.to_string(), socket).await?;
+            let (conn, _resp) = client_async(endpoint.to_string(), socket)
+                .await
+                .map_err(Box::new)?;
             Ok(WsConn::new(
                 WsStream::new_ws(conn, codec),
                 peer_endpoint,

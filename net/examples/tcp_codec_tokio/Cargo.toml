@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 karyon_net = { path = "../../", default-features = false, features = ["tokio", "tcp"] }
 karyon_core = { path = "../../../core", default-features = false, features = ["tokio"] }
-tokio = { version = "1.38.0", features = ["full"] }
+tokio = { version = "1.45", features = ["full"] }
 

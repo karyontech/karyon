@@ -89,7 +89,7 @@ impl WebSocketEncoder for JsonCodec {
             Ok(m) => m,
             Err(err) => return Err(Error::Encode(err.to_string())),
         };
-        Ok(Message::Text(msg))
+        Ok(Message::Text(msg.into()))
     }
 }
 

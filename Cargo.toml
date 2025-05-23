@@ -30,9 +30,12 @@ chrono = "0.4"
 rand = "0.8"
 url = "2.5"
 parking_lot = "0.12"
-once_cell = "1.20"
+once_cell = "1.21"
 semver = "1.0"
 sha2 = "0.10"
+dirs = "6.0"
+ed25519-dalek = "2.1"
+
 
 # async 
 async-channel = "2.3"
@@ -40,11 +43,11 @@ async-trait = "0.1"
 pin-project-lite = "0.2"
 async-process = "2.3"
 smol = "2.0"
-tokio = "1.38"
+tokio = "1.45"
 futures-util = { version = "0.3", default-features = false }
 
 # encode
-bincode = "2.0.1"
+bincode = "2.0"
 serde = "1.0"
 serde_json = "1.0"
 base64 = "0.22"
@@ -55,12 +58,12 @@ quote = "1.0"
 syn = "2.0"
 
 # websocket
-async-tungstenite = { version = "0.28", default-features = false }
+async-tungstenite = { version = "0.29", default-features = false }
 
 # tls
-rustls-pki-types = "1.10"
+rustls-pki-types = "1.12"
 futures-rustls = "0.26"
 tokio-rustls = "0.26"
 rcgen = "0.13"
 yasna = "0.5"
-x509-parser = "0.16"
+x509-parser = "0.17"

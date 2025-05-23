@@ -6,11 +6,11 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-env_logger = "0.11.3"
+env_logger = "0.11"
 karyon_jsonrpc = { path = "../../", default-features = false, features = ["tokio", "ws"] }
-serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
-tokio = { version = "1.38.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.45", features = ["full"] }
 
 [profile.release]
 debug = true

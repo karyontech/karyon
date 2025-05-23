@@ -50,8 +50,8 @@ rustls-pki-types = { workspace = true }
 
 [dev-dependencies]
 smol = { workspace = true }
-blocking = "1.6.1"
-clap = { version = "4.5.7", features = ["derive"] }
-ctrlc = "3.4.4"
-easy-parallel = "3.3.1"
-env_logger = "0.11.3"
+blocking = "1.6"
+clap = { version = "4.5", features = ["derive"] }
+ctrlc = "3.4"
+easy-parallel = "3.3"
+env_logger = "0.11"
