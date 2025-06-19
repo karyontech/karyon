@@ -52,7 +52,10 @@ impl Calc {
         method: String,
         _params: Value,
     ) -> Result<Value, RPCError> {
-        let sub = chan.new_subscription(&method, None).await.expect("Failed to subscribe");
+        let sub = chan
+            .new_subscription(&method, None)
+            .await
+            .expect("Failed to subscribe");
         let sub_id = sub.id;
         tokio::spawn(async move {
             loop {
@@ -73,7 +76,7 @@ impl Calc {
         params: Value,
     ) -> Result<Value, RPCError> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
-        chan.remove_subscription(&sub_id).await;
+        chan.remove_subscription(&sub_id).await.unwrap();
         Ok(serde_json::json!(true))
     }
 }

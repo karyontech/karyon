@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     future::Future,
     pin::Pin,
     task::{Context, Poll, Waker},
@@ -135,7 +135,15 @@ impl<T> Future for CondVarAwait<'_, T> {
                 }
 
                 let i = self.id.as_ref().unwrap();
-                match inner.wakers.get_mut(i).unwrap() {
+                let waker_op = match inner.wakers.get_mut(i) {
+                    Some(wk) => wk,
+                    None => {
+                        self.id = None;
+                        return Poll::Ready(());
+                    }
+                };
+
+                match waker_op {
                     Some(wk) => {
                         // This will prevent cloning again
                         if !wk.will_wake(cx.waker()) {
@@ -158,7 +166,7 @@ impl<T> Drop for CondVarAwait<'_, T> {
     fn drop(&mut self) {
         if let Some(id) = self.id {
             let mut inner = self.condvar.inner.lock();
-            if let Some(wk) = inner.wakers.get_mut(&id).unwrap().take() {
+            if let Some(wk) = inner.wakers.remove(&id).flatten() {
                 wk.wake()
             }
         }
@@ -178,15 +186,19 @@ impl Wakers {
     }
 
     fn put(&mut self, waker: Option<Waker>) -> u16 {
+        const MAX_RETRIES: u8 = 100;
         let mut id: u16;
 
-        id = random_16();
-        while self.wakers.contains_key(&id) {
+        for _ in 0..MAX_RETRIES {
             id = random_16();
+            if let Entry::Vacant(e) = self.wakers.entry(id) {
+                id = random_16();
+                e.insert(waker);
+                return id;
+            }
         }
 
-        self.wakers.insert(id, waker);
-        id
+        panic!("Wakers: All IDs exhausted");
     }
 
     fn delete(&mut self, id: &u16) -> Option<Option<Waker>> {
