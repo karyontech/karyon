@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     future::Future,
     pin::Pin,
     task::{Context, Poll, Waker},
@@ -191,9 +191,9 @@ impl Wakers {
 
         for _ in 0..MAX_RETRIES {
             id = random_16();
-            if !self.wakers.contains_key(&id) {
+            if let Entry::Vacant(e) = self.wakers.entry(id) {
                 id = random_16();
-                self.wakers.insert(id, waker);
+                e.insert(waker);
                 return id;
             }
         }
