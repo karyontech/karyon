@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BUFFER_CHUNK_SIZE","DEFAULT_MAX_BUFFER_SIZE"],"fn":["get_max_buffer_size"],"mod":["websocket"],"struct":["ReadStream","WriteStream"]};
