@@ -192,7 +192,6 @@ impl Wakers {
         for _ in 0..MAX_RETRIES {
             id = random_16();
             if let Entry::Vacant(e) = self.wakers.entry(id) {
-                id = random_16();
                 e.insert(waker);
                 return id;
             }
