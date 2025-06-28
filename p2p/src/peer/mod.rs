@@ -170,7 +170,7 @@ impl Peer {
                 |result: TaskResult<Result<()>>| async move {
                     if let TaskResult::Completed(res) = result {
                         if res.is_err() {
-                            error!("protocol {} stopped", proto_id);
+                            error!("protocol {proto_id} stopped");
                         }
                         // Send a stop signal to read loop
                         let _ = this.stop_chan.0.try_send(res);
@@ -206,7 +206,7 @@ impl Peer {
                 NetMsgCmd::Shutdown => {
                     return Err(Error::PeerShutdown);
                 }
-                command => return Err(Error::InvalidMsg(format!("Unexpected msg {:?}", command))),
+                command => return Err(Error::InvalidMsg(format!("Unexpected msg {command:?}"))),
             }
         }
     }

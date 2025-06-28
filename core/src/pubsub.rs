@@ -97,7 +97,7 @@ impl<T: Clone> Publisher<T> {
 
         while let Some((id, fut_err)) = results.next().await {
             if let Err(err) = fut_err {
-                error!("failed to notify {}: {}", id, err);
+                error!("failed to notify {id}: {err}");
                 closed_subs.push(id);
             }
         }

@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_async_select() {
         block_on(async move {
-            let fut = select(sleep(std::time::Duration::MAX), future::ready(0 as u32)).await;
+            let fut = select(sleep(std::time::Duration::MAX), future::ready(0_u32)).await;
             assert!(matches!(fut, Either::Right(0)));
 
             let fut1 = future::pending::<String>();

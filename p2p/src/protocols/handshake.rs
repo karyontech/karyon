@@ -46,7 +46,7 @@ impl InitProtocol for HandshakeProtocol {
                 result
             }
             NetMsgCmd::Verack => self.validate_verack_msg(&msg).await,
-            cmd => Err(Error::InvalidMsg(format!("unexpected msg found {:?}", cmd))),
+            cmd => Err(Error::InvalidMsg(format!("unexpected msg found {cmd:?}"))),
         }
     }
 }
@@ -86,7 +86,7 @@ impl HandshakeProtocol {
             ack,
         };
 
-        trace!("Send VerAckMsg {:?}", verack);
+        trace!("Send VerAckMsg {verack:?}");
         self.peer
             .conn
             .send_inner(NetMsg::new(NetMsgCmd::Verack, &verack)?)

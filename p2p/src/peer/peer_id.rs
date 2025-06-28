@@ -19,7 +19,7 @@ pub struct PeerID(pub [u8; 32]);
 impl std::fmt::Display for PeerID {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let id = STANDARD.encode(self.0);
-        write!(f, "{}", id)
+        write!(f, "{id}")
     }
 }
 

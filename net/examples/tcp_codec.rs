@@ -51,7 +51,7 @@ fn main() {
             if let Ok(conn) = listener.accept().await {
                 loop {
                     let msg = conn.recv().await.unwrap();
-                    println!("Receive a message: {:?}", msg);
+                    println!("Receive a message: {msg:?}");
                 }
             };
         })

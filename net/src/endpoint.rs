@@ -142,19 +142,19 @@ impl std::fmt::Display for Endpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Endpoint::Udp(ip, port) => {
-                write!(f, "udp://{}:{}", ip, port)
+                write!(f, "udp://{ip}:{port}")
             }
             Endpoint::Tcp(ip, port) => {
-                write!(f, "tcp://{}:{}", ip, port)
+                write!(f, "tcp://{ip}:{port}")
             }
             Endpoint::Tls(ip, port) => {
-                write!(f, "tls://{}:{}", ip, port)
+                write!(f, "tls://{ip}:{port}")
             }
             Endpoint::Ws(ip, port) => {
-                write!(f, "ws://{}:{}", ip, port)
+                write!(f, "ws://{ip}:{port}")
             }
             Endpoint::Wss(ip, port) => {
-                write!(f, "wss://{}:{}", ip, port)
+                write!(f, "wss://{ip}:{port}")
             }
             Endpoint::Unix(path) => {
                 write!(f, "unix:/{}", path.to_string_lossy())
@@ -268,10 +268,10 @@ impl std::fmt::Display for Addr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Addr::Ip(ip) => {
-                write!(f, "{}", ip)
+                write!(f, "{ip}")
             }
             Addr::Domain(d) => {
-                write!(f, "{}", d)
+                write!(f, "{d}")
             }
         }
     }

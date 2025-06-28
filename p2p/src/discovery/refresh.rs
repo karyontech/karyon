@@ -163,7 +163,7 @@ impl RefreshService {
                 self.table.update_entry(key, PENDING_ENTRY);
             }
             Err(err) => {
-                trace!("Failed to refresh entry {:?}: {err}", key);
+                trace!("Failed to refresh entry {key:?}: {err}");
                 if bucket_entry.failures >= MAX_FAILURES {
                     self.table.remove_entry(key);
                     return;

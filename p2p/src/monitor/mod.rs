@@ -65,7 +65,7 @@ impl Monitor {
         if self.config.enable_monitor {
             let event = event.to_struct();
             if let Err(err) = self.event_emitter.emit(&event).await {
-                error!("Failed to notify monitor event {:?}: {err}", event);
+                error!("Failed to notify monitor event {event:?}: {err}");
             }
         }
     }

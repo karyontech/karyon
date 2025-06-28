@@ -314,7 +314,7 @@ mod tests {
 
     fn new_entry(key: &Key, addr: &Addr, port: u16, discovery_port: u16) -> Entry {
         Entry {
-            key: key.clone(),
+            key: *key,
             addr: addr.clone(),
             port,
             discovery_port,
@@ -385,7 +385,7 @@ mod tests {
         }
 
         fn table(&self) -> RoutingTable {
-            let table = RoutingTable::new(self.local_key.clone());
+            let table = RoutingTable::new(self.local_key);
 
             for entry in self.entries() {
                 let res = table.add_entry(entry);
@@ -445,17 +445,17 @@ mod tests {
         let entries = setup.entries();
 
         let entry = table.random_entry(ALL_ENTRY);
-        assert!(matches!(entry, Some(_)));
+        assert!(entry.is_some());
 
         let entry = table.random_entry(CONNECTED_ENTRY);
-        assert!(matches!(entry, None));
+        assert!(entry.is_none());
 
         for entry in entries {
             table.remove_entry(&entry.key);
         }
 
         let entry = table.random_entry(ALL_ENTRY);
-        assert!(matches!(entry, None));
+        assert!(entry.is_none());
     }
 
     #[test]
@@ -515,8 +515,8 @@ mod tests {
         let other_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2)));
         let diff_addr_v6 = Addr::Ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb7, 0, 0, 0, 0, 0, 2)));
 
-        assert!(matches!(subnet_match(&addr_v4, &other_addr_v4), true));
-        assert!(matches!(subnet_match(&addr_v6, &other_addr_v6), true));
-        assert!(matches!(subnet_match(&addr_v6, &diff_addr_v6), false));
+        assert!(subnet_match(&addr_v4, &other_addr_v4));
+        assert!(subnet_match(&addr_v6, &other_addr_v6));
+        assert!(!subnet_match(&addr_v6, &diff_addr_v6));
     }
 }
