@@ -115,7 +115,7 @@ impl<T: std::fmt::Debug> std::fmt::Display for TaskResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             TaskResult::Cancelled => write!(f, "Task cancelled"),
-            TaskResult::Completed(res) => write!(f, "Task completed: {:?}", res),
+            TaskResult::Completed(res) => write!(f, "Task completed: {res:?}"),
         }
     }
 }

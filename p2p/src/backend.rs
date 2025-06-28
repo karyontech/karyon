@@ -41,7 +41,7 @@ impl Backend {
 
         let peer_id = PeerID::try_from(key_pair.public())
             .expect("Derive a peer id from the provided key pair.");
-        info!("PeerID: {}", peer_id);
+        info!("PeerID: {peer_id}");
 
         let peer_pool = PeerPool::new(
             &peer_id,

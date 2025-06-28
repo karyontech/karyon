@@ -138,7 +138,7 @@ impl Server {
     /// Handles a new connection
     async fn handle_conn(self: &Arc<Self>, conn: Conn<serde_json::Value, Error>) -> Result<()> {
         let endpoint: Option<Endpoint> = conn.peer_endpoint().ok();
-        debug!("Handle a new connection {:?}", endpoint);
+        debug!("Handle a new connection {endpoint:?}");
 
         let conn = Arc::new(conn);
 
@@ -189,9 +189,9 @@ impl Server {
         let chan = channel.clone();
         let on_complete = |result: TaskResult<Result<()>>| async move {
             if let TaskResult::Completed(Err(err)) = result {
-                error!("Connection {:?} dropped: {err}", endpoint);
+                error!("Connection {endpoint:?} dropped: {err}");
             } else {
-                warn!("Connection {:?} dropped", endpoint);
+                warn!("Connection {endpoint:?} dropped");
             }
             // Close the connection channel when the connection dropped
             chan.close();

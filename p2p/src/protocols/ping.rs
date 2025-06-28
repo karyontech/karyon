@@ -64,11 +64,11 @@ impl PingProtocol {
 
             match msg {
                 PingProtocolMsg::Ping(nonce) => {
-                    trace!("Received Ping message {:?}", nonce);
+                    trace!("Received Ping message {nonce:?}");
                     self.peer
                         .send(Self::id(), &PingProtocolMsg::Pong(nonce))
                         .await?;
-                    trace!("Send back Pong message {:?}", nonce);
+                    trace!("Send back Pong message {nonce:?}");
                 }
                 PingProtocolMsg::Pong(nonce) => {
                     pong_chan.send(nonce).await?;
@@ -88,7 +88,7 @@ impl PingProtocol {
             let mut ping_nonce: [u8; 32] = [0; 32];
             rng.fill_bytes(&mut ping_nonce);
 
-            trace!("Send Ping message {:?}", ping_nonce);
+            trace!("Send Ping message {ping_nonce:?}");
             self.peer
                 .send(Self::id(), &PingProtocolMsg::Ping(ping_nonce))
                 .await?;
@@ -102,7 +102,7 @@ impl PingProtocol {
                     continue;
                 }
             };
-            trace!("Received Pong message {:?}", pong_msg);
+            trace!("Received Pong message {pong_msg:?}");
 
             if pong_msg != ping_nonce {
                 retry += 1;
@@ -141,12 +141,12 @@ impl Protocol for PingProtocol {
 
         match result {
             Either::Left(res) => {
-                trace!("Receive loop stopped {:?}", res);
+                trace!("Receive loop stopped {res:?}");
                 res
             }
             Either::Right(res) => {
                 let res = res?;
-                trace!("Ping loop stopped {:?}", res);
+                trace!("Ping loop stopped {res:?}");
                 res
             }
         }

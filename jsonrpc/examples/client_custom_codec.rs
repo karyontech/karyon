@@ -81,7 +81,7 @@ fn main() {
                 .call("Calc.ping", ())
                 .await
                 .expect("Call Calc.ping method");
-            info!("Ping result:  {:?}", result);
+            info!("Ping result:  {result:?}");
         }
     });
 }

@@ -69,16 +69,9 @@ impl Protocol for ChatProtocol {
             }
         });
 
-        loop {
-            match self.peer.recv::<Self>().await? {
-                ProtocolEvent::Message(msg) => {
-                    let msg = String::from_utf8(msg).expect("Convert received bytes to string");
-                    println!("{msg}");
-                }
-                ProtocolEvent::Shutdown => {
-                    break;
-                }
-            }
+        while let ProtocolEvent::Message(msg) = self.peer.recv::<Self>().await? {
+            let msg = String::from_utf8(msg).expect("Convert received bytes to string");
+            println!("{msg}");
         }
 
         task.cancel().await;
@@ -128,7 +121,7 @@ fn main() {
                 let username = cli.username;
 
                 // Attach the ChatProtocol
-                let c = move |peer| ChatProtocol::new(&username, peer, ex.clone().into());
+                let c = move |peer| ChatProtocol::new(&username, peer, ex.clone());
                 backend
                     .attach_protocol::<ChatProtocol>(c)
                     .await

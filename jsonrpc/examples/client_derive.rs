@@ -50,7 +50,7 @@ fn main() {
                 .call("calculator.ping", ())
                 .await
                 .expect("Call calculator.ping method");
-            info!("Ping result:  {:?}", result);
+            info!("Ping result:  {result:?}");
         }
     });
 }

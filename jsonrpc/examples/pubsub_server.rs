@@ -42,7 +42,7 @@ impl Calc {
             .new_subscription(&method, Some(random_32()))
             .await
             .map_err(|_| RPCError::InvalidRequest("Duplicated subscription".into()))?;
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
         smol::spawn(async move {
             loop {
                 sleep(Duration::from_millis(500)).await;

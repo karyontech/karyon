@@ -128,13 +128,9 @@ where
         let mut topics = self.listeners.lock().await;
 
         if !topics.contains_key(topic) {
-            debug!(
-                "Failed to emit an event to a non-existent topic {:?}",
-                topic
-            );
+            debug!("Failed to emit an event to a non-existent topic {topic:?}");
             return Err(Error::EventEmitError(format!(
-                "Emit an event to a non-existent topic {:?}",
-                topic,
+                "Emit an event to a non-existent topic {topic:?}",
             )));
         }
 
@@ -142,10 +138,9 @@ where
         let event_id = E::id().to_string();
 
         if !event_ids.contains_key(&event_id) {
-            debug!("Failed to emit an event: unknown event id {:?}", event_id);
+            debug!("Failed to emit an event: unknown event id {event_id:?}");
             return Err(Error::EventEmitError(format!(
-                "Emit an event: unknown event id {}",
-                event_id,
+                "Emit an event: unknown event id {event_id}",
             )));
         }
 
@@ -160,7 +155,7 @@ where
         let mut failed_listeners = vec![];
         while let Some((id, fut_err)) = results.next().await {
             if let Err(err) = fut_err {
-                debug!("Failed to emit event for topic {:?}: {}", topic, err);
+                debug!("Failed to emit event for topic {topic:?}: {err}");
                 failed_listeners.push(id);
             }
         }

@@ -169,7 +169,7 @@ impl LookupService {
 
         for peer in peer_buffer.iter() {
             let result = self.table.add_entry(peer.clone().into());
-            trace!("Add entry {:?}", result);
+            trace!("Add entry {result:?}");
         }
 
         self.monitor
@@ -285,7 +285,7 @@ impl LookupService {
                     }
                     break;
                 }
-                c => return Err(Error::InvalidMsg(format!("Unexpected msg: {:?}", c))),
+                c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
             };
         }
 
@@ -346,9 +346,9 @@ impl LookupService {
                 NetMsgCmd::Peer => {
                     let (peer, _) = decode::<PeerMsg>(&msg.payload)?;
                     let result = self.table.add_entry(peer.clone().into());
-                    trace!("Add entry result: {:?}", result);
+                    trace!("Add entry result: {result:?}");
                 }
-                c => return Err(Error::InvalidMsg(format!("Unexpected msg: {:?}", c))),
+                c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
             }
         }
     }
