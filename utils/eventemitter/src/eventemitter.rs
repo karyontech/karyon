@@ -125,6 +125,7 @@ where
     ///
     /// If `size` is zero, this function will panic.
     pub fn with_buffer_size(size: usize) -> Arc<EventEmitter<T>> {
+        assert_ne!(size, 0);
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: size,
