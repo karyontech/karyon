@@ -1,5 +1,5 @@
 use std::{
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
     str::FromStr,
 };
@@ -259,7 +259,11 @@ impl TryFrom<Addr> for IpAddr {
     fn try_from(addr: Addr) -> std::result::Result<IpAddr, Self::Error> {
         match addr {
             Addr::Ip(ip) => Ok(ip),
-            Addr::Domain(_) => Err(std::io::ErrorKind::Unsupported.into()),
+            Addr::Domain(domain) => domain
+                .to_socket_addrs()?
+                .next()
+                .map(|s| s.ip())
+                .ok_or(std::io::ErrorKind::Unsupported.into()),
         }
     }
 }
