@@ -1252,7 +1252,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_async_rustls"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "futures-rustls",
  "tokio-rustls",
@@ -1260,7 +1260,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-channel 2.3.1",
  "async-process",
@@ -1281,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-channel 2.3.1",
  "async-trait",
@@ -1300,7 +1300,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc_macro"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1310,7 +1310,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -1330,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-channel 2.3.1",
  "async-trait",
