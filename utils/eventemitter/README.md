@@ -13,7 +13,7 @@ See the examples for more details.
 
 ## Example
 
- ```rust
+```rust
  use karyon_eventemitter::{EventEmitter, EventValueTopic, EventValue};
 
   async {
@@ -34,11 +34,6 @@ See the examples for more details.
          }
      }
 
-     let listener = event_emitter.register::<A>(&Topic::TopicA);
-
-     event_emitter.emit_by_topic(&Topic::TopicA, &A(3)) .await;
-     let msg: A = listener.recv().await.unwrap();
-
      #[derive(Clone, Debug, PartialEq)]
      struct B(usize);
 
@@ -55,14 +50,31 @@ See the examples for more details.
          }
      }
 
-     let listener = event_emitter.register::<B>(&Topic::TopicB);
+     #[derive(Clone, Debug, PartialEq)]
+     struct C(usize);
 
+     impl EventValue for C {
+         fn event_id() -> &'static str {
+             "C"
+         }
+     }
+
+     let a_listener = event_emitter.register::<A>(&Topic::TopicA);
+     let b_listener = event_emitter.register::<B>(&Topic::TopicB);
+     // This also listens to Topic B
+     let c_listener = event_emitter.register::<C>(&Topic::TopicB);
+
+     event_emitter.emit_by_topic(&Topic::TopicA, &A(3)) .await;
      event_emitter.emit(&B(3)) .await;
-     let msg: B = listener.recv().await.unwrap();
+     event_emitter.emit_by_topic(&Topic::TopicB, &C(3)) .await;
+
+     let msg: A = a_listener.recv().await.unwrap();
+     let msg: B = b_listener.recv().await.unwrap();
+     let msg: C = c_listener.recv().await.unwrap();
 
      // ....
   };
 
- ```
+```
 
 

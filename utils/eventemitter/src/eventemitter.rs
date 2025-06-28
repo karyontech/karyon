@@ -54,11 +54,6 @@ fn random_id() -> EventListenerID {
 ///         }
 ///     }
 ///
-///     let listener = event_emitter.register::<A>(&Topic::TopicA);
-///
-///     event_emitter.emit_by_topic(&Topic::TopicA, &A(3)) .await;
-///     let msg: A = listener.recv().await.unwrap();
-///
 ///     #[derive(Clone, Debug, PartialEq)]
 ///     struct B(usize);
 ///
@@ -75,10 +70,27 @@ fn random_id() -> EventListenerID {
 ///         }
 ///     }
 ///
-///     let listener = event_emitter.register::<B>(&Topic::TopicB);
+///     #[derive(Clone, Debug, PartialEq)]
+///     struct C(usize);
 ///
+///     impl EventValue for C {
+///         fn event_id() -> &'static str {
+///             "C"
+///         }
+///     }
+///
+///     let a_listener = event_emitter.register::<A>(&Topic::TopicA);
+///     let b_listener = event_emitter.register::<B>(&Topic::TopicB);
+///     // This also listens to Topic B
+///     let c_listener = event_emitter.register::<C>(&Topic::TopicB);
+///
+///     event_emitter.emit_by_topic(&Topic::TopicA, &A(3)) .await;
 ///     event_emitter.emit(&B(3)) .await;
-///     let msg: B = listener.recv().await.unwrap();
+///     event_emitter.emit_by_topic(&Topic::TopicB, &C(3)) .await;
+///
+///     let msg: A = a_listener.recv().await.unwrap();
+///     let msg: B = b_listener.recv().await.unwrap();
+///     let msg: C = c_listener.recv().await.unwrap();
 ///
 ///     // ....
 ///  };
@@ -145,7 +157,9 @@ where
         }
         drop(results);
 
-        self.remove(topic, E::event_id(), &failed_listeners);
+        if !failed_listeners.is_empty() {
+            self.remove(topic, E::event_id(), &failed_listeners);
+        }
 
         Ok(())
     }
@@ -224,7 +238,8 @@ where
         let event_id = E::event_id().to_string();
 
         let Some(listeners) = event_ids.get_mut(&event_id) else {
-            todo!()
+            trace!("No listeners found for event '{event_id}' on topic {topic:?}",);
+            return Ok(results);
         };
 
         for (listener_id, listener) in listeners {

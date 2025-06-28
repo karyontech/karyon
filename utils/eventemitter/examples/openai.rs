@@ -16,14 +16,14 @@ const OPENAI_URL: &str = "https://api.openai.com/v1/responses";
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = env::var("OPENAI_API_KEY")?;
 
-    let eventemitter = EventEmitter::new();
+    let event_emitter = EventEmitter::new();
 
     let response_output_text_delta_listener =
-        eventemitter.register::<EventData>(&StreamEventType::ResponseOutputTextDelta);
+        event_emitter.register::<EventData>(&StreamEventType::ResponseOutputTextDelta);
 
-    let _error_listener = eventemitter.register::<EventData>(&StreamEventType::Error);
+    let _error_listener = event_emitter.register::<EventData>(&StreamEventType::Error);
 
-    let _unknown_listener = eventemitter.register::<EventData>(&StreamEventType::Unknown);
+    let _unknown_listener = event_emitter.register::<EventData>(&StreamEventType::Unknown);
 
     tokio::spawn(handle_output_text_delta(
         response_output_text_delta_listener,
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(ev) = parse_event(&text) {
                     println!("RECEIVE NEW EV {:?}", ev.event_type);
                     let topic = StreamEventType::from_str(&ev.event_type).unwrap();
-                    eventemitter
+                    event_emitter
                         .emit_by_topic(&topic, &ev.data)
                         .await
                         .expect("Emit event");
