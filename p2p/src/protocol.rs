@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyon_core::event::EventValue;
+use karyon_eventemitter::EventValue;
 
 use crate::{peer::Peer, version::Version, Result};
 
@@ -20,7 +20,7 @@ pub enum ProtocolEvent {
 }
 
 impl EventValue for ProtocolEvent {
-    fn id() -> &'static str {
+    fn event_id() -> &'static str {
         "ProtocolEvent"
     }
 }

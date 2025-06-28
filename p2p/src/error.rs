@@ -97,6 +97,9 @@ pub enum Error {
     #[error(transparent)]
     KaryonNet(#[from] karyon_net::Error),
 
+    #[error(transparent)]
+    KaryonEventEmitter(#[from] karyon_eventemitter::error::Error),
+
     #[error("Other Error: {0}")]
     Other(String),
 }

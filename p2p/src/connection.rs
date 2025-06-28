@@ -3,10 +3,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 use async_channel::Sender;
 use bincode::Encode;
 
-use karyon_core::{
-    event::{EventEmitter, EventListener},
-    util::encode,
-};
+use karyon_core::util::encode;
+use karyon_eventemitter::{EventEmitter, EventListener};
 
 use karyon_net::Endpoint;
 
@@ -80,7 +78,7 @@ impl Connection {
 
     /// Registers a listener for the given Protocol `P`.
     pub async fn register_protocol(&mut self, protocol_id: String) {
-        let listener = self.protocol_events.register(&protocol_id).await;
+        let listener = self.protocol_events.register(&protocol_id);
         self.listeners.insert(protocol_id, listener);
     }
 
@@ -98,7 +96,7 @@ impl Connection {
     }
 
     pub async fn disconnect(&self, res: Result<()>) -> Result<()> {
-        self.protocol_events.clear().await;
+        self.protocol_events.clear();
         self.disconnect_signal.send(res).await?;
 
         let m = NetMsg::new(NetMsgCmd::Shutdown, ShutdownMsg(0)).expect("Create shutdown message");

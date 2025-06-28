@@ -13,12 +13,6 @@ pub mod async_util;
 /// Represents karyon's Core Error.
 pub mod error;
 
-/// [`event::EventEmitter`] implementation.
-pub mod event;
-
-/// A simple publish-subscribe system [`Read More`](./pubsub/struct.Publisher.html)
-pub mod pubsub;
-
 /// A cross-compatible async runtime
 pub mod async_runtime;
 
