@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use log::error;
 
-use karyon_core::event::{EventEmitter, EventListener, EventValue, EventValueTopic};
+use karyon_eventemitter::{EventEmitter, EventListener, EventValue, EventValueTopic};
 
 use karyon_net::Endpoint;
 
@@ -41,7 +41,7 @@ use crate::{Config, PeerID};
 ///     // Create a new Subscription
 ///     let monitor =  backend.monitor();
 ///     
-///     let listener = monitor.register::<ConnectionEvent>().await;
+///     let listener = monitor.register::<ConnectionEvent>();
 ///     
 ///     let new_event = listener.recv().await;
 /// };
@@ -71,11 +71,11 @@ impl Monitor {
     }
 
     /// Registers a new event listener for the provided topic.
-    pub async fn register<E>(&self) -> EventListener<MonitorTopic, E>
+    pub fn register<E>(&self) -> EventListener<MonitorTopic, E>
     where
         E: Clone + EventValue + EventValueTopic<Topic = MonitorTopic>,
     {
-        self.event_emitter.register(&E::topic()).await
+        self.event_emitter.register(&E::topic())
     }
 }
 
@@ -170,19 +170,19 @@ impl From<DiscvEvent> for DiscoveryEvent {
 }
 
 impl EventValue for ConnectionEvent {
-    fn id() -> &'static str {
+    fn event_id() -> &'static str {
         "ConnectionEvent"
     }
 }
 
 impl EventValue for PeerPoolEvent {
-    fn id() -> &'static str {
+    fn event_id() -> &'static str {
         "PeerPoolEvent"
     }
 }
 
 impl EventValue for DiscoveryEvent {
-    fn id() -> &'static str {
+    fn event_id() -> &'static str {
         "DiscoveryEvent"
     }
 }

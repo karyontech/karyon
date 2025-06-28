@@ -9,6 +9,7 @@ members = [
     "jsonrpc",
     "jsonrpc/impl",
     "p2p",
+    "utils/eventemitter",
 ]
 
 [workspace.package]
@@ -30,6 +31,8 @@ karyon_jsonrpc = { path = "jsonrpc", version = "0.4.0", default-features = false
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "0.4.0", default-features = false }
 
 karyon_p2p = { path = "p2p", version = "0.4.0", default-features = false }
+
+karyon_eventemitter = { path = "./utils/eventemitter", version = "0.3.4", default-features = false }
 
 log = "0.4"
 thiserror = "2.0"

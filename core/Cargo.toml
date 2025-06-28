@@ -24,14 +24,9 @@ once_cell = { workspace = true }
 bincode = { workspace = true }
 dirs = { workspace = true }
 
-async-channel = { workspace = true }
 pin-project-lite = { workspace = true }
 async-process = { workspace = true, optional = true }
 smol = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
-futures-util = { workspace = true, features = [
-    "alloc",
-], default-features = false }
-
 
 ed25519-dalek = { workspace = true, features = ["rand_core"], optional = true }
