@@ -41,7 +41,7 @@ impl ClientBuilder<JsonCodec> {
     /// };
     /// ```
     pub fn new(endpoint: impl ToEndpoint) -> Result<ClientBuilder<JsonCodec>> {
-        ClientBuilder::new_with_codec(endpoint, JsonCodec {})
+        ClientBuilder::new_with_codec(endpoint, JsonCodec::default())
     }
 }
 
