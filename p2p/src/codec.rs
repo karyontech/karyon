@@ -15,7 +15,7 @@ pub struct NetMsgCodec {
 impl NetMsgCodec {
     pub fn new() -> Self {
         Self {
-            inner_codec: LengthCodec {},
+            inner_codec: LengthCodec::default(),
         }
     }
 }

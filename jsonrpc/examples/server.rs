@@ -56,7 +56,7 @@ fn main() {
         };
 
         // Creates a new server
-        let server = ServerBuilder::new("tcp://127.0.0.1:7878")
+        let server = ServerBuilder::new("tcp://127.0.0.1:6000")
             .expect("Create a new server builder")
             .service(Arc::new(calc))
             .build()

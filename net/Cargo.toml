@@ -41,6 +41,7 @@ thiserror = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 bincode = { workspace = true, features = ["derive"] }
+bytes = { workspace = true }
 
 # async
 async-trait = { workspace = true }

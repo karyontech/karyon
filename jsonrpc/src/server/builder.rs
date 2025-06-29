@@ -361,6 +361,6 @@ impl ServerBuilder<JsonCodec> {
     /// };
     /// ```
     pub fn new(endpoint: impl ToEndpoint) -> Result<ServerBuilder<JsonCodec>> {
-        Self::new_with_codec(endpoint, JsonCodec {})
+        Self::new_with_codec(endpoint, JsonCodec::default())
     }
 }

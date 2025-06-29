@@ -8,6 +8,8 @@ pub use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
 
 use crate::error::Error;
 
+const DEFAULT_MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4MB
+
 #[cfg(not(feature = "ws"))]
 pub trait ClonableJsonCodec: Codec<Message = serde_json::Value, Error = Error> + Clone {}
 #[cfg(not(feature = "ws"))]
@@ -30,7 +32,25 @@ impl<
 }
 
 #[derive(Clone)]
-pub struct JsonCodec {}
+pub struct JsonCodec {
+    max_size: usize,
+}
+
+impl Default for JsonCodec {
+    fn default() -> Self {
+        Self {
+            max_size: DEFAULT_MAX_BUFFER_SIZE,
+        }
+    }
+}
+
+impl JsonCodec {
+    pub fn new(max_payload_size: usize) -> Self {
+        Self {
+            max_size: max_payload_size,
+        }
+    }
+}
 
 impl Codec for JsonCodec {
     type Message = serde_json::Value;
@@ -46,6 +66,11 @@ impl Encoder for JsonCodec {
             Err(err) => return Err(Error::Encode(err.to_string())),
         };
         let buf = msg.as_bytes();
+
+        if buf.len() >= self.max_size {
+            return Err(Error::InvalidMsg("Msg too large".to_string()));
+        }
+
         dst.extend_from_slice(buf);
         Ok(buf.len())
     }
@@ -58,6 +83,10 @@ impl Decoder for JsonCodec {
         &self,
         src: &mut ByteBuffer,
     ) -> Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
+        if src.len() >= self.max_size {
+            return Err(Error::InvalidMsg("Msg too large".to_string()));
+        }
+
         let de = serde_json::Deserializer::from_slice(src.as_ref());
         let mut iter = de.into_iter::<serde_json::Value>();
 

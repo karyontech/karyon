@@ -16,6 +16,9 @@ pub enum Error {
     #[error("Parse Endpoint Error {0}")]
     ParseEndpoint(String),
 
+    #[error("Msg too large")]
+    MsgTooLarge,
+
     #[cfg(feature = "ws")]
     #[error("Ws Error: {0}")]
     WsError(#[from] Box<async_tungstenite::tungstenite::Error>),
