@@ -1,5 +1,5 @@
 use karyon_net::{
-    codec::{Codec, Decoder, Encoder},
+    codec::{BytesCodec, Codec, Decoder, Encoder},
     tcp::{dial, listen, TcpConfig},
     ConnListener, Connection, Endpoint,
 };
@@ -185,7 +185,8 @@ fn test_codec_tcp_max_payload_size() {
     smol::block_on(async move {
         let endpoint = Endpoint::from_str("tcp://127.0.0.1:6003").unwrap();
         let config = TcpConfig::default();
-        let codec = LinesCodec::default();
+        let codec = BytesCodec::new(DEFAULT_MAX_SIZE);
+
         let listener = listen(&endpoint, config.clone(), codec.clone())
             .await
             .unwrap();
@@ -210,6 +211,7 @@ fn test_codec_tcp_max_payload_size() {
 
         // Test different payload sizes
         let test_sizes = vec![
+            (1, true),
             (1024, true),              // 1KB
             (64 * 1024, true),         // 64KB
             (1024 * 1024, true),       // 1MB
@@ -220,7 +222,7 @@ fn test_codec_tcp_max_payload_size() {
         for (size, pass) in &test_sizes {
             println!("Testing payload size: {} bytes", size);
 
-            let msg = "a".repeat(*size);
+            let msg = vec![1u8; *size];
 
             // Send the payload
             match conn.send(msg.clone()).await {

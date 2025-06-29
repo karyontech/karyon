@@ -18,6 +18,12 @@ impl Default for BytesCodec {
     }
 }
 
+impl BytesCodec {
+    pub fn new(max_size: usize) -> Self {
+        Self { max_size }
+    }
+}
+
 impl Codec for BytesCodec {
     type Message = Vec<u8>;
     type Error = Error;
