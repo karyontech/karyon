@@ -15,6 +15,12 @@ pub struct LengthCodec {
     max_size: usize,
 }
 
+impl LengthCodec {
+    pub fn new(max_size: usize) -> Self {
+        Self { max_size }
+    }
+}
+
 impl Default for LengthCodec {
     fn default() -> Self {
         Self {
@@ -32,11 +38,16 @@ impl Encoder for LengthCodec {
     type EnMessage = Vec<u8>;
     type EnError = Error;
     fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
-        if src.len() >= self.max_size {
-            return Err(Error::MsgTooLarge);
+        if src.len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                src.len(),
+                self.max_size
+            )));
         }
 
-        let length_buf = &mut [0; MSG_LENGTH_SIZE];
+        let length_buf = &mut [0u8; MSG_LENGTH_SIZE];
+
         encode_into_slice(&(src.len() as u32), length_buf)?;
         dst.extend_from_slice(length_buf);
         dst.extend_from_slice(src);
@@ -49,15 +60,19 @@ impl Decoder for LengthCodec {
     type DeMessage = Vec<u8>;
     type DeError = Error;
     fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
-        if src.len() >= self.max_size {
-            return Err(Error::MsgTooLarge);
-        }
-
         if src.len() < MSG_LENGTH_SIZE {
             return Ok(None);
         }
 
-        let mut length = [0; MSG_LENGTH_SIZE];
+        if src.as_ref()[..MSG_LENGTH_SIZE].len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                src.len(),
+                self.max_size
+            )));
+        }
+
+        let mut length = [0u8; MSG_LENGTH_SIZE];
         length.copy_from_slice(&src.as_ref()[..MSG_LENGTH_SIZE]);
         let (length, _) = decode::<u32>(&length)?;
         let length = length as usize;

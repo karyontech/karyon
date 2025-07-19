@@ -23,6 +23,9 @@ pub enum Error {
     #[error("Invalid Message Error: {0}")]
     InvalidMsg(String),
 
+    #[error("Buffer Full: {0}")]
+    BufferFull(String),
+
     #[error(transparent)]
     ParseJSON(#[from] serde_json::Error),
 

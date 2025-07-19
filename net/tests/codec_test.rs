@@ -1,13 +1,46 @@
-use karyon_net::{
-    codec::{BytesCodec, Codec, Decoder, Encoder},
-    tcp::{dial, listen, TcpConfig},
-    ConnListener, Connection, Endpoint,
+use std::{
+    str::FromStr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
-use std::str::FromStr;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+
+use karyon_net::{
+    codec::{Codec, Decoder, Encoder, LengthCodec},
+    tcp::{dial, listen, TcpConfig, TcpConn},
+    ConnListener, Connection, Endpoint, Error,
+};
 
 const DEFAULT_MAX_SIZE: usize = 8 * 1024 * 1024; // 8MB
+
+// Helper function for connecting with retries
+async fn connect_with_retry<C>(
+    endpoint: &Endpoint,
+    config: TcpConfig,
+    codec: C,
+    max_attempts: u32,
+) -> Result<TcpConn<C>, Error>
+where
+    C: Codec + Clone,
+{
+    let mut delay = Duration::from_millis(20);
+
+    for _ in 0..max_attempts {
+        match dial(endpoint, config.clone(), codec.clone()).await {
+            Ok(conn) => return Ok(conn),
+            Err(_) => {
+                smol::Timer::after(delay).await;
+                delay = std::cmp::min(delay * 2, Duration::from_millis(200));
+            }
+        }
+    }
+
+    return Err(Error::IO(std::io::Error::from(
+        std::io::ErrorKind::ConnectionRefused,
+    )));
+}
 
 #[derive(Clone)]
 pub struct LinesCodec {
@@ -88,10 +121,10 @@ fn test_codec_tcp_basic() {
             }
         });
 
-        // Give server time to start
-        smol::Timer::after(std::time::Duration::from_millis(500)).await;
+        let conn = connect_with_retry(&endpoint, config, codec, 5)
+            .await
+            .unwrap();
 
-        let conn = dial(&endpoint, config, codec).await.unwrap();
         conn.send("hello".to_string()).await.unwrap();
         let _ = task.cancel().await;
     });
@@ -129,9 +162,6 @@ fn test_codec_tcp_aggressive_messaging() {
             }
         });
 
-        // Give server time to start
-        smol::Timer::after(std::time::Duration::from_millis(500)).await;
-
         // Create multiple concurrent connections
         let mut client_tasks = Vec::new();
         let num_connections = 5;
@@ -143,7 +173,9 @@ fn test_codec_tcp_aggressive_messaging() {
             let codec = codec.clone();
 
             let client_task = smol::spawn(async move {
-                let conn = dial(&endpoint, config, codec).await.unwrap();
+                let conn = connect_with_retry(&endpoint, config, codec, 5)
+                    .await
+                    .unwrap();
 
                 // Send messages rapidly
                 for msg_id in 0..messages_per_connection {
@@ -185,7 +217,7 @@ fn test_codec_tcp_max_payload_size() {
     smol::block_on(async move {
         let endpoint = Endpoint::from_str("tcp://127.0.0.1:6003").unwrap();
         let config = TcpConfig::default();
-        let codec = BytesCodec::new(DEFAULT_MAX_SIZE);
+        let codec = LengthCodec::new(DEFAULT_MAX_SIZE);
 
         let listener = listen(&endpoint, config.clone(), codec.clone())
             .await
@@ -204,19 +236,21 @@ fn test_codec_tcp_max_payload_size() {
             }
         });
 
-        // Give server time to start
-        smol::Timer::after(std::time::Duration::from_millis(500)).await;
-
-        let conn = dial(&endpoint, config, codec).await.unwrap();
+        let conn = connect_with_retry(&endpoint, config, codec, 5)
+            .await
+            .unwrap();
 
         // Test different payload sizes
         let test_sizes = vec![
             (1, true),
-            (1024, true),              // 1KB
-            (64 * 1024, true),         // 64KB
-            (1024 * 1024, true),       // 1MB
-            (4 * 1024 * 1024, true),   // 4MB
-            (16 * 1024 * 1024, false), // 16MB
+            (1024, true),                  // 1KB
+            (64 * 1024, true),             // 64KB
+            (1024 * 1024, true),           // 1MB
+            (4 * 1024 * 1024, true),       // 4MB
+            (DEFAULT_MAX_SIZE - 1, true),  // 8MB - 1
+            (DEFAULT_MAX_SIZE, true),      // 8MB
+            (DEFAULT_MAX_SIZE + 1, false), // 8MB + 1
+            (16 * 1024 * 1024, false),     // 16MB
         ];
 
         for (size, pass) in &test_sizes {
@@ -244,11 +278,8 @@ fn test_codec_tcp_max_payload_size() {
                 "Server didn't confirm reception of {} message",
                 size
             );
-
-            // Small delay between large messages
-            smol::Timer::after(std::time::Duration::from_millis(500)).await;
         }
 
-        server_task.cancel().await.unwrap();
+        let _ = server_task.cancel().await;
     });
 }

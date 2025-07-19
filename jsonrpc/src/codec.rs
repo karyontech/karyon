@@ -67,8 +67,12 @@ impl Encoder for JsonCodec {
         };
         let buf = msg.as_bytes();
 
-        if buf.len() >= self.max_size {
-            return Err(Error::InvalidMsg("Msg too large".to_string()));
+        if buf.len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                buf.len(),
+                self.max_size
+            )));
         }
 
         dst.extend_from_slice(buf);
@@ -83,8 +87,12 @@ impl Decoder for JsonCodec {
         &self,
         src: &mut ByteBuffer,
     ) -> Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
-        if src.len() >= self.max_size {
-            return Err(Error::InvalidMsg("Msg too large".to_string()));
+        if src.len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                src.len(),
+                self.max_size
+            )));
         }
 
         let de = serde_json::Deserializer::from_slice(src.as_ref());

@@ -144,11 +144,7 @@ where
             let n = ready!(Pin::new(&mut this.inner).poll_write(cx, this.buffer.as_ref()))?;
 
             if n == 0 {
-                return Poll::Ready(Err(std::io::Error::new(
-                    ErrorKind::UnexpectedEof,
-                    "End of file",
-                )
-                .into()));
+                return Poll::Ready(Err(std::io::Error::from(ErrorKind::UnexpectedEof).into()));
             }
 
             this.buffer.advance(n);

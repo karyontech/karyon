@@ -33,8 +33,12 @@ impl Encoder for BytesCodec {
     type EnMessage = Vec<u8>;
     type EnError = Error;
     fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize> {
-        if src.len() >= self.max_size {
-            return Err(Error::MsgTooLarge);
+        if src.len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                src.len(),
+                self.max_size
+            )));
         }
 
         dst.extend_from_slice(src);
@@ -46,8 +50,12 @@ impl Decoder for BytesCodec {
     type DeMessage = Vec<u8>;
     type DeError = Error;
     fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, Self::DeMessage)>> {
-        if src.len() >= self.max_size {
-            return Err(Error::MsgTooLarge);
+        if src.len() > self.max_size {
+            return Err(Error::BufferFull(format!(
+                "Buffer size {} exceeds maximum {}",
+                src.len(),
+                self.max_size
+            )));
         }
 
         if src.is_empty() {
