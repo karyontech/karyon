@@ -1315,6 +1315,7 @@ dependencies = [
  "async-trait",
  "async-tungstenite",
  "bincode",
+ "bytes",
  "futures-util",
  "karyon_async_rustls",
  "karyon_core",

@@ -10,18 +10,21 @@ pub enum Error {
     #[error("Try From Endpoint Error")]
     TryFromEndpoint,
 
-    #[error("Unsupported Endpoint {0}")]
+    #[error("Unsupported Endpoint Error:{0}")]
     UnsupportedEndpoint(String),
 
-    #[error("Parse Endpoint Error {0}")]
+    #[error("Parse Endpoint Error: {0}")]
     ParseEndpoint(String),
+
+    #[error("Buffer Full Error: {0}")]
+    BufferFull(String),
 
     #[cfg(feature = "ws")]
     #[error("Ws Error: {0}")]
     WsError(#[from] Box<async_tungstenite::tungstenite::Error>),
 
     #[cfg(feature = "tls")]
-    #[error("Invalid DNS Name: {0}")]
+    #[error("Invalid DNS Name Error: {0}")]
     InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
 
     #[error(transparent)]

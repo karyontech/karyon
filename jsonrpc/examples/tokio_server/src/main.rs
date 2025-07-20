@@ -90,7 +90,7 @@ async fn main() {
     });
 
     // Creates a new server
-    let server = ServerBuilder::new("ws://127.0.0.1:6000")
+    let server = ServerBuilder::new("tcp://127.0.0.1:6000")
         .expect("Create a new server builder")
         .service(calc.clone())
         .pubsub_service(calc)
