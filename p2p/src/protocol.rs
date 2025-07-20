@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyon_core::event::EventValue;
+use karyon_eventemitter::EventValue;
 
 use crate::{peer::Peer, version::Version, Result};
 
@@ -11,18 +11,12 @@ pub type ProtocolConstructor = dyn Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + S
 pub type ProtocolID = String;
 
 /// Protocol event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EventValue)]
 pub enum ProtocolEvent {
     /// Message event, contains a vector of bytes.
     Message(Vec<u8>),
     /// Shutdown event signals the protocol to gracefully shut down.
     Shutdown,
-}
-
-impl EventValue for ProtocolEvent {
-    fn id() -> &'static str {
-        "ProtocolEvent"
-    }
 }
 
 /// The Protocol trait defines the interface for core protocols

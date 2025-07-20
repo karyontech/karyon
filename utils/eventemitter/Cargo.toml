@@ -1,0 +1,35 @@
+[package]
+name = "karyon_eventemitter"
+description = "A lightweight, asynchronous event emitter for Rust"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+
+[dependencies]
+karyon_eventemitter_macro = { workspace = true, optional = true }
+
+log = { workspace = true }
+rand = { workspace = true }
+chrono = { workspace = true }
+
+async-channel = { workspace = true }
+futures-util = { workspace = true, features = [
+    "alloc",
+], default-features = false }
+parking_lot = { workspace = true }
+
+
+[features]
+default = ["derive"]
+derive = ["karyon_eventemitter_macro"]
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+reqwest = { version = "0.12.20", features = ["stream"] }
+futures = "0.3"

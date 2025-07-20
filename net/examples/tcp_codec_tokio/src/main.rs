@@ -31,7 +31,7 @@ impl Decoder for NewLineCodec {
         match src.as_ref().iter().position(|&b| b == b'\n') {
             Some(i) => Ok(Some((
                 i + 1,
-                String::from_utf8(src.consume(i).to_vec()).unwrap(),
+                String::from_utf8(src.as_ref()[..i].to_vec()).unwrap(),
             ))),
             None => Ok(None),
         }
