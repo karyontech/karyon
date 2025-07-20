@@ -14,7 +14,7 @@ See the examples for more details.
 ## Example
 
 ```rust
- use karyon_eventemitter::{EventEmitter, EventValueTopic, EventValue};
+ use karyon_eventemitter::{EventEmitter, AsEventTopic, EventValue};
 
   async {
      let event_emitter = EventEmitter::new();
@@ -25,39 +25,21 @@ See the examples for more details.
          TopicB,
      }
 
-     #[derive(Clone, Debug, PartialEq)]
+     #[derive(Clone, Debug, PartialEq, EventValue)]
      struct A(usize);
 
-    impl EventValue for A {
-         fn event_id() -> &'static str {
-             "A"
-         }
-     }
-
-     #[derive(Clone, Debug, PartialEq)]
+     #[derive(Clone, Debug, PartialEq, EventValue)]
      struct B(usize);
 
-     impl EventValue for B {
-         fn event_id() -> &'static str {
-             "B"
-         }
-     }
-
-     impl EventValueTopic for B {
+     impl AsEventTopic for B {
          type Topic = Topic;
          fn topic() -> Self::Topic{
              Topic::TopicB
          }
      }
 
-     #[derive(Clone, Debug, PartialEq)]
+     #[derive(Clone, Debug, PartialEq, EventValue)]
      struct C(usize);
-
-     impl EventValue for C {
-         fn event_id() -> &'static str {
-             "C"
-         }
-     }
 
      let a_listener = event_emitter.register::<A>(&Topic::TopicA);
      let b_listener = event_emitter.register::<B>(&Topic::TopicB);
