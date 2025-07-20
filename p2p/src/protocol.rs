@@ -11,18 +11,12 @@ pub type ProtocolConstructor = dyn Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + S
 pub type ProtocolID = String;
 
 /// Protocol event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EventValue)]
 pub enum ProtocolEvent {
     /// Message event, contains a vector of bytes.
     Message(Vec<u8>),
     /// Shutdown event signals the protocol to gracefully shut down.
     Shutdown,
-}
-
-impl EventValue for ProtocolEvent {
-    fn event_id() -> &'static str {
-        "ProtocolEvent"
-    }
 }
 
 /// The Protocol trait defines the interface for core protocols

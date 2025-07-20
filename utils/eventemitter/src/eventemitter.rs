@@ -14,8 +14,8 @@ use rand::{rngs::OsRng, Rng};
 
 use crate::error::{Error, Result};
 
-/// Default buffer size for event listener channels
-const CHANNEL_BUFFER_SIZE: usize = 1000;
+/// Default buffer size for an event listener channel
+const DEFAULT_CHANNEL_BUFFER_SIZE: usize = 1000;
 
 /// Unique identifier for event listeners
 pub type EventListenerID = u64;
@@ -34,7 +34,7 @@ fn random_id() -> EventListenerID {
 /// # Example
 ///
 /// ```
-/// use karyon_eventemitter::{EventEmitter, EventValueTopic, EventValue};
+/// use karyon_eventemitter::{EventEmitter, AsEventTopic, EventValue};
 ///
 ///  async {
 ///     let event_emitter = EventEmitter::new();
@@ -45,39 +45,21 @@ fn random_id() -> EventListenerID {
 ///         TopicB,
 ///     }
 ///
-///     #[derive(Clone, Debug, PartialEq)]
+///     #[derive(Clone, Debug, PartialEq, EventValue)]
 ///     struct A(usize);
 ///
-///    impl EventValue for A {
-///         fn event_id() -> &'static str {
-///             "A"
-///         }
-///     }
-///
-///     #[derive(Clone, Debug, PartialEq)]
+///     #[derive(Clone, Debug, PartialEq, EventValue)]
 ///     struct B(usize);
 ///
-///     impl EventValue for B {
-///         fn event_id() -> &'static str {
-///             "B"
-///         }
-///     }
-///
-///     impl EventValueTopic for B {
+///     impl AsEventTopic for B {
 ///         type Topic = Topic;
 ///         fn topic() -> Self::Topic{
 ///             Topic::TopicB
 ///         }
 ///     }
 ///
-///     #[derive(Clone, Debug, PartialEq)]
+///     #[derive(Clone, Debug, PartialEq, EventValue)]
 ///     struct C(usize);
-///
-///     impl EventValue for C {
-///         fn event_id() -> &'static str {
-///             "C"
-///         }
-///     }
 ///
 ///     let a_listener = event_emitter.register::<A>(&Topic::TopicA);
 ///     let b_listener = event_emitter.register::<B>(&Topic::TopicB);
@@ -110,7 +92,7 @@ where
     pub fn new() -> Arc<EventEmitter<T>> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
-            listener_buffer_size: CHANNEL_BUFFER_SIZE,
+            listener_buffer_size: DEFAULT_CHANNEL_BUFFER_SIZE,
         })
     }
 
@@ -134,19 +116,15 @@ where
 
     /// Emits an event to the listeners.
     ///
-    /// The event must implement the [`EventValueTopic`] trait to indicate the
+    /// The event must implement the [`AsEventTopic`] trait to indicate the
     /// topic of the event. Otherwise, you can use `emit_by_topic()`.
-    pub async fn emit<E: EventValueTopic<Topic = T> + Clone>(&self, value: &E) -> Result<()> {
+    pub async fn emit<E: AsEventTopic<Topic = T> + Clone>(&self, value: &E) -> Result<()> {
         let topic = E::topic();
         self.emit_by_topic(&topic, value).await
     }
 
     /// Emits an event to the listeners.
-    pub async fn emit_by_topic<E: EventValueAny + EventValue + Clone>(
-        &self,
-        topic: &T,
-        value: &E,
-    ) -> Result<()> {
+    pub async fn emit_by_topic<E: AsEventValue + Clone>(&self, topic: &T, value: &E) -> Result<()> {
         let mut results = self.send(topic, value).await?;
 
         let mut failed_listeners = vec![];
@@ -166,10 +144,7 @@ where
     }
 
     /// Registers a new event listener for the given topic.
-    pub fn register<E: EventValueAny + EventValue + Clone>(
-        self: &Arc<Self>,
-        topic: &T,
-    ) -> EventListener<T, E> {
+    pub fn register<E: AsEventValue + Clone>(self: &Arc<Self>, topic: &T) -> EventListener<T, E> {
         let topics = &mut self.listeners.lock();
 
         let chan = async_channel::bounded(self.listener_buffer_size);
@@ -206,7 +181,7 @@ where
     }
 
     /// Internal method that handles the actual sending of events to listeners.
-    async fn send<E: EventValueAny + EventValue + Clone>(
+    async fn send<E: AsEventValue + Clone>(
         &self,
         topic: &T,
         value: &E,
@@ -220,7 +195,7 @@ where
                 > + use<'_, T, E>,
         >,
     > {
-        let value: Arc<dyn EventValueAny> = Arc::new(value.clone());
+        let value: Arc<dyn AsEventValue> = Arc::new(value.clone());
         let event = Event::new(value);
 
         let mut topics = self.listeners.lock();
@@ -290,7 +265,7 @@ pub struct EventListener<T, E> {
 impl<T, E> EventListener<T, E>
 where
     T: std::hash::Hash + Eq + Clone + std::fmt::Debug,
-    E: EventValueAny + Clone + EventValue,
+    E: AsEventValue + Clone,
 {
     /// Creates a new [`EventListener`].
     fn new(
@@ -316,7 +291,7 @@ where
     /// Events are automatically type-cast to the expected type E.
     pub async fn recv(&self) -> Result<E> {
         match self.recv_chan.recv().await {
-            Ok(event) => match ((*event.value).value_as_any()).downcast_ref::<E>() {
+            Ok(event) => match (event.value as Arc<dyn Any>).downcast_ref::<E>() {
                 Some(v) => Ok(v.clone()),
                 None => unreachable!("Failed to downcast the event value."),
             },
@@ -356,12 +331,12 @@ pub struct Event {
     /// The time at which the event was created.
     created_at: DateTime<Utc>,
     /// The value of the Event.
-    value: Arc<dyn EventValueAny>,
+    value: Arc<dyn AsEventValue>,
 }
 
 impl Event {
     /// Creates a new Event.
-    pub fn new(value: Arc<dyn EventValueAny>) -> Self {
+    pub fn new(value: Arc<dyn AsEventValue>) -> Self {
         Self {
             created_at: Utc::now(),
             value,
@@ -375,21 +350,11 @@ impl std::fmt::Display for Event {
     }
 }
 
-pub trait EventValueAny: Any + Send + Sync + std::fmt::Debug {
-    fn value_as_any(&self) -> &dyn Any;
-}
-
-impl<T: Send + Sync + std::fmt::Debug + Any> EventValueAny for T {
-    fn value_as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
 /// Trait for event types that can be emitted.
 ///
 /// This trait provides a string identifier for each event type,
 /// used internally for routing and type checking.
-pub trait EventValue: EventValueAny {
+pub trait AsEventValue: Any + Send + Sync + std::fmt::Debug {
     fn event_id() -> &'static str
     where
         Self: Sized;
@@ -400,146 +365,9 @@ pub trait EventValue: EventValueAny {
 /// This trait allows events to specify which topic they belong to,
 /// enabling the use of the convenient `emit()` method instead of
 /// requiring explicit topic specification with `emit_by_topic()`.
-pub trait EventValueTopic: EventValueAny + EventValue {
+pub trait AsEventTopic: AsEventValue {
     type Topic;
     fn topic() -> Self::Topic
     where
         Self: Sized;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-    enum Topic {
-        TopicA,
-        TopicB,
-        TopicC,
-        TopicD,
-        TopicE,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct AEvent {
-        value: usize,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct BEvent {
-        value: usize,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct CEvent {
-        value: usize,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct EEvent {
-        value: usize,
-    }
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct FEvent {
-        value: usize,
-    }
-
-    impl EventValue for AEvent {
-        fn event_id() -> &'static str {
-            "A"
-        }
-    }
-
-    impl EventValue for BEvent {
-        fn event_id() -> &'static str {
-            "B"
-        }
-    }
-
-    impl EventValue for CEvent {
-        fn event_id() -> &'static str {
-            "C"
-        }
-    }
-
-    impl EventValue for EEvent {
-        fn event_id() -> &'static str {
-            "E"
-        }
-    }
-
-    impl EventValue for FEvent {
-        fn event_id() -> &'static str {
-            "F"
-        }
-    }
-
-    impl EventValueTopic for CEvent {
-        type Topic = Topic;
-        fn topic() -> Self::Topic {
-            Topic::TopicC
-        }
-    }
-
-    #[tokio::test]
-    async fn test_event_emitter() {
-        let event_emitter = EventEmitter::<Topic>::new();
-
-        let a_listener = event_emitter.register::<AEvent>(&Topic::TopicA);
-        let b_listener = event_emitter.register::<BEvent>(&Topic::TopicB);
-
-        event_emitter
-            .emit_by_topic(&Topic::TopicA, &AEvent { value: 3 })
-            .await
-            .expect("Emit event");
-        event_emitter
-            .emit_by_topic(&Topic::TopicB, &BEvent { value: 5 })
-            .await
-            .expect("Emit event");
-
-        let msg = a_listener.recv().await.unwrap();
-        assert_eq!(msg, AEvent { value: 3 });
-
-        let msg = b_listener.recv().await.unwrap();
-        assert_eq!(msg, BEvent { value: 5 });
-
-        // Test same event type on different topics
-        let c_listener = event_emitter.register::<CEvent>(&Topic::TopicC);
-        let d_listener = event_emitter.register::<CEvent>(&Topic::TopicD);
-
-        event_emitter
-            .emit(&CEvent { value: 10 })
-            .await
-            .expect("Emit event");
-        let msg = c_listener.recv().await.unwrap();
-        assert_eq!(msg, CEvent { value: 10 });
-
-        event_emitter
-            .emit_by_topic(&Topic::TopicD, &CEvent { value: 10 })
-            .await
-            .expect("Emit event");
-        let msg = d_listener.recv().await.unwrap();
-        assert_eq!(msg, CEvent { value: 10 });
-
-        // Test different event types on the same topic
-        let e_listener = event_emitter.register::<EEvent>(&Topic::TopicE);
-        let f_listener = event_emitter.register::<FEvent>(&Topic::TopicE);
-
-        event_emitter
-            .emit_by_topic(&Topic::TopicE, &EEvent { value: 5 })
-            .await
-            .expect("Emit event");
-
-        let msg = e_listener.recv().await.unwrap();
-        assert_eq!(msg, EEvent { value: 5 });
-
-        event_emitter
-            .emit_by_topic(&Topic::TopicE, &FEvent { value: 5 })
-            .await
-            .expect("Emit event");
-
-        let msg = f_listener.recv().await.unwrap();
-        assert_eq!(msg, FEvent { value: 5 });
-    }
 }

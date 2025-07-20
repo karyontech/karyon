@@ -21,13 +21,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response_output_text_delta_listener =
         event_emitter.register::<EventData>(&StreamEventType::ResponseOutputTextDelta);
 
-    let _error_listener = event_emitter.register::<EventData>(&StreamEventType::Error);
+    let error_listener = event_emitter.register::<EventData>(&StreamEventType::Error);
 
     let _unknown_listener = event_emitter.register::<EventData>(&StreamEventType::Unknown);
 
     tokio::spawn(handle_output_text_delta(
         response_output_text_delta_listener,
     ));
+
+    tokio::spawn(handle_error(error_listener));
 
     let client = reqwest::Client::new();
 
@@ -78,6 +80,12 @@ async fn handle_output_text_delta(listener: EventListener<StreamEventType, Event
     }
 }
 
+async fn handle_error(listener: EventListener<StreamEventType, EventData>) {
+    while let Ok(msg) = listener.recv().await {
+        println!("RECEIVE ERROR {:?}", msg.0);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StreamEventType {
     ResponseStart,
@@ -98,14 +106,8 @@ impl FromStr for StreamEventType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EventValue)]
 pub struct EventData(serde_json::Value);
-
-impl EventValue for EventData {
-    fn event_id() -> &'static str {
-        "event_data"
-    }
-}
 
 #[derive(Debug)]
 struct Event {

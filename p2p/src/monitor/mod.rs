@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use log::error;
 
-use karyon_eventemitter::{EventEmitter, EventListener, EventValue, EventValueTopic};
+use karyon_eventemitter::{AsEventTopic, AsEventValue, EventEmitter, EventListener, EventValue};
 
 use karyon_net::Endpoint;
 
@@ -73,7 +73,7 @@ impl Monitor {
     /// Registers a new event listener for the provided topic.
     pub fn register<E>(&self) -> EventListener<MonitorTopic, E>
     where
-        E: Clone + EventValue + EventValueTopic<Topic = MonitorTopic>,
+        E: Clone + AsEventValue + AsEventTopic<Topic = MonitorTopic>,
     {
         self.event_emitter.register(&E::topic())
     }
@@ -88,7 +88,11 @@ pub enum MonitorTopic {
 }
 
 pub(super) trait ToEventStruct: Sized {
-    type EventStruct: From<Self> + Clone + EventValueTopic<Topic = MonitorTopic> + EventValue;
+    type EventStruct: From<Self>
+        + Clone
+        + AsEventTopic<Topic = MonitorTopic>
+        + AsEventValue
+        + std::fmt::Debug;
     fn to_struct(self) -> Self::EventStruct {
         self.into()
     }
@@ -106,7 +110,7 @@ impl ToEventStruct for DiscvEvent {
     type EventStruct = DiscoveryEvent;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EventValue)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ConnectionEvent {
     pub event: String,
@@ -115,7 +119,7 @@ pub struct ConnectionEvent {
     pub endpoint: Option<Endpoint>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EventValue)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PeerPoolEvent {
     pub event: String,
@@ -124,7 +128,7 @@ pub struct PeerPoolEvent {
     pub peer_id: Option<PeerID>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EventValue)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiscoveryEvent {
     pub event: String,
@@ -169,39 +173,21 @@ impl From<DiscvEvent> for DiscoveryEvent {
     }
 }
 
-impl EventValue for ConnectionEvent {
-    fn event_id() -> &'static str {
-        "ConnectionEvent"
-    }
-}
-
-impl EventValue for PeerPoolEvent {
-    fn event_id() -> &'static str {
-        "PeerPoolEvent"
-    }
-}
-
-impl EventValue for DiscoveryEvent {
-    fn event_id() -> &'static str {
-        "DiscoveryEvent"
-    }
-}
-
-impl EventValueTopic for ConnectionEvent {
+impl AsEventTopic for ConnectionEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::Connection
     }
 }
 
-impl EventValueTopic for PeerPoolEvent {
+impl AsEventTopic for PeerPoolEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::PeerPool
     }
 }
 
-impl EventValueTopic for DiscoveryEvent {
+impl AsEventTopic for DiscoveryEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::Discovery

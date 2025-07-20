@@ -1514,12 +1514,13 @@ dependencies = [
 
 [[package]]
 name = "karyon_eventemitter"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-channel 2.3.1",
  "chrono",
  "futures",
  "futures-util",
+ "karyon_eventemitter_macro",
  "log",
  "parking_lot",
  "rand 0.8.5",
@@ -1527,6 +1528,15 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "karyon_eventemitter_macro"
+version = "0.3.5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
