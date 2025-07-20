@@ -45,7 +45,7 @@ bytes = { workspace = true }
 
 # async
 async-trait = { workspace = true }
-futures-util = { workspace = true, features = ["sink"], optional = true }
+futures-util = { workspace = true, features = ["sink", "alloc"], optional = true }
 pin-project-lite = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["io-util"], optional = true }
 
