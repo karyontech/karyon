@@ -53,6 +53,7 @@ impl<T: Clone> Publisher<T> {
     ///
     /// If `size` is zero, this function will panic.
     pub fn with_buffer_size(size: usize) -> Arc<Publisher<T>> {
+        assert_ne!(size, 0);
         Arc::new(Self {
             subs: Mutex::new(HashMap::new()),
             subscription_buffer_size: size,
