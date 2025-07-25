@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use log::error;
 
-use karyon_eventemitter::{AsEventTopic, AsEventValue, EventEmitter, EventListener, EventValue};
+use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic, EventValue};
 
 use karyon_net::Endpoint;
 
@@ -73,7 +73,7 @@ impl Monitor {
     /// Registers a new event listener for the provided topic.
     pub fn register<E>(&self) -> EventListener<MonitorTopic, E>
     where
-        E: Clone + AsEventValue + AsEventTopic<Topic = MonitorTopic>,
+        E: Clone + AsEventValue + EventTopic<Topic = MonitorTopic>,
     {
         self.event_emitter.register(&E::topic())
     }
@@ -90,7 +90,7 @@ pub enum MonitorTopic {
 pub(super) trait ToEventStruct: Sized {
     type EventStruct: From<Self>
         + Clone
-        + AsEventTopic<Topic = MonitorTopic>
+        + EventTopic<Topic = MonitorTopic>
         + AsEventValue
         + std::fmt::Debug;
     fn to_struct(self) -> Self::EventStruct {
@@ -173,21 +173,21 @@ impl From<DiscvEvent> for DiscoveryEvent {
     }
 }
 
-impl AsEventTopic for ConnectionEvent {
+impl EventTopic for ConnectionEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::Connection
     }
 }
 
-impl AsEventTopic for PeerPoolEvent {
+impl EventTopic for PeerPoolEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::PeerPool
     }
 }
 
-impl AsEventTopic for DiscoveryEvent {
+impl EventTopic for DiscoveryEvent {
     type Topic = MonitorTopic;
     fn topic() -> Self::Topic {
         MonitorTopic::Discovery
