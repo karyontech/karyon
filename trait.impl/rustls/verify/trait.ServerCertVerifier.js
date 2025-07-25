@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["karyon_p2p",[["impl ServerCertVerifier for <a class=\"struct\" href=\"karyon_p2p/tls_config/struct.SrvrCertVerifier.html\" title=\"struct karyon_p2p::tls_config::SrvrCertVerifier\">SrvrCertVerifier</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[207]}
