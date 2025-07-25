@@ -1,8 +1,10 @@
+#![doc = include_str!("../README.md")]
+
 pub mod error;
 pub mod eventemitter;
 
 pub use eventemitter::{
-    AsEventTopic, AsEventValue, Event, EventEmitter, EventListener, EventListenerID,
+    AsEventValue, Event, EventEmitter, EventListener, EventListenerID, EventTopic,
 };
 
 pub use error::{Error, Result};

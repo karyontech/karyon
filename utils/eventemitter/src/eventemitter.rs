@@ -34,7 +34,7 @@ fn random_id() -> EventListenerID {
 /// # Example
 ///
 /// ```
-/// use karyon_eventemitter::{EventEmitter, AsEventTopic, EventValue};
+/// use karyon_eventemitter::{EventEmitter, EventTopic, EventValue};
 ///
 ///  async {
 ///     let event_emitter = EventEmitter::new();
@@ -51,7 +51,7 @@ fn random_id() -> EventListenerID {
 ///     #[derive(Clone, Debug, PartialEq, EventValue)]
 ///     struct B(usize);
 ///
-///     impl AsEventTopic for B {
+///     impl EventTopic for B {
 ///         type Topic = Topic;
 ///         fn topic() -> Self::Topic{
 ///             Topic::TopicB
@@ -116,9 +116,9 @@ where
 
     /// Emits an event to the listeners.
     ///
-    /// The event must implement the [`AsEventTopic`] trait to indicate the
+    /// The event must implement the [`EventTopic`] trait to indicate the
     /// topic of the event. Otherwise, you can use `emit_by_topic()`.
-    pub async fn emit<E: AsEventTopic<Topic = T> + Clone>(&self, value: &E) -> Result<()> {
+    pub async fn emit<E: EventTopic<Topic = T> + Clone>(&self, value: &E) -> Result<()> {
         let topic = E::topic();
         self.emit_by_topic(&topic, value).await
     }
@@ -365,7 +365,7 @@ pub trait AsEventValue: Any + Send + Sync + std::fmt::Debug {
 /// This trait allows events to specify which topic they belong to,
 /// enabling the use of the convenient `emit()` method instead of
 /// requiring explicit topic specification with `emit_by_topic()`.
-pub trait AsEventTopic: AsEventValue {
+pub trait EventTopic: AsEventValue {
     type Topic;
     fn topic() -> Self::Topic
     where
