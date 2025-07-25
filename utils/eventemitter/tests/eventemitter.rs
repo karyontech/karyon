@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::{timeout, Duration};
 
-use karyon_eventemitter::{AsEventTopic, AsEventValue, EventEmitter, EventValue};
+use karyon_eventemitter::{AsEventValue, EventEmitter, EventTopic, EventValue};
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 enum Topic {
@@ -102,14 +102,14 @@ struct PingEvent;
 #[event_id("heartbeat")]
 struct HeartbeatEvent;
 
-impl AsEventTopic for CEvent {
+impl EventTopic for CEvent {
     type Topic = Topic;
     fn topic() -> Self::Topic {
         Topic::TopicC
     }
 }
 
-impl AsEventTopic for SpecialEvent {
+impl EventTopic for SpecialEvent {
     type Topic = Topic;
     fn topic() -> Self::Topic {
         Topic::SpecialTopic
