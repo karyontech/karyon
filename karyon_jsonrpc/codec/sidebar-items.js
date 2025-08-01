@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MAX_BUFFER_SIZE"],"struct":["JsonCodec"],"trait":["ClonableJsonCodec","Codec","Decoder","Encoder"],"type":["ByteBuffer"]};

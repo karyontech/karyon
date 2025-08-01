@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Addr","Endpoint","Error"],"mod":["codec","connection","endpoint","error","listener","stream","tcp","tls","transports","udp","unix","ws"],"trait":["ConnListener","Connection","ToConn","ToEndpoint","ToListener"],"type":["Conn","Listener","Port","Result"]};

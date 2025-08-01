@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_BUFFER_SIZE","MSG_LENGTH_SIZE"],"struct":["LengthCodec"]};
