@@ -15,7 +15,7 @@ members = [
 
 [workspace.package]
 description = "A library for building p2p, decentralized, and collaborative software"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 homepage = "https://karyontech.net"
 repository = "https://github.com/karyontech/karyon"
@@ -23,18 +23,18 @@ license = "GPL-3.0"
 authors = ["hozan23 <hozan23@karyontech.net>"]
 
 [workspace.dependencies]
-karyon_core = { path = "core", version = "0.5.1", default-features = false }
+karyon_core = { path = "core", version = "0.6.0", default-features = false }
 
-karyon_net = { path = "net", version = "0.5.1", default-features = false }
-karyon_async_rustls = { path = "net/async_rustls", version = "0.5.1", default-features = false }
+karyon_net = { path = "net", version = "0.6.0", default-features = false }
+karyon_async_rustls = { path = "net/async_rustls", version = "0.6.0", default-features = false }
 
-karyon_jsonrpc = { path = "jsonrpc", version = "0.5.1", default-features = false }
-karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "0.5.1", default-features = false }
+karyon_jsonrpc = { path = "jsonrpc", version = "0.6.0", default-features = false }
+karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "0.6.0", default-features = false }
 
-karyon_p2p = { path = "p2p", version = "0.5.1", default-features = false }
+karyon_p2p = { path = "p2p", version = "0.6.0", default-features = false }
 
-karyon_eventemitter = { path = "./utils/eventemitter", version = "0.5.1", default-features = false }
-karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "0.5.1", default-features = false }
+karyon_eventemitter = { path = "./utils/eventemitter", version = "0.6.0", default-features = false }
+karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "0.6.0", default-features = false }
 
 log = "0.4"
 thiserror = "2.0"
