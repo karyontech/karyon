@@ -20,7 +20,7 @@ serde = ["dep:serde", "karyon_net/serde"]
 [dependencies]
 karyon_core = { workspace = true, features = ["crypto"] }
 karyon_net = { workspace = true, features = ["tcp", "tls", "udp"] }
-karyon_eventemitter = { workspace = true }
+karyon_eventemitter = { workspace = true, features = ["derive"] }
 
 
 log = { workspace = true }
