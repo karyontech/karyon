@@ -22,7 +22,7 @@ struct Req {
 struct Pong {}
 
 impl RPCService for Calc {
-    fn get_method(&self, name: &str) -> Option<RPCMethod> {
+    fn get_method(&self, name: &str) -> Option<RPCMethod<'_>> {
         match name {
             "ping" => Some(Box::new(move |params: Value| Box::pin(self.ping(params)))),
             "version" => Some(Box::new(move |params: Value| {

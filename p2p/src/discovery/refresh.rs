@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use bincode::{Decode, Encode};
 use log::{error, info, trace};
 use parking_lot::RwLock;
 use rand::{rngs::OsRng, RngCore};
@@ -22,12 +21,6 @@ use crate::{
 
 /// Maximum failures for an entry before removing it from the routing table.
 pub const MAX_FAILURES: u32 = 3;
-
-#[derive(Decode, Encode, Debug, Clone)]
-pub struct PingMsg(pub [u8; 32]);
-
-#[derive(Decode, Encode, Debug)]
-pub struct PongMsg(pub [u8; 32]);
 
 pub struct RefreshService {
     /// Routing table
