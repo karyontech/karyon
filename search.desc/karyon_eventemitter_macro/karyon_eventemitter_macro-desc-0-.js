@@ -1,0 +1,1 @@
+searchState.loadedDescShard("karyon_eventemitter_macro", 0, "Derive macro for the AsEventValue trait")
