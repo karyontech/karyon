@@ -10,7 +10,7 @@ use karyon_jsonrpc::client::ClientBuilder;
 struct Pong {}
 
 async fn run_client() {
-    let client = ClientBuilder::new("tcp://127.0.0.1:6000")
+    let client = ClientBuilder::new("tcp://127.0.0.1:7000")
         .expect("Create client builder")
         .build()
         .await
