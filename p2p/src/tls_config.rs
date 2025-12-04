@@ -21,6 +21,7 @@ use rustls::{
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 
 use log::error;
+use rcgen::PublicKeyData;
 use x509_parser::{certificate::X509Certificate, parse_x509_certificate};
 
 use karyon_core::crypto::{KeyPair, KeyPairType, PublicKey};
@@ -88,7 +89,7 @@ fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateK
     // Add a custom extension to the certificate:
     //   - Sign the certificate's public key with the provided key pair's private key
     //   - Append both the computed signature and the key pair's public key to the extension
-    let signature = key_pair.sign(&cert_key_pair.public_key_raw());
+    let signature = key_pair.sign(&cert_key_pair.subject_public_key_info());
     let ext_content = yasna::encode_der(&(key_pair.public().as_bytes().to_vec(), signature));
     // XXX: Not sure about the oid number ???
     let mut ext = rcgen::CustomExtension::from_oid_content(&[0, 0, 0, 0], ext_content);
