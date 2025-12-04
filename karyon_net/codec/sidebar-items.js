@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["buffer","bytes_codec","length_codec","websocket"],"struct":["Buffer","BytesCodec","LengthCodec"],"trait":["Codec","Decoder","Encoder","WebSocketCodec","WebSocketDecoder","WebSocketEncoder"],"type":["ByteBuffer"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["global_executor"],"static":["GLOBAL_EXECUTOR"],"struct":["Executor","SmolEx"]};

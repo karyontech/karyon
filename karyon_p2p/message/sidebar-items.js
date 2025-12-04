@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NetMsgCmd","RefreshMsg"],"struct":["FindPeerMsg","NetMsg","NetMsgHeader","PeerMsg","PeersMsg","PingMsg","PongMsg","ProtocolMsg","ShutdownMsg","VerAckMsg","VerMsg"]};

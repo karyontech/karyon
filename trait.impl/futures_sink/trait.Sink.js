@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["karyon_net",[["impl Sink&lt;Message&gt; for <a class=\"enum\" href=\"karyon_net/stream/websocket/enum.InnerWSConn.html\" title=\"enum karyon_net::stream::websocket::InnerWSConn\">InnerWSConn</a>"],["impl&lt;C&gt; Sink&lt;Message&gt; for <a class=\"struct\" href=\"karyon_net/stream/websocket/struct.WriteWsStream.html\" title=\"struct karyon_net::stream::websocket::WriteWsStream\">WriteWsStream</a>&lt;C&gt;"],["impl&lt;T, C&gt; Sink&lt;&lt;C as <a class=\"trait\" href=\"karyon_net/codec/trait.Encoder.html\" title=\"trait karyon_net::codec::Encoder\">Encoder</a>&gt;::<a class=\"associatedtype\" href=\"karyon_net/codec/trait.Encoder.html#associatedtype.EnMessage\" title=\"type karyon_net::codec::Encoder::EnMessage\">EnMessage</a>&gt; for <a class=\"struct\" href=\"karyon_net/stream/struct.WriteStream.html\" title=\"struct karyon_net::stream::WriteStream\">WriteStream</a>&lt;T, C&gt;<div class=\"where\">where\n    T: AsyncWrite + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/marker/trait.Unpin.html\" title=\"trait core::marker::Unpin\">Unpin</a>,\n    C: <a class=\"trait\" href=\"karyon_net/codec/trait.Encoder.html\" title=\"trait karyon_net::codec::Encoder\">Encoder</a> + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/marker/trait.Unpin.html\" title=\"trait core::marker::Unpin\">Unpin</a>,</div>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1353]}

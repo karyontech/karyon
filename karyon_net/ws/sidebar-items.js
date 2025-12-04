@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["dial","listen"],"struct":["ClientWsConfig","ClientWssConfig","ServerWsConfig","ServerWssConfig","WsConn","WsListener"]};

@@ -1,0 +1,145 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="karyon jsonrpc"><title>karyon_jsonrpc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_jsonrpc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.1 (ed61e7d7e 2025-11-07)" data-channel="1.91.1" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_jsonrpc</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_jsonrpc/index.html">karyon_<wbr>jsonrpc</a><span class="version">0.6.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-jsonrpc" title="karyon jsonrpc">karyon jsonrpc</a><ul><li><a href="#install" title="Install">Install</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#supported-client-implementations" title="Supported Client Implementations">Supported Client Implementations</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>karyon_<wbr>jsonrpc</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_jsonrpc/lib.rs.html#1-10">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-jsonrpc"><a class="doc-anchor" href="#karyon-jsonrpc">§</a>karyon jsonrpc</h2>
+<p>A fast and lightweight async implementation of <a href="https://www.jsonrpc.org/specification">JSON-RPC
+2.0</a>.</p>
+<p>features:</p>
+<ul>
+<li>Supports TCP, TLS, WebSocket, and Unix protocols.</li>
+<li>Uses <code>smol</code>(async-std) as the async runtime, with support for <code>tokio</code> via the
+<code>tokio</code> feature.</li>
+<li>Enables the registration of multiple services (structs) on a single server.</li>
+<li>Offers support for custom JSON codec.</li>
+<li>Includes support for pub/sub.</li>
+<li>Allows the use of an <code>async_executors::Executor</code> or <code>tokio::Runtime</code> when building
+the server.</li>
+</ul>
+<h3 id="install"><a class="doc-anchor" href="#install">§</a>Install</h3><div class="example-wrap"><pre class="language-bash"><code>    
+$ cargo add karyon_jsonrpc 
+</code></pre></div><h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::{sync::Arc, time::Duration};
+
+<span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>smol::stream::StreamExt;
+
+<span class="kw">use </span>karyon_jsonrpc::{
+    error::RPCError, server::{Server, ServerBuilder, Channel}, client::ClientBuilder,
+    rpc_impl, rpc_pubsub_impl, rpc_method, message::SubscriptionID,
+};
+
+<span class="kw">struct </span>HelloWorld {}
+
+<span class="comment">// It is possible to change the service name by adding a `name` attribute 
+</span><span class="attr">#[rpc_impl]
+</span><span class="kw">impl </span>HelloWorld {
+    <span class="kw">async fn </span>say_hello(<span class="kw-2">&amp;</span><span class="self">self</span>, params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>msg: String = serde_json::from_value(params)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="macro">format!</span>(<span class="string">"Hello {msg}!"</span>)))
+    }
+
+    <span class="attr">#[rpc_method(name = <span class="string">"foo_method"</span>)]
+    </span><span class="kw">async fn </span>foo(<span class="kw-2">&amp;</span><span class="self">self</span>, params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="string">"foo!"</span>))
+    }
+
+    <span class="kw">async fn </span>bar(<span class="kw-2">&amp;</span><span class="self">self</span>, params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="string">"bar!"</span>))
+    }
+}
+
+
+<span class="comment">// It is possible to change the service name by adding a `name` attribute 
+</span><span class="attr">#[rpc_pubsub_impl]
+</span><span class="kw">impl </span>HelloWorld {
+    <span class="kw">async fn </span>log_subscribe(<span class="kw-2">&amp;</span><span class="self">self</span>, chan: Arc&lt;Channel&gt;, method: String, _params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>sub = chan.new_subscription(<span class="kw-2">&amp;</span>method, <span class="prelude-val">None</span>).<span class="kw">await</span>.expect(<span class="string">"Failed to subscribe"</span>);
+        <span class="kw">let </span>sub_id = sub.id.clone();
+        smol::spawn(<span class="kw">async move </span>{
+            <span class="kw">loop </span>{
+                smol::Timer::after(std::time::Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = sub.notify(<span class="macro">serde_json::json!</span>(<span class="string">"Hello"</span>)).<span class="kw">await </span>{
+                    <span class="macro">println!</span>(<span class="string">"Failed to send notification: {err}"</span>);
+                    <span class="kw">break</span>;
+                }
+            }
+        })
+        .detach();
+
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(sub_id))
+    }
+
+    <span class="kw">async fn </span>log_unsubscribe(<span class="kw-2">&amp;</span><span class="self">self</span>, chan: Arc&lt;Channel&gt;, method: String, params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>sub_id: SubscriptionID = serde_json::from_value(params)<span class="question-mark">?</span>;
+        chan.remove_subscription(<span class="kw-2">&amp;</span>sub_id).<span class="kw">await</span>;
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="bool-val">true</span>))
+    }
+}
+
+
+<span class="comment">// Server
+</span><span class="kw">async </span>{
+    <span class="kw">let </span>service = Arc::new(HelloWorld {});
+    <span class="comment">// Creates a new server
+
+    </span><span class="kw">let </span>server = ServerBuilder::new(<span class="string">"tcp://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create new server builder"</span>)
+        .service(service.clone())
+        .pubsub_service(service)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the server"</span>);
+
+    <span class="comment">// Starts the server
+    </span>server.start_block()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Start the server"</span>);
+
+};
+
+<span class="comment">// Client
+</span><span class="kw">async </span>{
+    <span class="comment">// Creates a new client
+    </span><span class="kw">let </span>client = ClientBuilder::new(<span class="string">"tcp://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create new client builder"</span>)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the client"</span>);
+
+    <span class="kw">let </span>result: String = client.call(<span class="string">"HelloWorld.say_hello"</span>, <span class="string">"world"</span>.to_string())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"send a request"</span>);
+
+    <span class="kw">let </span>result: String = client.call(<span class="string">"HelloWorld.foo_method"</span>, ())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"send a request"</span>);
+
+    <span class="kw">let </span>sub = client
+            .subscribe(<span class="string">"HelloWorld.log_subscribe"</span>, ())
+            .<span class="kw">await
+            </span>.expect(<span class="string">"Subscribe to log_subscribe method"</span>);
+
+    <span class="kw">let </span>sub_id = sub.id();
+    smol::spawn(<span class="kw">async move </span>{
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>m = sub.recv().<span class="kw">await</span>.expect(<span class="string">"Receive new log msg"</span>);
+            <span class="macro">println!</span>(<span class="string">"Receive new log {m}"</span>);
+        }
+    })
+    .detach();
+
+    <span class="comment">// Unsubscribe after 5 seconds
+    </span>smol::Timer::after(std::time::Duration::from_secs(<span class="number">5</span>)).<span class="kw">await</span>;
+
+    client
+        .unsubscribe(<span class="string">"HelloWorld.log_unsubscribe"</span>, sub_id)
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Unsubscribe from log_unsubscirbe method"</span>);
+};
+</code></pre></div><h3 id="supported-client-implementations"><a class="doc-anchor" href="#supported-client-implementations">§</a>Supported Client Implementations</h3>
+<ul>
+<li><input disabled="" type="checkbox" checked=""/>
+<a href="https://github.com/karyontech/karyon-go">Golang</a></li>
+<li><input disabled="" type="checkbox"/>
+Python</li>
+<li><input disabled="" type="checkbox"/>
+JavaScript/TypeScript</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="client/index.html" title="mod karyon_jsonrpc::client">client</a></dt><dt><a class="mod" href="codec/index.html" title="mod karyon_jsonrpc::codec">codec</a></dt><dt><a class="mod" href="error/index.html" title="mod karyon_jsonrpc::error">error</a></dt><dt><a class="mod" href="message/index.html" title="mod karyon_jsonrpc::message">message</a></dt><dt><a class="mod" href="net/index.html" title="mod karyon_jsonrpc::net">net</a></dt><dt><a class="mod" href="server/index.html" title="mod karyon_jsonrpc::server">server</a></dt></dl><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.rpc_impl.html" title="attr karyon_jsonrpc::rpc_impl">rpc_<wbr>impl</a></dt><dt><a class="attr" href="attr.rpc_method.html" title="attr karyon_jsonrpc::rpc_method">rpc_<wbr>method</a></dt><dt><a class="attr" href="attr.rpc_pubsub_impl.html" title="attr karyon_jsonrpc::rpc_pubsub_impl">rpc_<wbr>pubsub_<wbr>impl</a></dt></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.91.1/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.91.1/std/primitive.u8.html\">u8</a>]</div>","&mut [u8]":"<h3>Notable traits for <code>&amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.91.1/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for &amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.91.1/std/primitive.u8.html\">u8</a>]</div>"}</script></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["rpc_impl","rpc_method","rpc_pubsub_impl"],"fn":["parse_service_name","parse_struct_methods","validate_method"],"macro":["err"]};

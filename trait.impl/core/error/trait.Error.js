@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["karyon_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_core/error/enum.Error.html\" title=\"enum karyon_core::error::Error\">Error</a>"]]],["karyon_eventemitter",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_eventemitter/error/enum.Error.html\" title=\"enum karyon_eventemitter::error::Error\">Error</a>"]]],["karyon_jsonrpc",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_jsonrpc/error/enum.Error.html\" title=\"enum karyon_jsonrpc::error::Error\">Error</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_jsonrpc/error/enum.RPCError.html\" title=\"enum karyon_jsonrpc::error::RPCError\">RPCError</a>"]]],["karyon_net",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_net/enum.Error.html\" title=\"enum karyon_net::Error\">Error</a>"]]],["karyon_p2p",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"karyon_p2p/enum.Error.html\" title=\"enum karyon_p2p::Error\">Error</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[276,301,560,261,261]}

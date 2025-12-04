@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="karyon-eventemitter"><title>karyon_eventemitter - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_eventemitter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.1 (ed61e7d7e 2025-11-07)" data-channel="1.91.1" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_eventemitter</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_eventemitter/index.html">karyon_<wbr>eventemitter</a><span class="version">0.6.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-eventemitter" title="karyon-eventemitter">karyon-eventemitter</a><ul><li><a href="#example" title="Example">Example</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#derives" title="Derive Macros">Derive Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>karyon_<wbr>eventemitter</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_eventemitter/lib.rs.html#1-13">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-eventemitter"><a class="doc-anchor" href="#karyon-eventemitter">§</a>karyon-eventemitter</h2>
+<p>A lightweight, asynchronous event emitter for Rust. It provides a
+flexible pub-sub (publish-subscribe) mechanism, enabling decoupled
+communication between components via strongly typed events, organized by topics
+and event types.</p>
+<p>This crate is similar to the EventEmitter in
+<a href="https://nodejs.org/en/learn/asynchronous-work/the-nodejs-event-emitter">Node.js</a>
+and can also be used as a <a href="https://www.enterpriseintegrationpatterns.com/patterns/messaging/MessageDispatcher.html">Message
+Dispatcher</a>.
+See the examples for more details.</p>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code> <span class="kw">use </span>karyon_eventemitter::{EventEmitter, EventTopic, EventValue};
+
+  <span class="kw">async </span>{
+     <span class="kw">let </span>event_emitter = EventEmitter::new();
+
+     <span class="attr">#[derive(Hash, PartialEq, Eq, Debug, Clone)]
+     </span><span class="kw">enum </span>Topic {
+         TopicA,
+         TopicB,
+     }
+
+     <span class="attr">#[derive(Clone, Debug, PartialEq, EventValue)]
+     </span><span class="kw">struct </span>A(usize);
+
+     <span class="attr">#[derive(Clone, Debug, PartialEq, EventValue)]
+     </span><span class="kw">struct </span>B(usize);
+
+     <span class="kw">impl </span>EventTopic <span class="kw">for </span>B {
+         <span class="kw">type </span>Topic = Topic;
+         <span class="kw">fn </span>topic() -&gt; <span class="self">Self</span>::Topic{
+             Topic::TopicB
+         }
+     }
+
+     <span class="attr">#[derive(Clone, Debug, PartialEq, EventValue)]
+     </span><span class="kw">struct </span>C(usize);
+
+     <span class="kw">let </span>a_listener = event_emitter.register::&lt;A&gt;(<span class="kw-2">&amp;</span>Topic::TopicA);
+     <span class="kw">let </span>b_listener = event_emitter.register::&lt;B&gt;(<span class="kw-2">&amp;</span>Topic::TopicB);
+     <span class="comment">// This also listens to Topic B
+     </span><span class="kw">let </span>c_listener = event_emitter.register::&lt;C&gt;(<span class="kw-2">&amp;</span>Topic::TopicB);
+
+     event_emitter.emit_by_topic(<span class="kw-2">&amp;</span>Topic::TopicA, <span class="kw-2">&amp;</span>A(<span class="number">3</span>)) .<span class="kw">await</span>;
+     event_emitter.emit(<span class="kw-2">&amp;</span>B(<span class="number">3</span>)) .<span class="kw">await</span>;
+     event_emitter.emit_by_topic(<span class="kw-2">&amp;</span>Topic::TopicB, <span class="kw-2">&amp;</span>C(<span class="number">3</span>)) .<span class="kw">await</span>;
+
+     <span class="kw">let </span>msg: A = a_listener.recv().<span class="kw">await</span>.unwrap();
+     <span class="kw">let </span>msg: B = b_listener.recv().<span class="kw">await</span>.unwrap();
+     <span class="kw">let </span>msg: C = c_listener.recv().<span class="kw">await</span>.unwrap();
+
+     <span class="comment">// ....
+  </span>};
+</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.AsEventValue"><code>pub use eventemitter::<a class="trait" href="eventemitter/trait.AsEventValue.html" title="trait karyon_eventemitter::eventemitter::AsEventValue">AsEventValue</a>;</code></dt><dt id="reexport.Event"><code>pub use eventemitter::<a class="struct" href="eventemitter/struct.Event.html" title="struct karyon_eventemitter::eventemitter::Event">Event</a>;</code></dt><dt id="reexport.EventEmitter"><code>pub use eventemitter::<a class="struct" href="eventemitter/struct.EventEmitter.html" title="struct karyon_eventemitter::eventemitter::EventEmitter">EventEmitter</a>;</code></dt><dt id="reexport.EventListener"><code>pub use eventemitter::<a class="struct" href="eventemitter/struct.EventListener.html" title="struct karyon_eventemitter::eventemitter::EventListener">EventListener</a>;</code></dt><dt id="reexport.EventListenerID"><code>pub use eventemitter::<a class="type" href="eventemitter/type.EventListenerID.html" title="type karyon_eventemitter::eventemitter::EventListenerID">EventListenerID</a>;</code></dt><dt id="reexport.EventTopic"><code>pub use eventemitter::<a class="trait" href="eventemitter/trait.EventTopic.html" title="trait karyon_eventemitter::eventemitter::EventTopic">EventTopic</a>;</code></dt><dt id="reexport.Error"><code>pub use error::<a class="enum" href="error/enum.Error.html" title="enum karyon_eventemitter::error::Error">Error</a>;</code></dt><dt id="reexport.Result"><code>pub use error::<a class="type" href="error/type.Result.html" title="type karyon_eventemitter::error::Result">Result</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="error/index.html" title="mod karyon_eventemitter::error">error</a></dt><dt><a class="mod" href="eventemitter/index.html" title="mod karyon_eventemitter::eventemitter">eventemitter</a></dt></dl><h2 id="derives" class="section-header">Derive Macros<a href="#derives" class="anchor">§</a></h2><dl class="item-table"><dt><a class="derive" href="derive.EventValue.html" title="derive karyon_eventemitter::EventValue">Event<wbr>Value</a></dt><dd>Derive macro for the AsEventValue trait</dd></dl></section></div></main></body></html>

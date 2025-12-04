@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProtocolEvent"],"trait":["InitProtocol","Protocol"],"type":["ProtocolConstructor","ProtocolID"]};
