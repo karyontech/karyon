@@ -55,7 +55,7 @@ async-trait = "0.1"
 pin-project-lite = "0.2"
 async-process = "2.5"
 smol = "2.0"
-tokio = "1.48"
+tokio = "1.49"
 futures-util = { version = "0.3", default-features = false }
 
 # encode
@@ -71,7 +71,7 @@ quote = "1.0"
 syn = "2.0"
 
 # websocket
-async-tungstenite = { version = "0.32", default-features = false }
+async-tungstenite = { version = "0.33", default-features = false }
 
 # tls
 rustls-pki-types = "1.13"
