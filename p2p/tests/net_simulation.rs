@@ -94,11 +94,7 @@ fn two_nodes_direct_connect() {
 
         let node_a = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()),
                 discovery_port,
                 ..fast_config()
             },
@@ -110,9 +106,7 @@ fn two_nodes_direct_connect() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}")
-                    .parse()
-                    .unwrap()],
+                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -149,11 +143,7 @@ fn four_node_discovery_network() {
 
         let node1 = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{n1_listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{n1_listen_port}").parse().unwrap()),
                 discovery_port: n1_discovery_port,
                 ..fast_config()
             },
@@ -170,11 +160,7 @@ fn four_node_discovery_network() {
         let n2_discovery_port = free_port();
         let node2 = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{n2_listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{n2_listen_port}").parse().unwrap()),
                 discovery_port: n2_discovery_port,
                 bootstrap_peers: vec![bootstrap_ep.clone()],
                 ..fast_config()
@@ -186,11 +172,7 @@ fn four_node_discovery_network() {
         let n3_discovery_port = free_port();
         let node3 = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{n3_listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{n3_listen_port}").parse().unwrap()),
                 discovery_port: n3_discovery_port,
                 bootstrap_peers: vec![bootstrap_ep.clone()],
                 ..fast_config()
@@ -220,7 +202,10 @@ fn four_node_discovery_network() {
             }
         }
 
-        assert!(node4.peers().await >= 1, "node4 should have at least 1 peer");
+        assert!(
+            node4.peers().await >= 1,
+            "node4 should have at least 1 peer"
+        );
 
         sleep(Duration::from_secs(3)).await;
 
@@ -247,11 +232,7 @@ fn peer_disconnect_detection() {
 
         let node_a = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()),
                 discovery_port,
                 ..fast_config()
             },
@@ -263,9 +244,7 @@ fn peer_disconnect_detection() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}")
-                    .parse()
-                    .unwrap()],
+                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -307,11 +286,7 @@ fn multiple_peers_connect() {
 
         let server = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()),
                 discovery_port,
                 ..fast_config()
             },
@@ -321,9 +296,7 @@ fn multiple_peers_connect() {
         let pool_server = server.monitor().register::<PeerPoolEvent>();
         server.run().await.expect("server run");
 
-        let connect_ep: Endpoint = format!("tcp://127.0.0.1:{listen_port}")
-            .parse()
-            .unwrap();
+        let connect_ep: Endpoint = format!("tcp://127.0.0.1:{listen_port}").parse().unwrap();
 
         let mut clients = Vec::new();
         for i in 0..3 {
@@ -387,11 +360,7 @@ fn two_nodes_tls_connect() {
 
         let node_a = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()),
                 discovery_port,
                 enable_tls: true,
                 ..fast_config()
@@ -404,9 +373,7 @@ fn two_nodes_tls_connect() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}")
-                    .parse()
-                    .unwrap()],
+                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 enable_tls: true,
                 ..fast_config()
             },
@@ -442,11 +409,7 @@ fn tls_discovery_network() {
 
         let node1 = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{n1_listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{n1_listen_port}").parse().unwrap()),
                 discovery_port: n1_discovery_port,
                 enable_tls: true,
                 ..fast_config()
@@ -465,11 +428,7 @@ fn tls_discovery_network() {
         let n2_discovery_port = free_port();
         let node2 = create_node(
             Config {
-                listen_endpoint: Some(
-                    format!("tcp://127.0.0.1:{n2_listen_port}")
-                        .parse()
-                        .unwrap(),
-                ),
+                listen_endpoint: Some(format!("tcp://127.0.0.1:{n2_listen_port}").parse().unwrap()),
                 discovery_port: n2_discovery_port,
                 bootstrap_peers: vec![bootstrap_ep.clone()],
                 enable_tls: true,
@@ -499,7 +458,10 @@ fn tls_discovery_network() {
                 break;
             }
         }
-        assert!(node3.peers().await >= 1, "node3 should have at least 1 peer");
+        assert!(
+            node3.peers().await >= 1,
+            "node3 should have at least 1 peer"
+        );
 
         // Wait for node1 to have at least 1 peer
         loop {
@@ -508,7 +470,10 @@ fn tls_discovery_network() {
                 break;
             }
         }
-        assert!(node1.peers().await >= 1, "node1 should have at least 1 peer");
+        assert!(
+            node1.peers().await >= 1,
+            "node1 should have at least 1 peer"
+        );
 
         node3.shutdown().await;
         node2.shutdown().await;
