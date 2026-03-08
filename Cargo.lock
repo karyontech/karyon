@@ -1471,6 +1471,7 @@ dependencies = [
  "async-channel 2.5.0",
  "async-trait",
  "async-tungstenite",
+ "easy-parallel",
  "env_logger",
  "karyon_core",
  "karyon_jsonrpc_macro",
@@ -1481,6 +1482,7 @@ dependencies = [
  "serde_json",
  "smol",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -1543,6 +1545,7 @@ dependencies = [
  "sha2",
  "smol",
  "thiserror 2.0.18",
+ "tokio",
  "tokio-rustls",
  "x509-parser",
  "yasna",

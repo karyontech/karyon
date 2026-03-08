@@ -50,7 +50,10 @@ tokio-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
 rustls-pki-types = { workspace = true }
 
 [dev-dependencies]
+karyon_core = { workspace = true, features = ["crypto"] }
 smol = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+async-channel = { workspace = true }
 blocking = "1.6"
 clap = { version = "4.5", features = ["derive"] }
 ctrlc = "3.4"

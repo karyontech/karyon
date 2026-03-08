@@ -10,12 +10,6 @@ use karyon_jsonrpc::{
     error::Error,
 };
 
-#[derive(Deserialize, Serialize)]
-struct Req {
-    x: u32,
-    y: u32,
-}
-
 #[derive(Deserialize, Serialize, Debug)]
 struct Pong {}
 

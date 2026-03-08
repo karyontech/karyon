@@ -50,5 +50,11 @@ async-channel = { workspace = true }
 async-tungstenite = { workspace = true, optional = true }
 
 [dev-dependencies]
+karyon_core = { workspace = true }
 smol = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+async-channel = { workspace = true }
+easy-parallel = "3.3"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 env_logger = "0.11"
