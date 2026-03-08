@@ -93,7 +93,10 @@ fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateK
     let ext_content = yasna::encode_der(&(key_pair.public().as_bytes().to_vec(), signature));
     // XXX: Not sure about the oid number ???
     let mut ext = rcgen::CustomExtension::from_oid_content(&[0, 0, 0, 0], ext_content);
-    ext.set_criticality(true);
+    // XXX: Non-critical because rustls rejects unknown critical extensions
+    // before our custom verifiers can run. The extension is still validated
+    // by verify_cert() which requires it to be present and checks the signature.
+    ext.set_criticality(false);
 
     let mut params = rcgen::CertificateParams::new(vec![])?;
     params.custom_extensions.push(ext);

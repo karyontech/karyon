@@ -13,12 +13,6 @@ struct Calc {
 }
 
 #[derive(Deserialize, Serialize)]
-struct Req {
-    x: u32,
-    y: u32,
-}
-
-#[derive(Deserialize, Serialize)]
 struct Pong {}
 
 impl RPCService for Calc {
