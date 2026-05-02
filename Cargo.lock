@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_async_rustls"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "futures-rustls",
  "tokio-rustls",
@@ -1434,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-channel 2.5.0",
  "async-process",
@@ -1452,7 +1452,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_eventemitter"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-channel 2.5.0",
  "chrono",
@@ -1470,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_eventemitter_macro"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1510,7 +1510,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc_macro"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1520,7 +1520,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-tungstenite",
  "bincode",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1574,7 +1574,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_swarm"
-version = "1.0.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "bincode",
