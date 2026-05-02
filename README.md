@@ -3,8 +3,12 @@
 [![Build](https://github.com/karyontech/karyon/actions/workflows/rust.yml/badge.svg)](https://github.com/karyontech/karyon/actions)
 [![License](https://img.shields.io/crates/l/karyon_core)](https://github.com/karyontech/karyon/blob/master/LICENSE)
 
-- [![karyon_jsonrpc crates.io](https://img.shields.io/crates/v/karyon_jsonrpc?label=karyon_jsonrpc%20crates.io)](https://crates.io/crates/karyon_jsonrpc)
-- [![karyon_jsonrpc docs.rs](https://img.shields.io/docsrs/karyon_jsonrpc?label=karyon_jsonrpc%20docs.rs)](https://docs.rs/karyon_jsonrpc/latest/karyon_jsonrpc/)
+[![karyon_p2p crates.io](https://img.shields.io/crates/v/karyon_p2p?label=karyon_p2p%20crates.io)](https://crates.io/crates/karyon_p2p) [![karyon_p2p docs.rs](https://img.shields.io/docsrs/karyon_p2p?label=karyon_p2p%20docs.rs)](https://docs.rs/karyon_p2p/latest/karyon_p2p/)
+[![karyon_swarm crates.io](https://img.shields.io/crates/v/karyon_swarm?label=karyon_swarm%20crates.io)](https://crates.io/crates/karyon_swarm) [![karyon_swarm docs.rs](https://img.shields.io/docsrs/karyon_swarm?label=karyon_swarm%20docs.rs)](https://docs.rs/karyon_swarm/latest/karyon_swarm/)
+[![karyon_jsonrpc crates.io](https://img.shields.io/crates/v/karyon_jsonrpc?label=karyon_jsonrpc%20crates.io)](https://crates.io/crates/karyon_jsonrpc) [![karyon_jsonrpc docs.rs](https://img.shields.io/docsrs/karyon_jsonrpc?label=karyon_jsonrpc%20docs.rs)](https://docs.rs/karyon_jsonrpc/latest/karyon_jsonrpc/)
+[![karyon_core crates.io](https://img.shields.io/crates/v/karyon_core?label=karyon_core%20crates.io)](https://crates.io/crates/karyon_core) [![karyon_core docs.rs](https://img.shields.io/docsrs/karyon_core?label=karyon_core%20docs.rs)](https://docs.rs/karyon_core/latest/karyon_core/)
+[![karyon_net crates.io](https://img.shields.io/crates/v/karyon_net?label=karyon_net%20crates.io)](https://crates.io/crates/karyon_net) [![karyon_net docs.rs](https://img.shields.io/docsrs/karyon_net?label=karyon_net%20docs.rs)](https://docs.rs/karyon_net/latest/karyon_net/)
+[![karyon_eventemitter crates.io](https://img.shields.io/crates/v/karyon_eventemitter?label=karyon_eventemitter%20crates.io)](https://crates.io/crates/karyon_eventemitter) [![karyon_eventemitter docs.rs](https://img.shields.io/docsrs/karyon_eventemitter?label=karyon_eventemitter%20docs.rs)](https://docs.rs/karyon_eventemitter/latest/karyon_eventemitter/)
 
 **The DNA of Decentralized Apps**
 
