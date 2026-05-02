@@ -37,12 +37,12 @@ default features and enable the `tokio` feature.
 
 ## Docs
 
-- [karyon_p2p](https://karyontech.github.io/karyon/karyon_p2p)
-- [karyon_swarm](https://karyontech.github.io/karyon/karyon_swarm)
-- [karyon_jsonrpc](https://karyontech.github.io/karyon/karyon_jsonrpc)
-- [karyon_core](https://karyontech.github.io/karyon/karyon_core)
-- [karyon_net](https://karyontech.github.io/karyon/karyon_net)
-- [karyon_eventemitter](https://karyontech.github.io/karyon/karyon_eventemitter)
+- [karyon_p2p](https://docs.rs/karyon_p2p/latest/karyon_p2p/)
+- [karyon_swarm](https://docs.rs/karyon_swarm/latest/karyon_swarm/)
+- [karyon_jsonrpc](https://docs.rs/karyon_jsonrpc/latest/karyon_jsonrpc/)
+- [karyon_core](https://docs.rs/karyon_core/latest/karyon_core/)
+- [karyon_net](https://docs.rs/karyon_net/latest/karyon_net/)
+- [karyon_eventemitter](https://docs.rs/karyon_eventemitter/latest/karyon_eventemitter/)
 
 ## Contribution
 
