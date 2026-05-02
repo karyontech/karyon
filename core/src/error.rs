@@ -13,9 +13,6 @@ pub enum Error {
     #[error("Timeout Error")]
     Timeout,
 
-    #[error("Path Not Found Error: {0}")]
-    PathNotFound(String),
-
     #[cfg(feature = "crypto")]
     #[error(transparent)]
     Ed25519(#[from] ed25519_dalek::ed25519::Error),
@@ -23,10 +20,4 @@ pub enum Error {
     #[cfg(feature = "tokio")]
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
-
-    #[error(transparent)]
-    BincodeDecode(#[from] bincode::error::DecodeError),
-
-    #[error(transparent)]
-    BincodeEncode(#[from] bincode::error::EncodeError),
 }

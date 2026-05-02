@@ -8,7 +8,7 @@ use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic,
 
 use karyon_net::Endpoint;
 
-pub(crate) use event::{ConnEvent, DiscvEvent, PPEvent};
+pub(crate) use event::{ConnectionKind, DiscoveryKind, PoolEvent};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -21,28 +21,19 @@ use crate::{Config, PeerID};
 ///
 /// # Example
 ///
-/// ```
-/// use std::sync::Arc;
-///
-/// use smol::Executor;
-///
+/// ```no_run
+/// use karyon_core::async_runtime::global_executor;
 /// use karyon_p2p::{
-///     Config, Backend, PeerID, keypair::{KeyPair, KeyPairType}, monitor::ConnectionEvent,
+///     Config, Node, keypair::{KeyPair, KeyPairType}, monitor::ConnectionEvent,
 /// };
 ///
 /// async {
-///     
-///     // Create a new Executor
-///     let ex = Arc::new(Executor::new());
-///
 ///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-///     let backend = Backend::new(&key_pair, Config::default(), ex.into());
+///     let node = Node::new(&key_pair, Config::default(), global_executor());
 ///
-///     // Create a new Subscription
-///     let monitor =  backend.monitor();
-///     
+///     // Subscribe to a monitor event.
+///     let monitor = node.monitor();
 ///     let listener = monitor.register::<ConnectionEvent>();
-///     
 ///     let new_event = listener.recv().await;
 /// };
 /// ```
@@ -61,12 +52,19 @@ impl Monitor {
     }
 
     /// Sends a new monitor event to subscribers.
-    pub(crate) async fn notify<E: ToEventStruct>(&self, event: E) {
-        if self.config.enable_monitor {
-            let event = event.to_struct();
-            if let Err(err) = self.event_emitter.emit(&event).await {
-                error!("Failed to notify monitor event {event:?}: {err}");
-            }
+    pub(crate) async fn notify<E: ToEvent>(&self, event: E) {
+        if !self.config.enable_monitor {
+            return;
+        }
+
+        let topic = E::Event::topic();
+        if !self.event_emitter.has_listeners(&topic) {
+            return;
+        }
+
+        let event = event.to_event();
+        if let Err(err) = self.event_emitter.emit(&event).await {
+            error!("Failed to notify monitor event {event:?}: {err}");
         }
     }
 
@@ -87,27 +85,27 @@ pub enum MonitorTopic {
     Discovery,
 }
 
-pub(super) trait ToEventStruct: Sized {
-    type EventStruct: From<Self>
+pub(super) trait ToEvent: Sized {
+    type Event: From<Self>
         + Clone
         + EventTopic<Topic = MonitorTopic>
         + AsEventValue
         + std::fmt::Debug;
-    fn to_struct(self) -> Self::EventStruct {
+    fn to_event(self) -> Self::Event {
         self.into()
     }
 }
 
-impl ToEventStruct for ConnEvent {
-    type EventStruct = ConnectionEvent;
+impl ToEvent for ConnectionKind {
+    type Event = ConnectionEvent;
 }
 
-impl ToEventStruct for PPEvent {
-    type EventStruct = PeerPoolEvent;
+impl ToEvent for PoolEvent {
+    type Event = PeerPoolEvent;
 }
 
-impl ToEventStruct for DiscvEvent {
-    type EventStruct = DiscoveryEvent;
+impl ToEvent for DiscoveryKind {
+    type Event = DiscoveryEvent;
 }
 
 #[derive(Clone, Debug, EventValue)]
@@ -126,6 +124,8 @@ pub struct PeerPoolEvent {
     pub date: i64,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub peer_id: Option<PeerID>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub endpoint: Option<Endpoint>,
 }
 
 #[derive(Clone, Debug, EventValue)]
@@ -137,10 +137,12 @@ pub struct DiscoveryEvent {
     pub endpoint: Option<Endpoint>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub size: Option<usize>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub peer_id: Option<PeerID>,
 }
 
-impl From<ConnEvent> for ConnectionEvent {
-    fn from(event: ConnEvent) -> Self {
+impl From<ConnectionKind> for ConnectionEvent {
+    fn from(event: ConnectionKind) -> Self {
         let endpoint = event.get_endpoint().cloned();
         Self {
             endpoint,
@@ -150,23 +152,25 @@ impl From<ConnEvent> for ConnectionEvent {
     }
 }
 
-impl From<PPEvent> for PeerPoolEvent {
-    fn from(event: PPEvent) -> Self {
+impl From<PoolEvent> for PeerPoolEvent {
+    fn from(event: PoolEvent) -> Self {
         let peer_id = event.get_peer_id().cloned();
+        let endpoint = event.get_endpoint().cloned();
         Self {
             peer_id,
+            endpoint,
             event: event.variant_name().to_string(),
             date: get_current_timestamp(),
         }
     }
 }
 
-impl From<DiscvEvent> for DiscoveryEvent {
-    fn from(event: DiscvEvent) -> Self {
-        let (endpoint, size) = event.get_endpoint_and_size();
+impl From<DiscoveryKind> for DiscoveryEvent {
+    fn from(event: DiscoveryKind) -> Self {
         Self {
-            endpoint: endpoint.cloned(),
-            size,
+            endpoint: event.get_endpoint().cloned(),
+            size: event.get_size(),
+            peer_id: event.get_peer_id().cloned(),
             event: event.variant_name().to_string(),
             date: get_current_timestamp(),
         }

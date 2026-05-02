@@ -1,4 +1,4 @@
-name: Cargo Build & Test
+name: CI
 
 on:
   push:
@@ -9,68 +9,92 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: Build
+  check:
+    name: Check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
     steps:
-      - uses: actions/checkout@v3
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-      - name: Build with smol
-        run: cargo build --workspace --verbose
-      - name: Build with tokio
-        run: cargo build --workspace --no-default-features --features tokio --features tcp --features derive --verbose
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: make check
 
-  unit-tests:
+  fmt:
+    name: Fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: rustup component add rustfmt
+      - run: make fmt
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: rustup component add clippy
+      - run: make clippy
+
+  unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: build
-    strategy:
-      matrix:
-        runtime: [smol, tokio]
+    needs: check
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: rustup update stable && rustup default stable
-      - name: Unit tests (smol)
-        if: matrix.runtime == 'smol'
-        run: cargo test --workspace --lib --verbose
-      - name: Unit tests (tokio)
-        if: matrix.runtime == 'tokio'
-        run: cargo test --workspace --no-default-features --features tokio --features tcp --features derive --lib --verbose
+      - run: make unit-test
 
-  integration-tests:
-    name: Integration Tests
+  test-core:
+    name: Integration Tests (core)
     runs-on: ubuntu-latest
-    needs: build
-    strategy:
-      matrix:
-        runtime: [smol, tokio]
+    needs: check
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: rustup update stable && rustup default stable
-      - name: Integration tests p2p (smol)
-        if: matrix.runtime == 'smol'
-        run: cargo test -p karyon_p2p --test net_simulation --verbose
-      - name: Integration tests p2p (tokio)
-        if: matrix.runtime == 'tokio'
-        run: cargo test -p karyon_p2p --no-default-features --features tokio --test net_simulation --verbose
-      - name: Integration tests jsonrpc (smol)
-        if: matrix.runtime == 'smol'
-        run: cargo test -p karyon_jsonrpc --test integration --verbose
-      - name: Integration tests jsonrpc (tokio)
-        if: matrix.runtime == 'tokio'
-        run: cargo test -p karyon_jsonrpc --no-default-features --features tokio --features tcp --test integration --verbose
+      - run: make test-core
 
-  lint:
-    name: Lint
+  test-net:
+    name: Integration Tests (net)
     runs-on: ubuntu-latest
+    needs: check
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: rustup update stable && rustup default stable
-      - name: Run clippy
-        run: cargo clippy -- -D warnings
-      - name: Run fmt
-        run: cargo fmt --all -- --check
+      - run: make test-net
+
+  test-jsonrpc:
+    name: Integration Tests (jsonrpc)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: make test-jsonrpc
+
+  test-p2p:
+    name: Integration Tests (p2p)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: make test-p2p
+
+  test-swarm:
+    name: Integration Tests (swarm)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: make test-swarm
+
+  test-eventemitter:
+    name: Integration Tests (eventemitter)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup update stable && rustup default stable
+      - run: make test-eventemitter

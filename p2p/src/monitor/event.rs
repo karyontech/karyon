@@ -2,9 +2,9 @@ use karyon_net::Endpoint;
 
 use crate::PeerID;
 
-/// Defines connection-related events.
+/// Wire-level connection events.
 #[derive(Clone, Debug)]
-pub enum ConnEvent {
+pub enum ConnectionKind {
     Connected(Endpoint),
     ConnectRetried(Endpoint),
     ConnectFailed(Endpoint),
@@ -15,81 +15,127 @@ pub enum ConnEvent {
     ListenFailed(Endpoint),
 }
 
-/// Defines `PP` events.
+/// Peer-pool lifecycle events.
 #[derive(Clone, Debug)]
-pub enum PPEvent {
+pub enum PoolEvent {
     NewPeer(PeerID),
     RemovePeer(PeerID),
+    HandshakeFailed(Option<PeerID>),
+    /// Outbound dial failed. `peer_id` may be `None` for manual peer
+    /// endpoints whose id wasn't pre-shared.
+    ConnectFailed(Option<PeerID>, Endpoint),
+    /// Inbound or outbound connection rejected because a peer with
+    /// the same id is already connected.
+    PeerAlreadyConnected(PeerID),
 }
 
-/// Defines `Discovery` events.
+/// Discovery (Kademlia) events.
 #[derive(Clone, Debug)]
-pub enum DiscvEvent {
+pub enum DiscoveryKind {
     LookupStarted(Endpoint),
     LookupFailed(Endpoint),
     LookupSucceeded(Endpoint, usize),
     RefreshStarted,
+    /// Refresh sweep completed. Carries the number of entries pinged.
+    RefreshSucceeded(usize),
+    RefreshFailed,
+    /// Routing-table entry evicted after exceeding the failure budget.
+    EntryEvicted(PeerID),
 }
 
-impl ConnEvent {
+impl ConnectionKind {
     pub(super) fn get_endpoint(&self) -> Option<&Endpoint> {
         match self {
-            ConnEvent::Connected(endpoint)
-            | ConnEvent::ConnectRetried(endpoint)
-            | ConnEvent::ConnectFailed(endpoint)
-            | ConnEvent::Accepted(endpoint)
-            | ConnEvent::Disconnected(endpoint)
-            | ConnEvent::Listening(endpoint)
-            | ConnEvent::ListenFailed(endpoint) => Some(endpoint),
-            ConnEvent::AcceptFailed => None,
+            ConnectionKind::Connected(endpoint)
+            | ConnectionKind::ConnectRetried(endpoint)
+            | ConnectionKind::ConnectFailed(endpoint)
+            | ConnectionKind::Accepted(endpoint)
+            | ConnectionKind::Disconnected(endpoint)
+            | ConnectionKind::Listening(endpoint)
+            | ConnectionKind::ListenFailed(endpoint) => Some(endpoint),
+            ConnectionKind::AcceptFailed => None,
         }
     }
 
     pub(super) fn variant_name(&self) -> &'static str {
         match self {
-            ConnEvent::Connected(_) => "Connected",
-            ConnEvent::ConnectRetried(_) => "ConnectRetried",
-            ConnEvent::ConnectFailed(_) => "ConnectFailed",
-            ConnEvent::Accepted(_) => "Accepted",
-            ConnEvent::AcceptFailed => "AcceptFailed",
-            ConnEvent::Disconnected(_) => "Disconnected",
-            ConnEvent::Listening(_) => "Listening",
-            ConnEvent::ListenFailed(_) => "ListenFailed",
+            ConnectionKind::Connected(_) => "Connected",
+            ConnectionKind::ConnectRetried(_) => "ConnectRetried",
+            ConnectionKind::ConnectFailed(_) => "ConnectFailed",
+            ConnectionKind::Accepted(_) => "Accepted",
+            ConnectionKind::AcceptFailed => "AcceptFailed",
+            ConnectionKind::Disconnected(_) => "Disconnected",
+            ConnectionKind::Listening(_) => "Listening",
+            ConnectionKind::ListenFailed(_) => "ListenFailed",
         }
     }
 }
 
-impl PPEvent {
+impl PoolEvent {
     pub(super) fn get_peer_id(&self) -> Option<&PeerID> {
         match self {
-            PPEvent::NewPeer(peer_id) | PPEvent::RemovePeer(peer_id) => Some(peer_id),
+            PoolEvent::NewPeer(peer_id)
+            | PoolEvent::RemovePeer(peer_id)
+            | PoolEvent::PeerAlreadyConnected(peer_id) => Some(peer_id),
+            PoolEvent::HandshakeFailed(peer_id) | PoolEvent::ConnectFailed(peer_id, _) => {
+                peer_id.as_ref()
+            }
         }
     }
+
+    pub(super) fn get_endpoint(&self) -> Option<&Endpoint> {
+        match self {
+            PoolEvent::ConnectFailed(_, endpoint) => Some(endpoint),
+            _ => None,
+        }
+    }
+
     pub(super) fn variant_name(&self) -> &'static str {
         match self {
-            PPEvent::NewPeer(_) => "NewPeer",
-            PPEvent::RemovePeer(_) => "RemovePeer",
+            PoolEvent::NewPeer(_) => "NewPeer",
+            PoolEvent::RemovePeer(_) => "RemovePeer",
+            PoolEvent::HandshakeFailed(_) => "HandshakeFailed",
+            PoolEvent::ConnectFailed(_, _) => "ConnectFailed",
+            PoolEvent::PeerAlreadyConnected(_) => "PeerAlreadyConnected",
         }
     }
 }
 
-impl DiscvEvent {
-    pub(super) fn get_endpoint_and_size(&self) -> (Option<&Endpoint>, Option<usize>) {
+impl DiscoveryKind {
+    pub(super) fn get_endpoint(&self) -> Option<&Endpoint> {
         match self {
-            DiscvEvent::LookupStarted(endpoint) | DiscvEvent::LookupFailed(endpoint) => {
-                (Some(endpoint), None)
+            DiscoveryKind::LookupStarted(endpoint)
+            | DiscoveryKind::LookupFailed(endpoint)
+            | DiscoveryKind::LookupSucceeded(endpoint, _) => Some(endpoint),
+            _ => None,
+        }
+    }
+
+    pub(super) fn get_size(&self) -> Option<usize> {
+        match self {
+            DiscoveryKind::LookupSucceeded(_, size) | DiscoveryKind::RefreshSucceeded(size) => {
+                Some(*size)
             }
-            DiscvEvent::LookupSucceeded(endpoint, size) => (Some(endpoint), Some(*size)),
-            DiscvEvent::RefreshStarted => (None, None),
+            _ => None,
+        }
+    }
+
+    pub(super) fn get_peer_id(&self) -> Option<&PeerID> {
+        match self {
+            DiscoveryKind::EntryEvicted(peer_id) => Some(peer_id),
+            _ => None,
         }
     }
 
     pub(super) fn variant_name(&self) -> &'static str {
         match self {
-            DiscvEvent::LookupStarted(_) => "LookupStarted",
-            DiscvEvent::LookupFailed(_) => "LookupFailed",
-            DiscvEvent::LookupSucceeded(_, _) => "LookupSucceeded",
-            DiscvEvent::RefreshStarted => "RefreshStarted",
+            DiscoveryKind::LookupStarted(_) => "LookupStarted",
+            DiscoveryKind::LookupFailed(_) => "LookupFailed",
+            DiscoveryKind::LookupSucceeded(_, _) => "LookupSucceeded",
+            DiscoveryKind::RefreshStarted => "RefreshStarted",
+            DiscoveryKind::RefreshSucceeded(_) => "RefreshSucceeded",
+            DiscoveryKind::RefreshFailed => "RefreshFailed",
+            DiscoveryKind::EntryEvicted(_) => "EntryEvicted",
         }
     }
 }

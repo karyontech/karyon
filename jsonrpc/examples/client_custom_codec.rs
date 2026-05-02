@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{io, time::Duration};
 
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -6,53 +6,37 @@ use smol::Timer;
 
 use karyon_jsonrpc::{
     client::ClientBuilder,
-    codec::{ByteBuffer, Codec, Decoder, Encoder},
-    error::Error,
+    codec::{ByteBuffer, Codec},
 };
+use karyon_net::Error as NetError;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Pong {}
 
+/// A minimal custom JSON codec, identical in wire format to the
+/// built-in `JsonCodec` but written out for illustration.
 #[derive(Clone)]
 pub struct CustomJsonCodec {}
 
-impl Codec for CustomJsonCodec {
+impl Codec<ByteBuffer> for CustomJsonCodec {
     type Message = serde_json::Value;
-    type Error = Error;
-}
+    type Error = NetError;
 
-impl Encoder for CustomJsonCodec {
-    type EnMessage = serde_json::Value;
-    type EnError = Error;
-    fn encode(
-        &self,
-        src: &Self::EnMessage,
-        dst: &mut ByteBuffer,
-    ) -> std::result::Result<usize, Self::EnError> {
-        let msg = match serde_json::to_string(src) {
-            Ok(m) => m,
-            Err(err) => return Err(Error::Encode(err.to_string())),
-        };
-        let buf = msg.as_bytes();
-        dst.extend_from_slice(buf);
-        Ok(buf.len())
+    fn encode(&self, src: &serde_json::Value, dst: &mut ByteBuffer) -> Result<usize, NetError> {
+        let bytes = serde_json::to_vec(src).map_err(|e| NetError::IO(io::Error::other(e)))?;
+        let n = bytes.len();
+        dst.extend_from_slice(&bytes);
+        Ok(n)
     }
-}
 
-impl Decoder for CustomJsonCodec {
-    type DeMessage = serde_json::Value;
-    type DeError = Error;
-    fn decode(
-        &self,
-        src: &mut ByteBuffer,
-    ) -> std::result::Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, serde_json::Value)>, NetError> {
         let de = serde_json::Deserializer::from_slice(src.as_ref());
         let mut iter = de.into_iter::<serde_json::Value>();
 
         let item = match iter.next() {
             Some(Ok(item)) => item,
             Some(Err(ref e)) if e.is_eof() => return Ok(None),
-            Some(Err(e)) => return Err(Error::Decode(e.to_string())),
+            Some(Err(e)) => return Err(NetError::IO(io::Error::other(e))),
             None => return Ok(None),
         };
 

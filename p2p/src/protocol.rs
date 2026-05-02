@@ -19,21 +19,40 @@ pub enum ProtocolEvent {
     Shutdown,
 }
 
+/// Whether a protocol is required for handshake / discovery to consider
+/// a peer compatible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProtocolKind {
+    /// Peers must speak this protocol. Handshake fails if absent.
+    /// Discovery filters out peers whose bloom doesn't cover it.
+    Mandatory,
+    /// Nice-to-have. Discovery prefers peers with overlap but accepts
+    /// peers without it. The default for app protocols.
+    Optional,
+}
+
+/// Per-protocol metadata stored in the peer pool.
+#[derive(Clone, Debug)]
+pub struct ProtocolMeta {
+    pub version: Version,
+    pub kind: ProtocolKind,
+}
+
 /// The Protocol trait defines the interface for core protocols
 /// and custom protocols.
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use std::sync::Arc;
 ///
 /// use async_trait::async_trait;
-/// use smol::Executor;
 ///
+/// use karyon_core::async_runtime::global_executor;
 /// use karyon_p2p::{
 ///     protocol::{Protocol, ProtocolID, ProtocolEvent},
-///     Backend, PeerID, Config, Version, Error, Peer,
+///     Node, Config, Version, Error, Peer,
 ///     keypair::{KeyPair, KeyPairType},
-///     };
+/// };
 ///
 /// pub struct NewProtocol {
 ///     peer: Arc<Peer>,
@@ -41,9 +60,7 @@ pub enum ProtocolEvent {
 ///
 /// impl NewProtocol {
 ///     fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
-///         Arc::new(Self {
-///             peer,
-///         })
+///         Arc::new(Self { peer })
 ///     }
 /// }
 ///
@@ -72,25 +89,17 @@ pub enum ProtocolEvent {
 ///     }
 /// }
 ///
-///  async {
+/// async {
 ///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-///     let config = Config::default();
+///     let node = Node::new(&key_pair, Config::default(), global_executor());
 ///
-///     // Create a new Executor
-///     let ex = Arc::new(Executor::new());
-///
-///     // Create a new Backend
-///     let backend = Backend::new(&key_pair, config, ex.into());
-///
-///     // Attach the NewProtocol
 ///     let c = move |peer| NewProtocol::new(peer);
-///     backend.attach_protocol::<NewProtocol>(c).await.unwrap();
-///  };
-///
-/// ```  
+///     node.attach_protocol::<NewProtocol>(c).await.unwrap();
+/// };
+/// ```
 #[async_trait]
 pub trait Protocol: Send + Sync {
-    /// Start the protocol
+    /// Start the protocol. Uses `peer.recv::<Self>()` for messages.
     async fn start(self: Arc<Self>) -> Result<()>;
 
     /// Returns the version of the protocol.
@@ -102,11 +111,14 @@ pub trait Protocol: Send + Sync {
     fn id() -> ProtocolID
     where
         Self: Sized;
-}
 
-#[async_trait]
-pub(crate) trait InitProtocol: Send + Sync {
-    type T;
-    /// Initialize the protocol
-    async fn init(self: Arc<Self>) -> Self::T;
+    /// Whether peers must speak this protocol or it's optional.
+    /// Defaults to `Optional` -- override for protocols required for
+    /// any meaningful interaction (e.g. PING).
+    fn kind() -> ProtocolKind
+    where
+        Self: Sized,
+    {
+        ProtocolKind::Optional
+    }
 }

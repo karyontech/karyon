@@ -168,6 +168,11 @@ where
         listener
     }
 
+    /// Returns true if the given topic has any registered listeners.
+    pub fn has_listeners(&self, topic: &T) -> bool {
+        self.listeners.lock().contains_key(topic)
+    }
+
     /// Removes all topics and event listeners.
     ///
     /// This effectively resets the EventEmitter to its initial state.

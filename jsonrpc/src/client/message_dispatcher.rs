@@ -12,7 +12,7 @@ use crate::{
 use super::RequestID;
 
 /// Manages client requests
-pub(super) struct MessageDispatcher {
+pub(crate) struct MessageDispatcher {
     chans: Mutex<HashMap<RequestID, Sender<message::Response>>>,
 }
 

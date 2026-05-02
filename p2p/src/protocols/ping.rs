@@ -1,4 +1,6 @@
-use std::{sync::Arc, time::Duration};
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
@@ -9,17 +11,23 @@ use rand::{rngs::OsRng, RngCore};
 use karyon_core::{
     async_runtime::Executor,
     async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult},
-    util::decode,
 };
 
 use crate::{
     peer::Peer,
-    protocol::{Protocol, ProtocolEvent, ProtocolID},
+    protocol::{Protocol, ProtocolEvent, ProtocolID, ProtocolKind},
+    util::decode,
     version::Version,
     Error, Result,
 };
 
-const MAX_FAILUERS: u32 = 3;
+const MAX_FAILURES: u32 = 3;
+
+/// Recent ping nonces remembered to drop replays.
+const PING_DEDUP_WINDOW: usize = 64;
+
+/// Protocol id for ping. Mandatory in every handshake.
+pub(crate) const PING_PROTO_ID: &str = "PING";
 
 #[derive(Clone, Debug, Encode, Decode)]
 enum PingProtocolMsg {
@@ -35,13 +43,12 @@ pub struct PingProtocol {
 }
 
 impl PingProtocol {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         peer: Arc<Peer>,
         ping_interval: u64,
         ping_timeout: u64,
         executor: Executor,
-    ) -> Arc<dyn Protocol> {
+    ) -> Arc<Self> {
         Arc::new(Self {
             peer,
             ping_interval,
@@ -51,24 +58,34 @@ impl PingProtocol {
     }
 
     async fn recv_loop(&self, pong_chan: Sender<[u8; 32]>) -> Result<()> {
+        // Ring buffer of recently-seen ping nonces. Drops replays so
+        // an attacker can't elicit unlimited Pongs by resending one.
+        let mut seen: VecDeque<[u8; 32]> = VecDeque::with_capacity(PING_DEDUP_WINDOW);
+
         loop {
             let event = self.peer.recv::<Self>().await?;
-            let msg_payload = match event.clone() {
+            let payload = match event.clone() {
                 ProtocolEvent::Message(m) => m,
-                ProtocolEvent::Shutdown => {
-                    break;
-                }
+                ProtocolEvent::Shutdown => break,
             };
 
-            let (msg, _) = decode::<PingProtocolMsg>(&msg_payload)?;
-
+            let (msg, _) = decode::<PingProtocolMsg>(&payload)?;
             match msg {
                 PingProtocolMsg::Ping(nonce) => {
-                    trace!("Received Ping message {nonce:?}");
+                    if seen.iter().any(|n| n == &nonce) {
+                        trace!("Drop replayed Ping {nonce:?}");
+                        continue;
+                    }
+                    if seen.len() == PING_DEDUP_WINDOW {
+                        seen.pop_front();
+                    }
+                    seen.push_back(nonce);
+
+                    trace!("Received Ping {nonce:?}");
                     self.peer
                         .send(Self::id(), &PingProtocolMsg::Pong(nonce))
                         .await?;
-                    trace!("Send back Pong message {nonce:?}");
+                    trace!("Sent Pong {nonce:?}");
                 }
                 PingProtocolMsg::Pong(nonce) => {
                     pong_chan.send(nonce).await?;
@@ -82,33 +99,31 @@ impl PingProtocol {
         let rng = &mut OsRng;
         let mut retry = 0;
 
-        while retry < MAX_FAILUERS {
+        while retry < MAX_FAILURES {
             sleep(Duration::from_secs(self.ping_interval)).await;
 
-            let mut ping_nonce: [u8; 32] = [0; 32];
-            rng.fill_bytes(&mut ping_nonce);
+            let mut nonce: [u8; 32] = [0; 32];
+            rng.fill_bytes(&mut nonce);
 
-            trace!("Send Ping message {ping_nonce:?}");
+            trace!("Send Ping {nonce:?}");
             self.peer
-                .send(Self::id(), &PingProtocolMsg::Ping(ping_nonce))
+                .send(Self::id(), &PingProtocolMsg::Ping(nonce))
                 .await?;
 
-            // Wait for Pong message
             let d = Duration::from_secs(self.ping_timeout);
-            let pong_msg = match timeout(d, chan.recv()).await {
+            let pong = match timeout(d, chan.recv()).await {
                 Ok(m) => m?,
                 Err(_) => {
                     retry += 1;
                     continue;
                 }
             };
-            trace!("Received Pong message {pong_msg:?}");
+            trace!("Received Pong {pong:?}");
 
-            if pong_msg != ping_nonce {
+            if pong != nonce {
                 retry += 1;
                 continue;
             }
-
             retry = 0;
         }
 
@@ -122,12 +137,12 @@ impl Protocol for PingProtocol {
         trace!("Start Ping protocol");
 
         let stop_signal = async_channel::bounded::<Result<()>>(1);
-        let (pong_chan, pong_chan_recv) = async_channel::bounded(1);
+        let (pong_tx, pong_rx) = async_channel::bounded(1);
 
         self.task_group.spawn(
             {
                 let this = self.clone();
-                async move { this.ping_loop(pong_chan_recv.clone()).await }
+                async move { this.ping_loop(pong_rx).await }
             },
             |res| async move {
                 if let TaskResult::Completed(result) = res {
@@ -136,7 +151,7 @@ impl Protocol for PingProtocol {
             },
         );
 
-        let result = select(self.recv_loop(pong_chan), stop_signal.1.recv()).await;
+        let result = select(self.recv_loop(pong_tx), stop_signal.1.recv()).await;
         self.task_group.cancel().await;
 
         match result {
@@ -157,6 +172,10 @@ impl Protocol for PingProtocol {
     }
 
     fn id() -> ProtocolID {
-        "PING".into()
+        PING_PROTO_ID.into()
+    }
+
+    fn kind() -> ProtocolKind {
+        ProtocolKind::Mandatory
     }
 }

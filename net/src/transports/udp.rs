@@ -1,109 +1,58 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
-use async_trait::async_trait;
 use karyon_core::async_runtime::net::UdpSocket;
 
-use crate::{
-    codec::{Buffer, Codec},
-    connection::{Conn, Connection, ToConn},
-    endpoint::Endpoint,
-    Result,
-};
+use crate::{Endpoint, Result};
 
-/// UDP configuration
+/// UDP config.
 #[derive(Default)]
 pub struct UdpConfig {}
 
-/// UDP network connection implementation of the [`Connection`] trait.
-#[allow(dead_code)]
-pub struct UdpConn<C> {
-    inner: UdpSocket,
-    codec: C,
-    config: UdpConfig,
+/// Raw UDP connection. Sends and receives raw bytes with addresses.
+pub struct UdpConn {
+    socket: Arc<UdpSocket>,
 }
 
-impl<C> UdpConn<C>
-where
-    C: Codec + Clone,
-{
-    /// Creates a new UdpConn
-    fn new(socket: UdpSocket, config: UdpConfig, codec: C) -> Self {
-        Self {
-            inner: socket,
-            codec,
-            config,
-        }
-    }
-}
-
-#[async_trait]
-impl<C, E> Connection for UdpConn<C>
-where
-    C: Codec<Error = E> + Clone,
-    E: From<std::io::Error>,
-{
-    type Message = (C::Message, Endpoint);
-    type Error = E;
-    fn peer_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
-        Ok(self.inner.peer_addr().map(Endpoint::new_udp_addr)?)
+impl UdpConn {
+    /// Send raw bytes to an address.
+    pub async fn send_to(&self, buf: &[u8], addr: SocketAddr) -> Result<usize> {
+        let n = self.socket.send_to(buf, addr).await?;
+        Ok(n)
     }
 
-    fn local_endpoint(&self) -> std::result::Result<Endpoint, Self::Error> {
-        Ok(self.inner.local_addr().map(Endpoint::new_udp_addr)?)
+    /// Receive raw bytes. Returns (bytes_read, sender address).
+    pub async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
+        let (n, addr) = self.socket.recv_from(buf).await?;
+        Ok((n, addr))
     }
 
-    async fn recv(&self) -> std::result::Result<Self::Message, Self::Error> {
-        let mut buf = Buffer::new();
-        let (_, addr) = self.inner.recv_from(buf.as_mut()).await?;
-        match self.codec.decode(&mut buf)? {
-            Some((_, msg)) => Ok((msg, Endpoint::new_udp_addr(addr))),
-            None => Err(std::io::Error::from(std::io::ErrorKind::ConnectionAborted).into()),
-        }
+    /// Local address this socket is bound to.
+    pub fn local_endpoint(&self) -> Result<Endpoint> {
+        Ok(Endpoint::new_udp_addr(self.socket.local_addr()?))
     }
 
-    async fn send(&self, msg: Self::Message) -> std::result::Result<(), Self::Error> {
-        let (msg, out_addr) = msg;
-        let mut buf = Buffer::new();
-        self.codec.encode(&msg, &mut buf)?;
-        let addr: SocketAddr = out_addr
-            .try_into()
-            .map_err(|_| std::io::Error::other("Convert Endpoint to SocketAddress"))?;
-        self.inner.send_to(buf.as_ref(), addr).await?;
-        Ok(())
+    /// Peer address (if connected via dial).
+    pub fn peer_endpoint(&self) -> Result<Endpoint> {
+        Ok(Endpoint::new_udp_addr(self.socket.peer_addr()?))
     }
 }
 
-/// Connects to the given UDP address and port.
-pub async fn dial<C>(endpoint: &Endpoint, config: UdpConfig, codec: C) -> Result<UdpConn<C>>
-where
-    C: Codec + Clone,
-{
+/// Connect to a UDP endpoint.
+pub async fn dial(endpoint: &Endpoint, _config: UdpConfig) -> Result<UdpConn> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
-
-    // Let the operating system assign an available port to this socket
-    let conn = UdpSocket::bind("[::]:0").await?;
-    conn.connect(addr).await?;
-    Ok(UdpConn::new(conn, config, codec))
+    let socket = UdpSocket::bind("[::]:0").await?;
+    socket.connect(addr).await?;
+    Ok(UdpConn {
+        socket: Arc::new(socket),
+    })
 }
 
-/// Listens on the given UDP address and port.
-pub async fn listen<C>(endpoint: &Endpoint, config: UdpConfig, codec: C) -> Result<UdpConn<C>>
-where
-    C: Codec + Clone,
-{
+/// Listen on a UDP endpoint.
+pub async fn listen(endpoint: &Endpoint, _config: UdpConfig) -> Result<UdpConn> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
-    let conn = UdpSocket::bind(addr).await?;
-    Ok(UdpConn::new(conn, config, codec))
-}
-
-impl<C, E> ToConn for UdpConn<C>
-where
-    C: Codec<Error = E> + Clone + 'static,
-    E: From<std::io::Error>,
-{
-    type Message = (C::Message, Endpoint);
-    type Error = E;
-    fn to_conn(self) -> Conn<Self::Message, Self::Error> {
-        Box::new(self)
-    }
+    let socket = UdpSocket::bind(addr).await?;
+    Ok(UdpConn {
+        socket: Arc::new(socket),
+    })
 }

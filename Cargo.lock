@@ -686,27 +686,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dirs"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "dispatch2"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1061,6 +1040,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "h3"
+version = "0.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10872b55cfb02a821b69dc7cf8dc6a71d6af25eb9a79662bec4a9d016056b3be"
+dependencies = [
+ "bytes",
+ "fastrand",
+ "futures-util",
+ "http",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
+name = "h3-quinn"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2e732c8d91a74731663ac8479ab505042fbf547b9a207213ab7fbcbfc4f8b4"
+dependencies = [
+ "bytes",
+ "futures",
+ "h3",
+ "quinn",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1118,6 +1125,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hyper"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1131,6 +1144,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "pin-utils",
@@ -1412,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_async_rustls"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "futures-rustls",
  "tokio-rustls",
@@ -1420,14 +1434,13 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
+ "async-channel 2.5.0",
  "async-process",
- "bincode",
- "chrono",
- "dirs",
+ "easy-parallel",
  "ed25519-dalek",
- "log",
+ "env_logger",
  "once_cell",
  "parking_lot",
  "pin-project-lite",
@@ -1439,7 +1452,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_eventemitter"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "async-channel 2.5.0",
  "chrono",
@@ -1457,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_eventemitter_macro"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1466,28 +1479,38 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
  "async-tungstenite",
- "easy-parallel",
+ "bytes",
  "env_logger",
+ "futures-util",
+ "h3",
+ "h3-quinn",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "karyon_core",
  "karyon_jsonrpc_macro",
  "karyon_net",
  "log",
+ "parking_lot",
  "rand 0.8.5",
+ "rcgen",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "smol",
+ "smol-hyper",
  "thiserror 2.0.18",
  "tokio",
 ]
 
 [[package]]
 name = "karyon_jsonrpc_macro"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1497,17 +1520,15 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
- "async-trait",
  "async-tungstenite",
  "bincode",
  "bytes",
  "futures-util",
  "karyon_async_rustls",
  "karyon_core",
- "log",
- "pin-project-lite",
+ "quinn",
  "rustls-pki-types",
  "serde",
  "smol",
@@ -1518,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "0.6.3"
+version = "1.0.0"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1528,7 +1549,6 @@ dependencies = [
  "chrono",
  "clap",
  "ctrlc",
- "easy-parallel",
  "env_logger",
  "futures-rustls",
  "futures-util",
@@ -1543,12 +1563,27 @@ dependencies = [
  "semver",
  "serde",
  "sha2",
+ "siphasher",
  "smol",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "x509-parser",
  "yasna",
+]
+
+[[package]]
+name = "karyon_swarm"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "karyon_core",
+ "karyon_p2p",
+ "log",
+ "sha2",
+ "smol",
+ "tokio",
 ]
 
 [[package]]
@@ -1571,15 +1606,6 @@ name = "libc"
 version = "0.2.182"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
-
-[[package]]
-name = "libredox"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1744e39d1d6a9948f4f388969627434e31128196de472883b39f148769bfe30a"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "linux-raw-sys"
@@ -1745,12 +1771,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
-name = "option-ext"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1896,13 +1916,16 @@ version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e20a958963c291dc322d98411f541009df2ced7b5a4f2bd52337638cfccf20"
 dependencies = [
+ "async-io",
  "bytes",
  "cfg_aliases",
+ "futures-io",
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
  "rustc-hash",
  "rustls",
+ "smol",
  "socket2",
  "thiserror 2.0.18",
  "tokio",
@@ -2044,17 +2067,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_users"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
-dependencies = [
- "getrandom 0.2.17",
- "libredox",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "regex"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2184,6 +2196,7 @@ dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
@@ -2401,6 +2414,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "siphasher"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2427,6 +2446,19 @@ dependencies = [
  "async-process",
  "blocking",
  "futures-lite",
+]
+
+[[package]]
+name = "smol-hyper"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7428a49d323867702cd12b97b08a6b0104f39ec13b49117911f101271321bc1a"
+dependencies = [
+ "async-executor",
+ "async-io",
+ "futures-io",
+ "hyper",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -2717,6 +2749,7 @@ version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
+ "log",
  "pin-project-lite",
  "tracing-core",
 ]
@@ -2787,6 +2820,7 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

@@ -1,17 +1,14 @@
-mod shared;
-
 use std::sync::Arc;
 
 use clap::Parser;
 use smol::{channel, Executor};
 
+use karyon_core::testing::run_executor;
 use karyon_p2p::{
-    endpoint::{Endpoint, Port},
+    endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
-    Backend, Config,
+    Config, Node,
 };
-
-use shared::run_executor;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -24,13 +21,13 @@ struct Cli {
     #[arg(short)]
     peer_endpoints: Vec<Endpoint>,
 
-    /// Optional endpoint for accepting incoming connections.
+    /// Endpoints for accepting incoming connections (e.g. tcp://0.0.0.0:8000).
     #[arg(short)]
-    listen_endpoint: Option<Endpoint>,
+    listen_endpoints: Vec<Endpoint>,
 
-    /// Optional TCP/UDP port for the discovery service.
+    /// Discovery endpoints (e.g. tcp://0.0.0.0:7000 udp://0.0.0.0:7000).
     #[arg(short)]
-    discovery_port: Option<Port>,
+    discovery_endpoints: Vec<Endpoint>,
 }
 
 fn main() {
@@ -39,20 +36,20 @@ fn main() {
 
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
-    // Create the configuration for the backend.
+    // Create the configuration for the node.
     let config = Config {
-        listen_endpoint: cli.listen_endpoint,
+        listen_endpoints: cli.listen_endpoints,
+        discovery_endpoints: cli.discovery_endpoints,
         peer_endpoints: cli.peer_endpoints,
         bootstrap_peers: cli.bootstrap_peers,
-        discovery_port: cli.discovery_port.unwrap_or(0),
         ..Default::default()
     };
 
     // Create a new Executor
     let ex = Arc::new(Executor::new());
 
-    // Create a new Backend
-    let backend = Backend::new(&key_pair, config, ex.clone().into());
+    // Create a new Node
+    let node = Node::new(&key_pair, config, ex.clone().into());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
@@ -60,14 +57,14 @@ fn main() {
 
     run_executor(
         async {
-            // Run the backend
-            backend.run().await.expect("Run the backend");
+            // Run the node
+            node.run().await.expect("Run the node");
 
             // Wait for ctrlc signal
             ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
-            // Shutdown the backend
-            backend.shutdown().await;
+            // Shutdown the node
+            node.shutdown().await;
         },
         ex,
     );

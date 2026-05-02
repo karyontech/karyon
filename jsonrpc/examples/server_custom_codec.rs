@@ -1,14 +1,15 @@
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use karyon_jsonrpc::{
-    codec::{ByteBuffer, Codec, Decoder, Encoder},
-    error::{Error, RPCError},
+    codec::{ByteBuffer, Codec},
+    error::RPCError,
     rpc_impl,
     server::ServerBuilder,
 };
+use karyon_net::Error as NetError;
 
 struct Calc {}
 
@@ -22,46 +23,30 @@ impl Calc {
     }
 }
 
+/// A minimal custom JSON codec, identical in wire format to the
+/// built-in `JsonCodec` but written out for illustration.
 #[derive(Clone)]
 pub struct CustomJsonCodec {}
 
-impl Codec for CustomJsonCodec {
+impl Codec<ByteBuffer> for CustomJsonCodec {
     type Message = serde_json::Value;
-    type Error = Error;
-}
+    type Error = NetError;
 
-impl Encoder for CustomJsonCodec {
-    type EnMessage = serde_json::Value;
-    type EnError = Error;
-    fn encode(
-        &self,
-        src: &Self::EnMessage,
-        dst: &mut ByteBuffer,
-    ) -> std::result::Result<usize, Self::EnError> {
-        let msg = match serde_json::to_string(src) {
-            Ok(m) => m,
-            Err(err) => return Err(Error::Encode(err.to_string())),
-        };
-        let buf = msg.as_bytes();
-        dst.extend_from_slice(buf);
-        Ok(buf.len())
+    fn encode(&self, src: &serde_json::Value, dst: &mut ByteBuffer) -> Result<usize, NetError> {
+        let bytes = serde_json::to_vec(src).map_err(|e| NetError::IO(io::Error::other(e)))?;
+        let n = bytes.len();
+        dst.extend_from_slice(&bytes);
+        Ok(n)
     }
-}
 
-impl Decoder for CustomJsonCodec {
-    type DeMessage = serde_json::Value;
-    type DeError = Error;
-    fn decode(
-        &self,
-        src: &mut ByteBuffer,
-    ) -> std::result::Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
+    fn decode(&self, src: &mut ByteBuffer) -> Result<Option<(usize, serde_json::Value)>, NetError> {
         let de = serde_json::Deserializer::from_slice(src.as_ref());
         let mut iter = de.into_iter::<serde_json::Value>();
 
         let item = match iter.next() {
             Some(Ok(item)) => item,
             Some(Err(ref e)) if e.is_eof() => return Ok(None),
-            Some(Err(e)) => return Err(Error::Decode(e.to_string())),
+            Some(Err(e)) => return Err(NetError::IO(io::Error::other(e))),
             None => return Ok(None),
         };
 
@@ -72,10 +57,8 @@ impl Decoder for CustomJsonCodec {
 fn main() {
     env_logger::init();
     smol::block_on(async {
-        // Register the Calc service
         let calc = Calc {};
 
-        // Creates a new server
         let server = ServerBuilder::new_with_codec("tcp://127.0.0.1:6000", CustomJsonCodec {})
             .expect("Create a new server builder")
             .service(Arc::new(calc))
@@ -83,7 +66,6 @@ fn main() {
             .await
             .expect("start a new server");
 
-        // Start the server
         server.start_block().await.expect("Start the server");
     });
 }

@@ -4,7 +4,7 @@ use async_channel::{Receiver, Sender};
 use serde_json::json;
 use serde_json::Value;
 
-use karyon_core::async_runtime::lock::Mutex;
+use karyon_core::async_runtime::lock::RwLock;
 
 use crate::{
     error::{Error, Result},
@@ -32,7 +32,7 @@ impl Subscription {
         self.id
     }
 
-    async fn notify(&self, val: Value) -> Result<()> {
+    pub(crate) async fn notify(&self, val: Value) -> Result<()> {
         if self.tx.is_full() {
             return Err(Error::SubscriptionBufferFull);
         }
@@ -46,8 +46,8 @@ impl Subscription {
 }
 
 /// Manages subscriptions for the client.
-pub(super) struct Subscriptions {
-    subs: Mutex<HashMap<SubscriptionID, Arc<Subscription>>>,
+pub(crate) struct Subscriptions {
+    subs: RwLock<HashMap<SubscriptionID, Arc<Subscription>>>,
     sub_buffer_size: usize,
 }
 
@@ -55,7 +55,7 @@ impl Subscriptions {
     /// Creates a new [`Subscriptions`].
     pub(super) fn new(sub_buffer_size: usize) -> Arc<Self> {
         Arc::new(Self {
-            subs: Mutex::new(HashMap::new()),
+            subs: RwLock::new(HashMap::new()),
             sub_buffer_size,
         })
     }
@@ -63,13 +63,13 @@ impl Subscriptions {
     /// Returns a new [`Subscription`]
     pub(super) async fn subscribe(&self, id: SubscriptionID) -> Arc<Subscription> {
         let sub = Subscription::new(id, self.sub_buffer_size);
-        self.subs.lock().await.insert(id, sub.clone());
+        self.subs.write().await.insert(id, sub.clone());
         sub
     }
 
     /// Closes subscription channels and clear the inner map.
     pub(super) async fn clear(&self) {
-        let mut subs = self.subs.lock().await;
+        let mut subs = self.subs.write().await;
         for (_, sub) in subs.iter() {
             sub.close();
         }
@@ -78,7 +78,7 @@ impl Subscriptions {
 
     /// Unsubscribe from the provided subscription id.
     pub(super) async fn unsubscribe(&self, id: &SubscriptionID) {
-        if let Some(sub) = self.subs.lock().await.remove(id) {
+        if let Some(sub) = self.subs.write().await.remove(id) {
             sub.close();
         }
     }
@@ -90,7 +90,7 @@ impl Subscriptions {
             None => return Err(Error::InvalidMsg("Invalid notification msg".to_string())),
         };
 
-        match self.subs.lock().await.get(&nt_res.subscription) {
+        match self.subs.read().await.get(&nt_res.subscription) {
             Some(s) => s.notify(nt_res.result.unwrap_or(json!(""))).await?,
             None => {
                 return Err(Error::InvalidMsg("Unknown notification".to_string()));

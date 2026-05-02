@@ -22,7 +22,7 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 
 use log::error;
 use rcgen::PublicKeyData;
-use x509_parser::{certificate::X509Certificate, parse_x509_certificate};
+use x509_parser::{asn1_rs::Oid, certificate::X509Certificate, parse_x509_certificate};
 
 use karyon_core::crypto::{KeyPair, KeyPairType, PublicKey};
 
@@ -34,6 +34,10 @@ static PROTOCOL_VERSIONS: &[&SupportedProtocolVersion] = &[&rustls::version::TLS
 static CIPHER_SUITES: &[SupportedCipherSuite] = &[TLS13_CHACHA20_POLY1305_SHA256];
 static KX_GROUPS: &[&dyn SupportedKxGroup] = &[kx_group::X25519];
 static SIGNATURE_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
+
+/// OID for the karyon peer-id custom extension.
+// TODO: not standards-conformant. Replace with a registered one.
+const PEER_ID_EXT_OID: &[u64] = &[0, 0, 0, 0];
 
 const BAD_SIGNATURE_ERR: rustls::Error = InvalidCertificate(CertificateError::BadSignature);
 const BAD_ENCODING_ERR: rustls::Error = InvalidCertificate(CertificateError::BadEncoding);
@@ -91,8 +95,7 @@ fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateK
     //   - Append both the computed signature and the key pair's public key to the extension
     let signature = key_pair.sign(&cert_key_pair.subject_public_key_info());
     let ext_content = yasna::encode_der(&(key_pair.public().as_bytes().to_vec(), signature));
-    // XXX: Not sure about the oid number ???
-    let mut ext = rcgen::CustomExtension::from_oid_content(&[0, 0, 0, 0], ext_content);
+    let mut ext = rcgen::CustomExtension::from_oid_content(PEER_ID_EXT_OID, ext_content);
     // XXX: Non-critical because rustls rejects unknown critical extensions
     // before our custom verifiers can run. The extension is still validated
     // by verify_cert() which requires it to be present and checks the signature.
@@ -105,35 +108,46 @@ fn generate_cert<'a>(key_pair: &KeyPair) -> Result<(CertificateDer<'a>, PrivateK
     Ok((cert, private_key))
 }
 
+/// Derive the peer id from a peer's certificate chain post-handshake.
+/// Reuses `verify_cert` so the validation rules stay in one place.
+/// Returns `None` if the chain is empty or the cert lacks our extension.
+pub(crate) fn peer_id_from_certs(certs: &[CertificateDer<'_>]) -> Option<PeerID> {
+    let end_entity = certs.first()?;
+    verify_cert(end_entity).ok()
+}
+
 /// Verifies the given certification.
 fn verify_cert(end_entity: &CertificateDer<'_>) -> std::result::Result<PeerID, rustls::Error> {
     // Parse the certificate.
     let cert = parse_cert(end_entity)?;
 
-    match cert.extensions().first() {
-        Some(ext) => {
-            // Extract the peer id (public key) and the signature from the extension.
-            let (public_key, signature): (Vec<u8>, Vec<u8>) =
-                yasna::decode_der(ext.value).map_err(|_| BAD_ENCODING_ERR)?;
+    // Find our custom extension by OID, not by position.
+    let want_oid = Oid::from(PEER_ID_EXT_OID).map_err(|_| BAD_ENCODING_ERR)?;
+    let ext = cert
+        .extensions()
+        .iter()
+        .find(|e| e.oid == want_oid)
+        .ok_or(BAD_ENCODING_ERR)?;
 
-            // Use the peer id (public key) to verify the extracted signature.
-            let public_key = PublicKey::from_bytes(&KeyPairType::Ed25519, &public_key)
-                .map_err(|_| BAD_ENCODING_ERR)?;
-            public_key
-                .verify(cert.public_key().raw, &signature)
-                .map_err(|_| BAD_SIGNATURE_ERR)?;
+    // Extract the peer id (public key) and the signature from the extension.
+    let (public_key, signature): (Vec<u8>, Vec<u8>) =
+        yasna::decode_der(ext.value).map_err(|_| BAD_ENCODING_ERR)?;
 
-            // Verify the certificate signature.
-            verify_cert_signature(
-                &cert,
-                cert.tbs_certificate.as_ref(),
-                cert.signature_value.as_ref(),
-            )?;
+    // Use the peer id (public key) to verify the extracted signature.
+    let public_key =
+        PublicKey::from_bytes(&KeyPairType::Ed25519, &public_key).map_err(|_| BAD_ENCODING_ERR)?;
+    public_key
+        .verify(cert.public_key().raw, &signature)
+        .map_err(|_| BAD_SIGNATURE_ERR)?;
 
-            PeerID::try_from(public_key).map_err(|_| BAD_ENCODING_ERR)
-        }
-        None => Err(BAD_ENCODING_ERR),
-    }
+    // Verify the certificate signature.
+    verify_cert_signature(
+        &cert,
+        cert.tbs_certificate.as_ref(),
+        cert.signature_value.as_ref(),
+    )?;
+
+    PeerID::try_from(public_key).map_err(|_| BAD_ENCODING_ERR)
 }
 
 /// Parses the given x509 certificate.

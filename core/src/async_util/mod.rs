@@ -1,3 +1,4 @@
+mod async_queue;
 mod backoff;
 mod condvar;
 mod condwait;
@@ -6,6 +7,7 @@ mod sleep;
 mod task_group;
 mod timeout;
 
+pub use async_queue::AsyncQueue;
 pub use backoff::Backoff;
 pub use condvar::CondVar;
 pub use condwait::CondWait;

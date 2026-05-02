@@ -1,28 +1,27 @@
 [package]
 name = "karyon_core"
-description = "Internal crate for Karyon library."
-version.workspace = true
+description = "Essential utilities and core functionality for the Karyon library."
+version = "1.0.0"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
+keywords = ["async", "utilities", "smol", "tokio", "karyon"]
+categories = ["asynchronous"]
 
 [features]
 default = ["smol"]
 crypto = ["ed25519-dalek"]
+testing = ["easy-parallel", "async-channel", "env_logger"]
 tokio = ["dep:tokio"]
 smol = ["dep:smol", "async-process"]
 
 [dependencies]
-log = { workspace = true }
 thiserror = { workspace = true }
-chrono = { workspace = true }
 rand = { workspace = true }
 parking_lot = { workspace = true }
 once_cell = { workspace = true }
-bincode = { workspace = true }
-dirs = { workspace = true }
 
 pin-project-lite = { workspace = true }
 async-process = { workspace = true, optional = true }
@@ -30,3 +29,8 @@ smol = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 
 ed25519-dalek = { workspace = true, features = ["rand_core"], optional = true }
+
+# testing
+easy-parallel = { workspace = true, optional = true }
+async-channel = { workspace = true, optional = true }
+env_logger = { workspace = true, optional = true }

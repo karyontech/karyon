@@ -18,6 +18,15 @@ impl<T> Task<T> {
         #[cfg(feature = "tokio")]
         self.inner_task.abort();
     }
+
+    /// Detaches the task so it continues running in the background without
+    /// being cancelled when dropped.
+    pub fn detach(self) {
+        #[cfg(feature = "smol")]
+        self.inner_task.detach();
+        #[cfg(feature = "tokio")]
+        drop(self.inner_task);
+    }
 }
 
 impl<T> Future for Task<T> {
