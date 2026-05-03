@@ -3,19 +3,30 @@
 [![Build](https://github.com/karyontech/karyon/actions/workflows/rust.yml/badge.svg)](https://github.com/karyontech/karyon/actions)
 [![License](https://img.shields.io/crates/l/karyon_core)](https://github.com/karyontech/karyon/blob/master/LICENSE)
 
-[![karyon_p2p crates.io](https://img.shields.io/crates/v/karyon_p2p?label=karyon_p2p%20crates.io)](https://crates.io/crates/karyon_p2p) [![karyon_p2p docs.rs](https://img.shields.io/docsrs/karyon_p2p?label=karyon_p2p%20docs.rs)](https://docs.rs/karyon_p2p/latest/karyon_p2p/)
-[![karyon_swarm crates.io](https://img.shields.io/crates/v/karyon_swarm?label=karyon_swarm%20crates.io)](https://crates.io/crates/karyon_swarm) [![karyon_swarm docs.rs](https://img.shields.io/docsrs/karyon_swarm?label=karyon_swarm%20docs.rs)](https://docs.rs/karyon_swarm/latest/karyon_swarm/)
-[![karyon_jsonrpc crates.io](https://img.shields.io/crates/v/karyon_jsonrpc?label=karyon_jsonrpc%20crates.io)](https://crates.io/crates/karyon_jsonrpc) [![karyon_jsonrpc docs.rs](https://img.shields.io/docsrs/karyon_jsonrpc?label=karyon_jsonrpc%20docs.rs)](https://docs.rs/karyon_jsonrpc/latest/karyon_jsonrpc/)
-[![karyon_core crates.io](https://img.shields.io/crates/v/karyon_core?label=karyon_core%20crates.io)](https://crates.io/crates/karyon_core) [![karyon_core docs.rs](https://img.shields.io/docsrs/karyon_core?label=karyon_core%20docs.rs)](https://docs.rs/karyon_core/latest/karyon_core/)
-[![karyon_net crates.io](https://img.shields.io/crates/v/karyon_net?label=karyon_net%20crates.io)](https://crates.io/crates/karyon_net) [![karyon_net docs.rs](https://img.shields.io/docsrs/karyon_net?label=karyon_net%20docs.rs)](https://docs.rs/karyon_net/latest/karyon_net/)
-[![karyon_eventemitter crates.io](https://img.shields.io/crates/v/karyon_eventemitter?label=karyon_eventemitter%20crates.io)](https://crates.io/crates/karyon_eventemitter) [![karyon_eventemitter docs.rs](https://img.shields.io/docsrs/karyon_eventemitter?label=karyon_eventemitter%20docs.rs)](https://docs.rs/karyon_eventemitter/latest/karyon_eventemitter/)
+[![karyon_p2p crates.io](https://img.shields.io/crates/v/karyon_p2p?label=karyon_p2p%20crates.io)](https://crates.io/crates/karyon_p2p)
+[![karyon_swarm crates.io](https://img.shields.io/crates/v/karyon_swarm?label=karyon_swarm%20crates.io)](https://crates.io/crates/karyon_swarm)
+[![karyon_jsonrpc crates.io](https://img.shields.io/crates/v/karyon_jsonrpc?label=karyon_jsonrpc%20crates.io)](https://crates.io/crates/karyon_jsonrpc)
+[![karyon_core crates.io](https://img.shields.io/crates/v/karyon_core?label=karyon_core%20crates.io)](https://crates.io/crates/karyon_core)
+[![karyon_net crates.io](https://img.shields.io/crates/v/karyon_net?label=karyon_net%20crates.io)](https://crates.io/crates/karyon_net)
+[![karyon_eventemitter crates.io](https://img.shields.io/crates/v/karyon_eventemitter?label=karyon_eventemitter%20crates.io)](https://crates.io/crates/karyon_eventemitter)
 
-**The DNA of Decentralized Apps**
+A set of composable Rust crates for networking, peer-to-peer systems, and decentralized software.
 
-A set of composable Rust crates for networking and decentralized software:
-pluggable peer discovery (Kademlia, mDNS, or custom), secure multi-transport
-networking (TCP, TLS, WebSocket, WSS, QUIC, UDP, Unix, SOCKS5), JSON-RPC over
-any transport, and protocol-aware swarms with swarm-keyed discovery.
+`karyon_net` provides a layered async networking stack with composable
+transports and middleware, supporting TCP, QUIC, UDP, Unix sockets, TLS,
+WebSocket, and SOCKS5 proxying.
+
+`karyon_jsonrpc` offers a lightweight async JSON-RPC 2.0 implementation with
+support for stream transports, QUIC multiplexing, and native HTTP/1.1, HTTP/2,
+and HTTP/3 communication.
+
+`karyon_p2p` delivers an extensible peer-to-peer stack with pluggable
+discovery, negotiated protocols, secure peer identity, and multi-endpoint
+connectivity over TCP, TLS, and QUIC.
+
+`karyon_swarm` builds on the p2p layer with protocol-aware swarms and
+BitTorrent-style swarm-keyed discovery for scalable decentralized group
+communication.
 
 All crates support both smol (default) and tokio. To use tokio, disable
 default features and enable the `tokio` feature.
@@ -27,13 +38,12 @@ default features and enable the `tokio` feature.
 
 ## Crates
 
-- **[karyon core](./core)**: Essential utilities and core functionality.
-- **[karyon net](./net)**: Layered network transport library with composable middleware (TCP, TLS, WebSocket, QUIC, SOCKS5, Unix, UDP).
-- **[karyon p2p](./p2p)**: A lightweight, extensible, and customizable p2p network stack.
-- **[karyon swarm](./swarm)**: Swarm layer on top of karyon_p2p, protocol-aware peer groups with swarm-keyed discovery.
-- **[karyon jsonrpc](./jsonrpc)**: A fast and lightweight async
-  [JSONRPC2.0](https://www.jsonrpc.org/specification) implementation with HTTP/1.1, HTTP/2, HTTP/3, WebSocket, QUIC, and TCP/TLS support.
-- **[karyon eventemitter](./utils/eventemitter)**: A lightweight, asynchronous event emitter.
+- **[karyon_core](./core)**: Core utilities and shared foundational components.
+- **[karyon_net](./net)**: Layered networking stack with composable transports and middleware, including TCP, QUIC, Unix sockets, TLS, WebSocket, SOCKS5, and UDP.
+- **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, negotiated protocols, and multi-endpoint connectivity over TCP, TLS, and QUIC.
+- **[karyon_swarm](./swarm)**: Protocol-aware swarm layer built on karyon_p2p with swarm-keyed peer discovery and group coordination.
+- **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) framework supporting TCP, TLS, WebSocket, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix transports.
+- **[karyon_eventemitter](./utils/eventemitter)**: Lightweight asynchronous event emitter for strongly typed pub/sub communication.
 
 ## Docs
 
