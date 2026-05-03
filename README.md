@@ -25,8 +25,8 @@ discovery, negotiated protocols, secure peer identity, and multi-endpoint
 connectivity over TCP, TLS, and QUIC.
 
 `karyon_swarm` builds on the p2p layer with protocol-aware swarms and
-BitTorrent-style swarm-keyed discovery for scalable decentralized group
-communication.
+BitTorrent-style swarm-keyed discovery for scalable decentralized peer
+coordination.
 
 All crates support both smol (default) and tokio. To use tokio, disable
 default features and enable the `tokio` feature.
@@ -41,7 +41,7 @@ default features and enable the `tokio` feature.
 - **[karyon_core](./core)**: Core utilities and shared foundational components.
 - **[karyon_net](./net)**: Layered networking stack with composable transports and middleware, including TCP, QUIC, Unix sockets, TLS, WebSocket, SOCKS5, and UDP.
 - **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, negotiated protocols, and multi-endpoint connectivity over TCP, TLS, and QUIC.
-- **[karyon_swarm](./swarm)**: Protocol-aware swarm layer built on karyon_p2p with swarm-keyed peer discovery and group coordination.
+- **[karyon_swarm](./swarm)**: Builds on the p2p layer with protocol-aware swarms and BitTorrent-style swarm-keyed discovery for scalable decentralized peer coordination.
 - **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) framework supporting TCP, TLS, WebSocket, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix transports.
 - **[karyon_eventemitter](./utils/eventemitter)**: Lightweight asynchronous event emitter for strongly typed pub/sub communication.
 
