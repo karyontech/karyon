@@ -23,19 +23,19 @@ license = "MIT"
 authors = ["hozan23 <hozan23@karyontech.net>"]
 
 [workspace.dependencies]
-karyon_core = { path = "core", version = "=1.0.0-alpha.1", default-features = false }
+karyon_core = { path = "core", version = "=1.0.0-alpha.2", default-features = false }
 
-karyon_net = { path = "net", version = "=1.0.0-alpha.1", default-features = false }
-karyon_async_rustls = { path = "net/async_rustls", version = "=1.0.0-alpha.1", default-features = false }
+karyon_net = { path = "net", version = "=1.0.0-alpha.2", default-features = false }
+karyon_async_rustls = { path = "net/async_rustls", version = "=1.0.0-alpha.2", default-features = false }
 
-karyon_jsonrpc = { path = "jsonrpc", version = "=1.0.0-alpha.1", default-features = false }
-karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "=1.0.0-alpha.1", default-features = false }
+karyon_jsonrpc = { path = "jsonrpc", version = "=1.0.0-alpha.2", default-features = false }
+karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "=1.0.0-alpha.2", default-features = false }
 
-karyon_p2p = { path = "p2p", version = "=1.0.0-alpha.1", default-features = false }
-karyon_swarm = { path = "swarm", version = "=1.0.0-alpha.1", default-features = false }
+karyon_p2p = { path = "p2p", version = "=1.0.0-alpha.2", default-features = false }
+karyon_swarm = { path = "swarm", version = "=1.0.0-alpha.2", default-features = false }
 
-karyon_eventemitter = { path = "./utils/eventemitter", version = "=1.0.0-alpha.1", default-features = false }
-karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "=1.0.0-alpha.1", default-features = false }
+karyon_eventemitter = { path = "./utils/eventemitter", version = "=1.0.0-alpha.2", default-features = false }
+karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "=1.0.0-alpha.2", default-features = false }
 
 log = "0.4"
 thiserror = "2.0"

@@ -1,7 +1,7 @@
 [package]
 name = "karyon_swarm"
 description = "Swarm layer for protocol-aware peer groups on top of karyon_p2p."
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
