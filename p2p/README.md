@@ -78,7 +78,7 @@ Implementations of the `Discovery` trait yield candidate peers; the
 Node dials them. The default is a Kademlia DHT; plug in your own (mDNS,
 static, ...) by implementing the trait.
 
-```rust
+```rust,ignore
 #[async_trait]
 pub trait Discovery: Send + Sync {
     async fn start(self: Arc<Self>) -> Result<()>;
@@ -99,12 +99,18 @@ connection. For QUIC, each protocol gets its own bidirectional stream.
 protocols every peer must speak.
 
 ```rust
+# use std::sync::Arc;
+# use async_trait::async_trait;
+# use karyon_p2p::{
+#     protocol::{PeerConn, Protocol, ProtocolID},
+#     Error, Version,
+# };
 pub struct MyProtocol {
-    peer: Arc<Peer>,
+    peer: PeerConn,
 }
 
 impl MyProtocol {
-    fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
+    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
         Arc::new(Self { peer })
     }
 }
@@ -113,9 +119,10 @@ impl MyProtocol {
 impl Protocol for MyProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
         loop {
-            match self.peer.recv::<Self>().await? {
-                ProtocolEvent::Message(msg) => { /* handle */ }
-                ProtocolEvent::Shutdown => break,
+            match self.peer.recv().await {
+                Ok(_msg) => { /* handle */ }
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
             }
         }
         Ok(())
@@ -141,11 +148,21 @@ connections opening and closing, peer add/remove, handshake failures,
 discovery lookups and refreshes. Each topic is a separate event type
 with its own listener; every subscriber gets every event independently.
 
-```rust
+```rust,no_run
+# use karyon_core::async_runtime::global_executor;
+# use karyon_p2p::{
+#     monitor::ConnectionEvent,
+#     keypair::{KeyPair, KeyPairType},
+#     Node, Config,
+# };
+# async {
+# let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
+# let node = Node::new(&key_pair, Config::default(), global_executor());
 let listener = node.monitor().register::<ConnectionEvent>();
 while let Ok(ev) = listener.recv().await {
     println!("conn event: {} {:?}", ev.event, ev.endpoint);
 }
+# };
 ```
 
 Available event types: `ConnectionEvent`, `PeerPoolEvent`,
@@ -159,7 +176,7 @@ for mutual authentication.
 
 ## Example
 
-```rust
+```rust,no_run
 use std::sync::Arc;
 
 use karyon_p2p::{
