@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use bincode::Encode;
 use log::{error, info, warn};
 
 use karyon_core::{
@@ -17,7 +16,7 @@ use karyon_net::Endpoint;
 
 use crate::{
     config::Config,
-    conn_queue::ConnQueue,
+    conn_queue::{ConnQueue, QueuedConn},
     handshake::{handshake, HandshakeParams},
     monitor::{Monitor, PoolEvent},
     peer::Peer,
@@ -128,9 +127,8 @@ impl PeerPool {
         self.task_group.cancel().await;
     }
 
-    /// Register a protocol's constructor and metadata. Bloom advertising
-    /// is handled by `Node::attach_protocol` (which routes via
-    /// `Protocol::kind()`).
+    /// Register a protocol's user-supplied constructor and metadata.
+    /// Bloom advertising is handled by `Node::attach_protocol`.
     pub async fn attach_protocol<P: Protocol>(&self, c: Box<ProtocolConstructor>) -> Result<()> {
         let id = P::id();
         self.protocols.write().await.insert(id.clone(), c);
@@ -145,9 +143,9 @@ impl PeerPool {
     }
 
     /// Broadcast a message to all connected peers.
-    pub async fn broadcast<T: Encode>(&self, proto_id: &ProtocolID, msg: &T) {
+    pub async fn broadcast(&self, proto_id: &ProtocolID, msg: Vec<u8>) {
         for (pid, peer) in self.peers.read().await.iter() {
-            if let Err(err) = peer.send(proto_id.to_string(), msg).await {
+            if let Err(err) = peer.send(proto_id.to_string(), msg.clone()).await {
                 error!("failed to send msg to {pid}: {err}");
                 continue;
             }
@@ -155,20 +153,35 @@ impl PeerPool {
     }
 
     /// Broadcast a message to a specific set of peers.
-    pub async fn broadcast_to<T: Encode>(
+    pub async fn broadcast_to(
         &self,
         proto_id: &ProtocolID,
-        msg: &T,
+        msg: Vec<u8>,
         targets: &HashSet<PeerID>,
     ) {
         for (pid, peer) in self.peers.read().await.iter() {
             if !targets.contains(pid) {
                 continue;
             }
-            if let Err(err) = peer.send(proto_id.to_string(), msg).await {
+            if let Err(err) = peer.send(proto_id.to_string(), msg.clone()).await {
                 error!("failed to send msg to {pid}: {err}");
             }
         }
+    }
+
+    /// Send a message to a specific peer on the given protocol. Returns
+    /// `PeerNotFound` if the peer is not currently in the pool.
+    pub async fn send_to(
+        &self,
+        peer_id: &PeerID,
+        proto_id: &ProtocolID,
+        msg: Vec<u8>,
+    ) -> Result<()> {
+        let peers = self.peers.read().await;
+        let peer = peers
+            .get(peer_id)
+            .ok_or_else(|| Error::PeerNotFound(peer_id.to_string()))?;
+        peer.send(proto_id.to_string(), msg).await
     }
 
     /// Returns the negotiated protocol set for a peer.
@@ -256,11 +269,10 @@ impl PeerPool {
     /// Build a Peer from a post-handshake `QueuedConn` and run it.
     async fn new_peer(
         self: &Arc<Self>,
-        queued: crate::conn_queue::QueuedConn,
+        queued: QueuedConn,
         pid: PeerID,
         negotiated: Vec<ProtocolID>,
     ) -> Result<()> {
-        // TODO: Consider restricting the subnet for inbound connections
         if self.contains_peer(&pid).await {
             self.monitor
                 .notify(PoolEvent::PeerAlreadyConnected(pid.clone()))
@@ -273,17 +285,9 @@ impl PeerPool {
         }
 
         let protocol_ids: Vec<ProtocolID> = self.protocols.read().await.keys().cloned().collect();
+        let negotiated: HashSet<ProtocolID> = negotiated.into_iter().collect();
 
-        let halves = Peer::from_queued(
-            self.clone(),
-            queued,
-            pid.clone(),
-            negotiated.into_iter().collect(),
-            protocol_ids,
-        )
-        .await?;
-
-        let peer = halves.peer;
+        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated, protocol_ids).await?;
 
         self.peers.write().await.insert(pid.clone(), peer.clone());
 
@@ -299,12 +303,7 @@ impl PeerPool {
             }
         };
 
-        #[cfg(feature = "quic")]
-        let run_fut = peer.run(halves.reader, halves.writer, halves.quic_streams);
-        #[cfg(not(feature = "quic"))]
-        let run_fut = peer.run(halves.reader, halves.writer);
-
-        self.task_group.spawn(run_fut, on_disconnect);
+        self.task_group.spawn(peer.clone().run(), on_disconnect);
 
         info!("Add new peer {pid}");
         self.monitor.notify(PoolEvent::NewPeer(pid.clone())).await;

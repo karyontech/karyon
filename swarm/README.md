@@ -45,7 +45,7 @@ async {
     swarm.run().await.expect("run swarm");
 
     // Send a message to all peers in the "general" chat swarm.
-    // swarm.broadcast(&chat_key, &msg).await;
+    // swarm.broadcast(&chat_key, msg_bytes).await;
 
     // Connected peers currently in this swarm.
     // let peers = swarm.peers(&chat_key).await;

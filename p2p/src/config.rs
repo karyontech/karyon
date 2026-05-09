@@ -4,6 +4,12 @@ use crate::Version;
 
 /// Configuration for the p2p network.
 ///
+/// `peer_endpoints` are static peers dialed directly (use for fixed
+/// topologies). `bootstrap_peers` are seeds for the default Kademlia
+/// discovery; the DHT grows the connection set from there. Custom
+/// `Discovery` implementations may interpret `bootstrap_peers`
+/// differently or ignore it. Pick one, or combine.
+///
 /// # Example
 ///
 /// ```

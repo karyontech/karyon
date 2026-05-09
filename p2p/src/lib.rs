@@ -41,8 +41,10 @@ mod peer_pool;
 mod protocols;
 mod slots;
 mod tls_config;
-mod util;
 mod version;
+
+/// Bincode encode/decode helpers.
+pub mod util;
 
 /// Responsible for network and system monitoring.
 /// [`Read More`](./monitor/struct.Monitor.html)

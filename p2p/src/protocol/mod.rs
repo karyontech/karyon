@@ -1,16 +1,20 @@
+mod peer_conn;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use karyon_eventemitter::EventValue;
 
-use crate::{peer::Peer, version::Version, Result};
+use crate::{version::Version, Result};
 
-pub type ProtocolConstructor = dyn Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync;
+pub use peer_conn::PeerConn;
 
 pub type ProtocolID = String;
 
-/// Protocol event
+/// Protocol event used internally by karyon. User code reads
+/// messages via `PeerConn::recv` which yields `Vec<u8>` directly and
+/// surfaces shutdown as `Err(PeerShutdown)`.
 #[derive(Debug, Clone, EventValue)]
 pub enum ProtocolEvent {
     /// Message event, contains a vector of bytes.
@@ -49,17 +53,17 @@ pub struct ProtocolMeta {
 ///
 /// use karyon_core::async_runtime::global_executor;
 /// use karyon_p2p::{
-///     protocol::{Protocol, ProtocolID, ProtocolEvent},
-///     Node, Config, Version, Error, Peer,
+///     protocol::{PeerConn, Protocol, ProtocolID},
+///     Node, Config, Version, Error,
 ///     keypair::{KeyPair, KeyPairType},
 /// };
 ///
 /// pub struct NewProtocol {
-///     peer: Arc<Peer>,
+///     peer: PeerConn,
 /// }
 ///
 /// impl NewProtocol {
-///     fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
+///     fn new(peer: PeerConn) -> Arc<dyn Protocol> {
 ///         Arc::new(Self { peer })
 ///     }
 /// }
@@ -68,16 +72,9 @@ pub struct ProtocolMeta {
 /// impl Protocol for NewProtocol {
 ///     async fn start(self: Arc<Self>) -> Result<(), Error> {
 ///         loop {
-///             match self.peer.recv::<Self>().await.expect("Receive msg") {
-///                 ProtocolEvent::Message(msg) => {
-///                     println!("{:?}", msg);
-///                 }
-///                 ProtocolEvent::Shutdown => {
-///                     break;
-///                 }
-///             }
+///             let bytes = self.peer.recv().await?;
+///             println!("{:?}", bytes);
 ///         }
-///         Ok(())
 ///     }
 ///
 ///     fn version() -> Result<Version, Error> {
@@ -92,14 +89,12 @@ pub struct ProtocolMeta {
 /// async {
 ///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 ///     let node = Node::new(&key_pair, Config::default(), global_executor());
-///
-///     let c = move |peer| NewProtocol::new(peer);
-///     node.attach_protocol::<NewProtocol>(c).await.unwrap();
+///     node.attach_protocol::<NewProtocol>(|peer| Ok(NewProtocol::new(peer))).await.unwrap();
 /// };
 /// ```
 #[async_trait]
 pub trait Protocol: Send + Sync {
-    /// Start the protocol. Uses `peer.recv::<Self>()` for messages.
+    /// Drive the protocol to completion. Use `self.peer.recv()` etc.
     async fn start(self: Arc<Self>) -> Result<()>;
 
     /// Returns the version of the protocol.
@@ -122,3 +117,9 @@ pub trait Protocol: Send + Sync {
         ProtocolKind::Optional
     }
 }
+
+/// User-supplied constructor handed to `Node::attach_protocol`.
+/// karyon calls it once per connected peer with a typed `PeerConn`
+/// scoped to this protocol. Capture whatever shared state the
+/// protocol needs in the closure.
+pub type ProtocolConstructor = dyn Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync;

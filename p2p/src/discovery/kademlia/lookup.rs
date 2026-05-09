@@ -16,6 +16,7 @@ use crate::{
             FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
         },
         routing_table::RoutingTable,
+        SUPPORTED_LOOKUP_PROTOCOLS,
     },
     listener::Listener,
     message::{pick_endpoint, PeerAddr, Protocol, ShutdownMsg},
@@ -226,12 +227,8 @@ impl LookupService {
         peer_buffer: &mut Vec<PeerMsg>,
     ) -> Result<()> {
         let mut results = FuturesUnordered::new();
-        #[cfg(feature = "quic")]
-        let supported = [Protocol::Tcp, Protocol::Quic];
-        #[cfg(not(feature = "quic"))]
-        let supported = [Protocol::Tcp];
         for peer in random_peers.choose_multiple(&mut OsRng, random_peers.len()) {
-            let endpoint = match pick_endpoint(&peer.discovery_addrs, &supported) {
+            let endpoint = match pick_endpoint(&peer.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS) {
                 Some(ep) => ep,
                 None => continue,
             };

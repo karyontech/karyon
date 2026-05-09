@@ -50,6 +50,9 @@ pub enum Error {
     #[error("Peer Already Connected")]
     PeerAlreadyConnected,
 
+    #[error("Peer Not Found: {0}")]
+    PeerNotFound(String),
+
     #[error("Discovery Error: {0}")]
     Discovery(String),
 

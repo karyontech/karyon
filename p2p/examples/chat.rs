@@ -9,8 +9,8 @@ use karyon_core::testing::run_executor;
 use karyon_p2p::{
     endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
-    protocol::{Protocol, ProtocolEvent, ProtocolID},
-    Config, Error, Node, Peer, Version,
+    protocol::{PeerConn, Protocol, ProtocolID},
+    Config, Error, Node, Version,
 };
 
 async fn read_line_async() -> Result<String, io::Error> {
@@ -48,12 +48,12 @@ struct Cli {
 
 pub struct ChatProtocol {
     username: String,
-    peer: Arc<Peer>,
+    peer: PeerConn,
     executor: Arc<Executor<'static>>,
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: Arc<Peer>, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
+    fn new(username: &str, peer: PeerConn, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
         Arc::new(Self {
             peer,
             username: username.to_string(),
@@ -71,14 +71,20 @@ impl Protocol for ChatProtocol {
                 loop {
                     let input = read_line_async().await.expect("Read line from stdin");
                     let msg = format!("> {}: {}", this.username, input.trim());
-                    this.peer.broadcast(&Self::id(), &msg).await;
+                    this.peer.broadcast(msg.into_bytes()).await;
                 }
             }
         });
 
-        while let ProtocolEvent::Message(msg) = self.peer.recv::<Self>().await? {
-            let msg = String::from_utf8(msg).expect("Convert received bytes to string");
-            println!("{msg}");
+        loop {
+            match self.peer.recv().await {
+                Ok(bytes) => {
+                    let msg = String::from_utf8(bytes).expect("Convert received bytes to string");
+                    println!("{msg}");
+                }
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
+            }
         }
 
         task.cancel().await;
@@ -127,7 +133,7 @@ fn main() {
                 let username = cli.username;
 
                 // Attach the ChatProtocol
-                let c = move |peer| ChatProtocol::new(&username, peer, ex.clone());
+                let c = move |peer| Ok(ChatProtocol::new(&username, peer, ex.clone()));
                 node.attach_protocol::<ChatProtocol>(c)
                     .await
                     .expect("Attach chat protocol to the p2p node");

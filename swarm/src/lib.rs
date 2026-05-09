@@ -5,7 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use bincode::Encode;
 use log::{debug, trace};
 
 use karyon_core::{
@@ -14,8 +13,8 @@ use karyon_core::{
 };
 
 use karyon_p2p::{
-    protocol::{Protocol, ProtocolID},
-    DiscoveredPeer, Node, Peer, PeerEvent, PeerID, Result,
+    protocol::{PeerConn, Protocol, ProtocolID},
+    DiscoveredPeer, Node, PeerEvent, PeerID, Result,
 };
 
 pub use swarm_key::{compute_swarm_key, swarm_key_from_protocol, SwarmKey};
@@ -84,7 +83,7 @@ impl Swarm {
     /// different protocols.
     pub async fn join<P: Protocol>(
         self: &Arc<Self>,
-        c: impl Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = swarm_key_from_protocol(&proto_id);
@@ -96,7 +95,7 @@ impl Swarm {
     pub async fn join_with_instance<P: Protocol>(
         self: &Arc<Self>,
         instance: &str,
-        c: impl Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = compute_swarm_key(&proto_id, instance);
@@ -109,7 +108,7 @@ impl Swarm {
         self: &Arc<Self>,
         proto_id: ProtocolID,
         key: SwarmKey,
-        c: impl Fn(Arc<Peer>) -> Arc<dyn Protocol> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         // Protocol attach is idempotent in spirit but the underlying
         // peer_pool stores the latest constructor; calling join twice
@@ -144,7 +143,7 @@ impl Swarm {
     }
 
     /// Broadcast a message to all connected peers in this swarm.
-    pub async fn broadcast<T: Encode>(&self, key: &SwarmKey, msg: &T) {
+    pub async fn broadcast(&self, key: &SwarmKey, msg: Vec<u8>) {
         let swarms = self.swarms.read().await;
         let info = match swarms.get(key) {
             Some(i) => i,

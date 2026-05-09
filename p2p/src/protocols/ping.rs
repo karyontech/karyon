@@ -8,15 +8,11 @@ use bincode::{Decode, Encode};
 use log::trace;
 use rand::{rngs::OsRng, RngCore};
 
-use karyon_core::{
-    async_runtime::Executor,
-    async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult},
-};
+use karyon_core::async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult};
 
 use crate::{
-    peer::Peer,
-    protocol::{Protocol, ProtocolEvent, ProtocolID, ProtocolKind},
-    util::decode,
+    protocol::{PeerConn, Protocol, ProtocolID, ProtocolKind},
+    util::{decode, encode},
     version::Version,
     Error, Result,
 };
@@ -36,24 +32,21 @@ enum PingProtocolMsg {
 }
 
 pub struct PingProtocol {
-    peer: Arc<Peer>,
+    peer: PeerConn,
     ping_interval: u64,
     ping_timeout: u64,
     task_group: TaskGroup,
 }
 
 impl PingProtocol {
-    pub fn new(
-        peer: Arc<Peer>,
-        ping_interval: u64,
-        ping_timeout: u64,
-        executor: Executor,
-    ) -> Arc<Self> {
+    pub(crate) fn new(peer: PeerConn) -> Arc<Self> {
+        let cfg = peer.inner().config();
+        let executor = peer.inner().executor();
         Arc::new(Self {
-            peer,
-            ping_interval,
-            ping_timeout,
+            ping_interval: cfg.ping_interval,
+            ping_timeout: cfg.ping_timeout,
             task_group: TaskGroup::with_executor(executor),
+            peer,
         })
     }
 
@@ -63,10 +56,10 @@ impl PingProtocol {
         let mut seen: VecDeque<[u8; 32]> = VecDeque::with_capacity(PING_DEDUP_WINDOW);
 
         loop {
-            let event = self.peer.recv::<Self>().await?;
-            let payload = match event.clone() {
-                ProtocolEvent::Message(m) => m,
-                ProtocolEvent::Shutdown => break,
+            let payload = match self.peer.recv().await {
+                Ok(bytes) => bytes,
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
             };
 
             let (msg, _) = decode::<PingProtocolMsg>(&payload)?;
@@ -82,9 +75,8 @@ impl PingProtocol {
                     seen.push_back(nonce);
 
                     trace!("Received Ping {nonce:?}");
-                    self.peer
-                        .send(Self::id(), &PingProtocolMsg::Pong(nonce))
-                        .await?;
+                    let bytes = encode(&PingProtocolMsg::Pong(nonce))?;
+                    self.peer.send(bytes).await?;
                     trace!("Sent Pong {nonce:?}");
                 }
                 PingProtocolMsg::Pong(nonce) => {
@@ -106,9 +98,8 @@ impl PingProtocol {
             rng.fill_bytes(&mut nonce);
 
             trace!("Send Ping {nonce:?}");
-            self.peer
-                .send(Self::id(), &PingProtocolMsg::Ping(nonce))
-                .await?;
+            let bytes = encode(&PingProtocolMsg::Ping(nonce))?;
+            self.peer.send(bytes).await?;
 
             let d = Duration::from_secs(self.ping_timeout);
             let pong = match timeout(d, chan.recv()).await {

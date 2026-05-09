@@ -3,8 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use bincode::Encode;
-
 use log::{debug, info};
 use parking_lot::RwLock as SyncRwLock;
 
@@ -26,9 +24,8 @@ use crate::{
     listener::Listener,
     message::{pick_endpoint, Protocol},
     monitor::{Monitor, PoolEvent},
-    peer::Peer,
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
-    protocol::{Protocol as ProtocolTrait, ProtocolID, ProtocolKind},
+    protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolID, ProtocolKind},
     protocols::PingProtocol,
     slots::ConnectionSlots,
     PeerID, Result,
@@ -307,12 +304,13 @@ impl Node {
         }
     }
 
-    /// Attach a custom protocol. Registers the constructor on the peer
-    /// pool and advertises the protocol id in the local bloom according
-    /// to `P::kind()` (mandatory or optional).
+    /// Attach a custom protocol. karyon runs the constructor closure
+    /// once per connected peer with a typed `PeerConn` scoped to this
+    /// protocol. Bloom advertises the protocol id according to
+    /// `P::kind()`.
     pub async fn attach_protocol<P: ProtocolTrait>(
         &self,
-        c: impl Fn(Arc<Peer>) -> Arc<dyn ProtocolTrait> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> Result<Arc<dyn ProtocolTrait>> + Send + Sync + 'static,
     ) -> Result<()> {
         self.peer_pool.attach_protocol::<P>(Box::new(c)).await?;
         let id = P::id();
@@ -325,14 +323,10 @@ impl Node {
 
     /// Attach the core protocols (PING). Called once during `run`.
     async fn attach_core_protocols(self: &Arc<Self>) -> Result<()> {
-        let executor = self.peer_pool.executor.clone();
-        let ping_interval = self.config.ping_interval;
-        let ping_timeout = self.config.ping_timeout;
-        let c = move |peer| {
-            PingProtocol::new(peer, ping_interval, ping_timeout, executor.clone())
-                as Arc<dyn ProtocolTrait>
-        };
-        self.attach_protocol::<PingProtocol>(c).await
+        self.attach_protocol::<PingProtocol>(|conn| {
+            Ok(PingProtocol::new(conn) as Arc<dyn ProtocolTrait>)
+        })
+        .await
     }
 
     /// Add an item the local node REQUIRES peers to also support.
@@ -403,13 +397,24 @@ impl Node {
 
     /// Broadcast a message to a specific set of peers on a given protocol.
     /// Used by Swarm and other layers to scope broadcasts.
-    pub async fn broadcast_to<T: Encode>(
+    pub async fn broadcast_to(
         &self,
         proto_id: &ProtocolID,
-        msg: &T,
+        msg: Vec<u8>,
         targets: &HashSet<PeerID>,
     ) {
         self.peer_pool.broadcast_to(proto_id, msg, targets).await;
+    }
+
+    /// Send a message to a specific peer on the given protocol.
+    /// Returns `PeerNotFound` if the peer is not currently connected.
+    pub async fn send_to(
+        &self,
+        peer_id: &PeerID,
+        proto_id: &ProtocolID,
+        msg: Vec<u8>,
+    ) -> Result<()> {
+        self.peer_pool.send_to(peer_id, proto_id, msg).await
     }
 
     /// Returns the negotiated protocol set for a connected peer, or

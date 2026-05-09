@@ -36,6 +36,13 @@ use routing_table::{
 /// Bound on the discovered-peer queue between Kademlia and the Node.
 const DISCOVERED_PEER_QUEUE_SIZE: usize = 128;
 
+/// Transports the lookup service can dial. Computed once here so the
+/// rest of the module never needs an inline cfg.
+#[cfg(feature = "quic")]
+pub(crate) const SUPPORTED_LOOKUP_PROTOCOLS: &[Protocol] = &[Protocol::Tcp, Protocol::Quic];
+#[cfg(not(feature = "quic"))]
+pub(crate) const SUPPORTED_LOOKUP_PROTOCOLS: &[Protocol] = &[Protocol::Tcp];
+
 pub struct KademliaDiscovery {
     /// Routing table
     table: Arc<RoutingTable>,
@@ -164,14 +171,11 @@ impl KademliaDiscovery {
     async fn start_seeding(&self) {
         match self.table.random_entry(PENDING_ENTRY | CONNECTED_ENTRY) {
             Some(entry) => {
-                #[cfg(feature = "quic")]
-                let supported = [Protocol::Tcp, Protocol::Quic];
-                #[cfg(not(feature = "quic"))]
-                let supported = [Protocol::Tcp];
-                let endpoint = match pick_endpoint(&entry.discovery_addrs, &supported) {
-                    Some(ep) => ep,
-                    None => return,
-                };
+                let endpoint =
+                    match pick_endpoint(&entry.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS) {
+                        Some(ep) => ep,
+                        None => return,
+                    };
                 let peer_id = Some(entry.key.into());
                 if let Err(err) = self.lookup_service.start_lookup(&endpoint, peer_id).await {
                     self.table.update_entry(&entry.key, UNSTABLE_ENTRY);

@@ -9,8 +9,8 @@ use karyon_core::testing::run_test_with_executor;
 use karyon_p2p::{
     endpoint::Endpoint,
     monitor::PeerPoolEvent,
-    protocol::{Protocol, ProtocolEvent, ProtocolID},
-    Config, Error, Peer, Version,
+    protocol::{PeerConn, Protocol, ProtocolID},
+    Config, Error, Version,
 };
 
 use karyon_swarm::{compute_swarm_key, Swarm};
@@ -20,11 +20,11 @@ use shared::{create_node, fast_config, free_port};
 // -- Test protocols ----------------------------------------------------------
 
 struct ChatProtocol {
-    peer: Arc<Peer>,
+    peer: PeerConn,
 }
 
 impl ChatProtocol {
-    fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
+    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
         Arc::new(Self { peer })
     }
 }
@@ -33,9 +33,10 @@ impl ChatProtocol {
 impl Protocol for ChatProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
         loop {
-            match self.peer.recv::<Self>().await? {
-                ProtocolEvent::Shutdown => break,
-                ProtocolEvent::Message(_) => {}
+            match self.peer.recv().await {
+                Ok(_) => {}
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
             }
         }
         Ok(())
@@ -51,11 +52,11 @@ impl Protocol for ChatProtocol {
 }
 
 struct FileProtocol {
-    peer: Arc<Peer>,
+    peer: PeerConn,
 }
 
 impl FileProtocol {
-    fn new(peer: Arc<Peer>) -> Arc<dyn Protocol> {
+    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
         Arc::new(Self { peer })
     }
 }
@@ -64,9 +65,10 @@ impl FileProtocol {
 impl Protocol for FileProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
         loop {
-            match self.peer.recv::<Self>().await? {
-                ProtocolEvent::Shutdown => break,
-                ProtocolEvent::Message(_) => {}
+            match self.peer.recv().await {
+                Ok(_) => {}
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
             }
         }
         Ok(())
@@ -105,11 +107,11 @@ fn heterogeneous_protocols_connect() {
         );
 
         node_a
-            .attach_protocol::<ChatProtocol>(ChatProtocol::new)
+            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
         node_a
-            .attach_protocol::<FileProtocol>(FileProtocol::new)
+            .attach_protocol::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
             .await
             .unwrap();
 
@@ -126,7 +128,7 @@ fn heterogeneous_protocols_connect() {
         );
 
         node_b
-            .attach_protocol::<ChatProtocol>(ChatProtocol::new)
+            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
 
@@ -173,11 +175,11 @@ fn swarm_membership() {
         let swarm_a = Swarm::new(node_a, ex.clone());
 
         let chat_key = swarm_a
-            .join::<ChatProtocol>(ChatProtocol::new)
+            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
         let file_key = swarm_a
-            .join::<FileProtocol>(FileProtocol::new)
+            .join::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
             .await
             .unwrap();
 
@@ -196,7 +198,7 @@ fn swarm_membership() {
         let swarm_b = Swarm::new(node_b, ex.clone());
 
         swarm_b
-            .join::<ChatProtocol>(ChatProtocol::new)
+            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
 
@@ -285,7 +287,7 @@ fn bloom_filters_kademlia_dial() {
             ex.clone(),
         );
         node_a
-            .attach_protocol::<ChatProtocol>(ChatProtocol::new)
+            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
         node_a.run().await.unwrap();
@@ -307,7 +309,7 @@ fn bloom_filters_kademlia_dial() {
             ex.clone(),
         );
         node_c
-            .attach_protocol::<FileProtocol>(FileProtocol::new)
+            .attach_protocol::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
             .await
             .unwrap();
         node_c.run().await.unwrap();
@@ -361,7 +363,7 @@ fn swarm_peer_removal() {
         let swarm_a = Swarm::new(node_a, ex.clone());
 
         let chat_key = swarm_a
-            .join::<ChatProtocol>(ChatProtocol::new)
+            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
 
@@ -377,7 +379,7 @@ fn swarm_peer_removal() {
 
         let swarm_b = Swarm::new(node_b, ex.clone());
         swarm_b
-            .join::<ChatProtocol>(ChatProtocol::new)
+            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
             .await
             .unwrap();
         swarm_b.run().await.unwrap();
