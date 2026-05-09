@@ -177,8 +177,7 @@ for mutual authentication.
 ## Example
 
 ```rust,no_run
-use std::sync::Arc;
-
+use karyon_core::async_runtime::global_executor;
 use karyon_p2p::{
     Node, Config,
     keypair::{KeyPair, KeyPairType},
@@ -198,8 +197,7 @@ async {
         ..Config::default()
     };
 
-    let ex = Arc::new(smol::Executor::new());
-    let node = Node::new(&key_pair, config, ex.clone().into());
+    let node = Node::new(&key_pair, config, global_executor());
 
     node.run().await.expect("run node");
 

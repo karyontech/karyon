@@ -22,18 +22,16 @@ karyon_swarm = "1"
 
 ## Example
 
-```rust
-use std::sync::Arc;
-
+```rust,no_run
+use karyon_core::async_runtime::global_executor;
 use karyon_p2p::{Node, Config, keypair::{KeyPair, KeyPairType}};
 use karyon_swarm::Swarm;
 
 async {
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-    let ex = Arc::new(smol::Executor::new());
 
-    let node = Node::new(&key_pair, Config::default(), ex.clone().into());
-    let swarm = Swarm::new(node, ex.clone().into());
+    let node = Node::new(&key_pair, Config::default(), global_executor());
+    let swarm = Swarm::new(node, global_executor());
 
     // Join a swarm. SwarmKey defaults to hash(ProtocolID); call multiple
     // times with different protocols (or instances) to manage many swarms

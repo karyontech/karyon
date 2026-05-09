@@ -1,7 +1,7 @@
 [package]
 name = "karyon_core"
 description = "Essential utilities and core functionality for the Karyon library."
-version = "1.0.0-alpha.4"
+version = "1.0.0-alpha.5"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
