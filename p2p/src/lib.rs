@@ -1,30 +1,5 @@
-//! A lightweight, extensible, and customizable peer-to-peer (p2p) network stack.
-//!
-//! # Example
-//! ```no_run
-//! use karyon_core::async_runtime::global_executor;
-//! use karyon_p2p::{Node, Config, keypair::{KeyPair, KeyPairType}};
-//!
-//! async {
-//!     // Generate a new keypair for the peer.
-//!     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-//!
-//!     // Configuration for the node.
-//!     let config = Config::default();
-//!
-//!     // Build the Node on the global executor.
-//!     let node = Node::new(&key_pair, config, global_executor());
-//!
-//!     // Run the node.
-//!     node.run().await.expect("start the node");
-//!
-//!     // ....
-//!
-//!     // Shutdown the node.
-//!     node.shutdown().await;
-//! };
-//! ```
-//!
+#![doc = include_str!("../README.md")]
+
 mod bloom;
 mod codec;
 mod config;
