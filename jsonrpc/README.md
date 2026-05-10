@@ -1,15 +1,9 @@
 # karyon jsonrpc
 
 A fast and lightweight async implementation of [JSON-RPC
-2.0](https://www.jsonrpc.org/specification).
-
-## Features
-
-- Supports TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix transports
-- Uses `smol` as the default async runtime, with `tokio` support via feature flag
-- Multiple services (structs) on a single server
-- Pub/sub support (TCP, TLS, WS, WSS, Unix, QUIC, HTTP/3)
-- Custom JSON codec (stream transports only; HTTP bodies are always plain JSON)
+2.0](https://www.jsonrpc.org/specification). Runs over TCP, TLS,
+WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets,
+with pub/sub and custom JSON codecs.
 
 ## Install
 
@@ -21,13 +15,13 @@ $ cargo add karyon_jsonrpc
 
 | Feature | Description |
 |---------|-------------|
-| `tcp` | TCP transport (included by default) |
-| `tls` | TLS transport (implies `tcp`) |
-| `ws` | WebSocket transport (implies `tcp`) |
-| `quic` | QUIC transport |
-| `http` | HTTP/1.1 and HTTP/2 transport (implies `tcp`) |
-| `http3` | HTTP/3 transport (implies `http` and `quic`) |
-| `unix` | Unix socket transport (included by default) |
+| `tcp` | TCP (included by default) |
+| `tls` | TLS over TCP (implies `tcp`) |
+| `ws` | WebSocket over TCP (implies `tcp`) |
+| `quic` | QUIC |
+| `http` | HTTP/1.1 and HTTP/2 over TCP (implies `tcp`) |
+| `http3` | HTTP/3 over QUIC (implies `http` and `quic`) |
+| `unix` | Unix socket (included by default) |
 | `smol` | Use smol async runtime (default) |
 | `tokio` | Use tokio async runtime |
 
@@ -41,7 +35,7 @@ karyon_jsonrpc = { version = "1.0", features = ["http"] }
 # HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
 karyon_jsonrpc = { version = "1.0", features = ["http3"] }
 
-# All transports
+# All wire formats
 karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
 ```
 

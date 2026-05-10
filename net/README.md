@@ -1,6 +1,7 @@
 # karyon net
 
-A layered network transport library with composable middleware.
+A layered async networking stack over TCP, QUIC, UDP, and Unix
+sockets, with composable layers for TLS, WebSocket, and SOCKS5.
 
 ## Architecture
 

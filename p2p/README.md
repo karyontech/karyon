@@ -1,19 +1,15 @@
 # Karyon p2p
 
 A lightweight, extensible, and customizable peer-to-peer network stack.
+Multi-transport (TCP, TLS, QUIC) with priority-based endpoint
+selection, pluggable custom protocols via the `Protocol` trait,
+pluggable discovery with a built-in Kademlia DHT.
 
-## Features
+## Install
 
-- **Multi-transport**: TCP, TLS, and QUIC with priority-based
-  endpoint selection
-- **Pluggable custom protocols**: implement the `Protocol` trait, attach
-  it to the node, and it runs over every peer connection alongside the
-  built-in protocols
-- **Pluggable discovery**: trait-based discovery abstraction with a
-  built-in Kademlia DHT implementation
-- **Multi-address peers**: each peer advertises connection and discovery
-  addresses with protocol and priority
-- **Async runtime flexibility**: supports both smol (default) and tokio
+```bash
+$ cargo add karyon_p2p
+```
 
 ## Feature Flags
 

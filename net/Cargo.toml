@@ -1,6 +1,6 @@
 [package]
 name = "karyon_net"
-description = "A layered network transport library with composable middleware: TCP, TLS, WebSocket, QUIC, SOCKS5, Unix, UDP."
+description = "A layered async networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5."
 version = "1.0.0-alpha.5"
 edition.workspace = true
 homepage.workspace = true
