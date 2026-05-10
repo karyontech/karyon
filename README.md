@@ -12,22 +12,6 @@
 
 A set of composable Rust crates for networking, peer-to-peer systems, and decentralized software.
 
-`karyon_net` provides a layered async networking stack over TCP, QUIC,
-UDP, and Unix sockets, with composable layers for TLS, WebSocket, and
-SOCKS5.
-
-`karyon_jsonrpc` offers a lightweight async JSON-RPC 2.0 implementation
-running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3,
-and Unix sockets.
-
-`karyon_p2p` delivers an extensible peer-to-peer stack with pluggable
-discovery, negotiated protocols, secure peer identity, and multi-endpoint
-connectivity over TCP, TLS, and QUIC.
-
-`karyon_swarm` builds on the p2p layer with protocol-aware swarms and
-BitTorrent-style swarm-keyed discovery for scalable decentralized peer
-coordination.
-
 All crates support both smol (default) and tokio. To use tokio, disable
 default features and enable the `tokio` feature.
 
@@ -40,9 +24,9 @@ default features and enable the `tokio` feature.
 
 - **[karyon_core](./core)**: Core utilities and shared foundational components.
 - **[karyon_net](./net)**: Layered networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5.
-- **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, negotiated protocols, and multi-endpoint connectivity over TCP, TLS, and QUIC.
+- **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, pluggable custom protocols, and support for TCP, TLS, and QUIC.
 - **[karyon_swarm](./swarm)**: Builds on the p2p layer with protocol-aware swarms and BitTorrent-style swarm-keyed discovery for scalable decentralized peer coordination.
-- **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) library running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets.
+- **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets.
 - **[karyon_eventemitter](./utils/eventemitter)**: Lightweight asynchronous event emitter for strongly typed pub/sub communication.
 
 ## Docs
