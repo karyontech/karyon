@@ -1,7 +1,7 @@
 [package]
 name = "karyon_eventemitter"
 description = "A lightweight, asynchronous event emitter for Rust"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
