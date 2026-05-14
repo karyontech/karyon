@@ -5,7 +5,7 @@ use std::net::IpAddr;
 
 use parking_lot::RwLock;
 
-use rand::{rngs::OsRng, seq::SliceRandom};
+use rand::seq::IndexedRandom;
 
 use karyon_net::Addr;
 
@@ -280,7 +280,7 @@ impl RoutingTable {
         mine: &Bloom,
     ) -> Option<Entry> {
         let buckets = self.buckets.read();
-        for bucket in buckets.choose_multiple(&mut OsRng, buckets.len()) {
+        for bucket in buckets.choose_multiple(&mut rand::rng(), buckets.len()) {
             for entry in bucket.random_iter(bucket.len()) {
                 if entry.status & entry_flag == 0 {
                     continue;

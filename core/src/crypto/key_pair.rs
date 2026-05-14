@@ -1,5 +1,5 @@
 use ed25519_dalek::{Signer as _, Verifier as _};
-use rand::rngs::OsRng;
+use rand::RngCore;
 
 use crate::{error::Error, Result};
 
@@ -63,7 +63,13 @@ pub struct Ed25519KeyPair(ed25519_dalek::SigningKey);
 
 impl Ed25519KeyPair {
     fn generate() -> Self {
-        Self(ed25519_dalek::SigningKey::generate(&mut OsRng))
+        // XXX: switch back to SigningKey::generate(&mut OsRng) once
+        // ed25519-dalek 3.0 stable is released. 2.2 pins rand_core 0.6 which
+        // is incompatible with rand 0.9's rand_core 0.9, so we fill the secret
+        // bytes ourselves and load via from_bytes.
+        let mut secret = [0u8; 32];
+        rand::rng().fill_bytes(&mut secret);
+        Self(ed25519_dalek::SigningKey::from_bytes(&secret))
     }
 }
 

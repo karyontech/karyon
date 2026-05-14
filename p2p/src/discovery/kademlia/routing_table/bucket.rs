@@ -1,6 +1,6 @@
 use super::{Entry, Key};
 
-use rand::{rngs::OsRng, seq::SliceRandom};
+use rand::seq::IndexedRandom;
 
 /// BITFLAGS represent the status of an Entry within a bucket.
 pub type EntryStatusFlag = u16;
@@ -103,7 +103,7 @@ impl Bucket {
 
     /// Returns an iterator of entries in random order.
     pub fn random_iter(&self, amount: usize) -> impl Iterator<Item = &BucketEntry> {
-        self.entries.choose_multiple(&mut OsRng, amount)
+        self.entries.choose_multiple(&mut rand::rng(), amount)
     }
 
     /// Updates the status of an entry in the bucket identified by the given key.
