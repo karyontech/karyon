@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let body_str = r#"
             {
-                "model": "gpt-4.1",
+                "model": "gpt-5.5",
                 "input": "Tell me a bedtime story about a unicorn.",
                 "stream": true
             }

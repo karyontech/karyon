@@ -1,12 +1,14 @@
 [package]
 name = "karyon_async_rustls"
-description = "Internal crate for Karyon library."
-version.workspace = true
+description = "Async rustls wrapper supporting both smol and tokio runtimes for the Karyon library."
+version = "1.0.0-alpha.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
+keywords = ["tls", "rustls", "async", "smol", "tokio"]
+categories = ["network-programming", "asynchronous", "cryptography"]
 
 [features]
 default = ["smol"]

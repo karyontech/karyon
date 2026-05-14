@@ -1,59 +1,25 @@
-//! A lightweight, extensible, and customizable peer-to-peer (p2p) network stack.
-//!
-//! # Example
-//! ```
-//! use std::sync::Arc;
-//!
-//! use easy_parallel::Parallel;
-//! use smol::{future, Executor};
-//!
-//! use karyon_p2p::{Backend, Config, PeerID, keypair::{KeyPair, KeyPairType}};
-//!
-//! // Generate a new keypair for the peer
-//! let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-//!
-//! // Create the configuration for the backend.
-//! let mut config = Config::default();
-//!
-//! // Create a new Executor
-//! let ex = Arc::new(Executor::new());
-//!
-//! // Create a new Backend
-//! let backend = Backend::new(&key_pair, config, ex.clone().into());
-//!
-//! let task = async {
-//!     // Run the backend
-//!     backend.run()
-//!         .await
-//!         .expect("start the backend");
-//!
-//!     // ....
-//!
-//!     // Shutdown the backend
-//!     backend.shutdown().await;
-//! };
-//!
-//! future::block_on(ex.run(task));
-//!
-//! ```
-//!
-mod backend;
+#![doc = include_str!("../README.md")]
+
+mod bloom;
 mod codec;
 mod config;
 mod conn_queue;
-mod connection;
 mod connector;
 mod discovery;
 mod error;
+mod handshake;
 mod listener;
 mod message;
+mod node;
 mod peer;
 mod peer_pool;
 mod protocols;
-mod routing_table;
 mod slots;
 mod tls_config;
 mod version;
+
+/// Bincode encode/decode helpers.
+pub mod util;
 
 /// Responsible for network and system monitoring.
 /// [`Read More`](./monitor/struct.Monitor.html)
@@ -62,9 +28,13 @@ pub mod monitor;
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
 
-pub use backend::Backend;
+pub use bloom::{Bloom, BloomRef};
 pub use config::Config;
+pub use discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery};
+pub use message::{PeerAddr, Protocol};
+pub use node::Node;
 pub use peer::{Peer, PeerID};
+pub use peer_pool::{PeerEvent, PeerPool};
 pub use version::Version;
 
 pub mod endpoint {
@@ -76,6 +46,3 @@ pub mod keypair {
 }
 
 pub use error::{Error, Result};
-
-type ListenerRef = karyon_net::Listener<message::NetMsg, Error>;
-type ConnRef = karyon_net::Conn<message::NetMsg, Error>;

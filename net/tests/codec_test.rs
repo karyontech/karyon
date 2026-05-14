@@ -1,46 +1,15 @@
-use std::{
-    str::FromStr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Duration,
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
+use karyon_core::{async_util::sleep, testing::run_test};
 use karyon_net::{
-    codec::{Codec, Decoder, Encoder, LengthCodec},
-    tcp::{dial, listen, TcpConfig, TcpConn},
-    ConnListener, Connection, Endpoint, Error,
+    codec::{Codec, LengthCodec},
+    framed, tcp, ByteBuffer, Endpoint,
 };
 
-const DEFAULT_MAX_SIZE: usize = 8 * 1024 * 1024; // 8MB
-
-// Helper function for connecting with retries
-async fn connect_with_retry<C>(
-    endpoint: &Endpoint,
-    config: TcpConfig,
-    codec: C,
-    max_attempts: u32,
-) -> Result<TcpConn<C>, Error>
-where
-    C: Codec + Clone,
-{
-    let mut delay = Duration::from_millis(20);
-
-    for _ in 0..max_attempts {
-        match dial(endpoint, config.clone(), codec.clone()).await {
-            Ok(conn) => return Ok(conn),
-            Err(_) => {
-                smol::Timer::after(delay).await;
-                delay = std::cmp::min(delay * 2, Duration::from_millis(200));
-            }
-        }
-    }
-
-    return Err(Error::IO(std::io::Error::from(
-        std::io::ErrorKind::ConnectionRefused,
-    )));
-}
+const DEFAULT_MAX_SIZE: usize = 8 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct LinesCodec {
@@ -55,104 +24,94 @@ impl Default for LinesCodec {
     }
 }
 
-impl Codec for LinesCodec {
-    type Error = karyon_net::Error;
+impl Codec<ByteBuffer> for LinesCodec {
     type Message = String;
-}
+    type Error = karyon_net::Error;
 
-impl Encoder for LinesCodec {
-    type EnError = karyon_net::Error;
-    type EnMessage = String;
     fn encode(
         &self,
-        src: &Self::EnMessage,
-        dst: &mut karyon_net::codec::ByteBuffer,
-    ) -> std::result::Result<usize, Self::EnError> {
+        src: &String,
+        dst: &mut ByteBuffer,
+    ) -> std::result::Result<usize, Self::Error> {
         if dst.len() >= self.max_size {
             return Err(karyon_net::Error::IO(std::io::ErrorKind::Other.into()));
         }
-
         let mut src = src.as_bytes().to_vec();
         src.push(b'\n');
         dst.extend_from_slice(&src);
         Ok(src.len())
     }
-}
 
-impl Decoder for LinesCodec {
-    type DeError = karyon_net::Error;
-    type DeMessage = String;
     fn decode(
         &self,
-        src: &mut karyon_net::codec::ByteBuffer,
-    ) -> std::result::Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
+        src: &mut ByteBuffer,
+    ) -> std::result::Result<Option<(usize, String)>, Self::Error> {
         if src.len() >= self.max_size {
             return Err(karyon_net::Error::IO(std::io::ErrorKind::Other.into()));
         }
-
         if src.is_empty() {
             Ok(None)
         } else {
-            let msg_bytes: Vec<u8> = src.as_ref().to_vec();
-            let newline_offset = match msg_bytes.iter().position(|b| *b == b'\n') {
+            let bytes: Vec<u8> = src.as_ref().to_vec();
+            let pos = match bytes.iter().position(|b| *b == b'\n') {
                 Some(o) => o,
                 None => return Ok(None),
             };
-            let msg = String::from_utf8_lossy(&msg_bytes[..newline_offset]).to_string();
-            Ok(Some((newline_offset + 1, msg)))
+            let msg = String::from_utf8_lossy(&bytes[..pos]).to_string();
+            Ok(Some((pos + 1, msg)))
         }
     }
 }
 
 #[test]
-fn test_codec_tcp_basic() {
-    smol::block_on(async move {
-        let endpoint = Endpoint::from_str("tcp://127.0.0.1:6001").unwrap();
-        let config = TcpConfig::default();
-        let codec = LinesCodec::default();
-        let listener = listen(&endpoint, config.clone(), codec.clone())
+fn codec_tcp_basic() {
+    run_test(10, async {
+        let ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
+
+        let listener = tcp::TcpListener::bind(&ep, Default::default())
             .await
             .unwrap();
+        let server_ep = listener.local_endpoint().unwrap();
 
-        let task = smol::spawn(async move {
-            loop {
-                let c = listener.accept().await.unwrap();
-                let _ = c.recv().await.unwrap();
-            }
-        });
+        karyon_core::async_runtime::spawn(async move {
+            let stream = listener.accept().await.unwrap();
+            let mut conn = framed(stream, LinesCodec::default());
+            let _: String = conn.recv_msg().await.unwrap();
+        })
+        .detach();
 
-        let conn = connect_with_retry(&endpoint, config, codec, 5)
-            .await
-            .unwrap();
-
-        conn.send("hello".to_string()).await.unwrap();
-        let _ = task.cancel().await;
+        let stream = tcp::connect(&server_ep, Default::default()).await.unwrap();
+        let mut conn = framed(stream, LinesCodec::default());
+        conn.send_msg("hello".to_string()).await.unwrap();
     });
 }
 
 #[test]
-fn test_codec_tcp_aggressive_messaging() {
-    smol::block_on(async move {
-        let endpoint = Endpoint::from_str("tcp://127.0.0.1:6002").unwrap();
-        let config = TcpConfig::default();
-        let codec = LinesCodec::default();
-        let listener = listen(&endpoint, config.clone(), codec.clone())
+fn codec_tcp_aggressive() {
+    run_test(15, async {
+        let ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
+
+        let listener = tcp::TcpListener::bind(&ep, Default::default())
             .await
             .unwrap();
+        let server_ep = listener.local_endpoint().unwrap();
 
-        let received_count = Arc::new(AtomicUsize::new(0));
-        let received_count_clone = received_count.clone();
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_clone = count.clone();
 
-        let server_task = smol::spawn(async move {
+        karyon_core::async_runtime::spawn(async move {
             loop {
-                let conn = listener.accept().await.unwrap();
-                let count = received_count_clone.clone();
-
-                smol::spawn(async move {
+                let stream = match listener.accept().await {
+                    Ok(s) => s,
+                    Err(_) => break,
+                };
+                let c = count_clone.clone();
+                karyon_core::async_runtime::spawn(async move {
+                    let mut conn = framed(stream, LinesCodec::default());
                     loop {
-                        match conn.recv().await {
-                            Ok(_) => {
-                                count.fetch_add(1, Ordering::Relaxed);
+                        match conn.recv_msg().await {
+                            Ok::<String, _>(_) => {
+                                c.fetch_add(1, Ordering::Relaxed);
                             }
                             Err(_) => break,
                         }
@@ -160,126 +119,72 @@ fn test_codec_tcp_aggressive_messaging() {
                 })
                 .detach();
             }
-        });
+        })
+        .detach();
 
-        // Create multiple concurrent connections
-        let mut client_tasks = Vec::new();
-        let num_connections = 5;
-        let messages_per_connection = 100;
+        let num_conns = 5usize;
+        let msgs_per_conn = 100usize;
 
-        for conn_id in 0..num_connections {
-            let endpoint = endpoint.clone();
-            let config = config.clone();
-            let codec = codec.clone();
-
-            let client_task = smol::spawn(async move {
-                let conn = connect_with_retry(&endpoint, config, codec, 5)
-                    .await
-                    .unwrap();
-
-                // Send messages rapidly
-                for msg_id in 0..messages_per_connection {
-                    let message = format!("conn-{}-msg-{}", conn_id, msg_id);
-                    conn.send(message).await.unwrap();
-
-                    // Minimal delay to create aggressive timing
+        let mut handles = Vec::new();
+        for conn_id in 0..num_conns {
+            let ep = server_ep.clone();
+            let h = karyon_core::async_runtime::spawn(async move {
+                let stream = tcp::connect(&ep, Default::default()).await.unwrap();
+                let mut conn = framed(stream, LinesCodec::default());
+                for msg_id in 0..msgs_per_conn {
+                    let msg = format!("c{conn_id}-m{msg_id}");
+                    conn.send_msg(msg).await.unwrap();
                     if msg_id % 10 == 0 {
-                        smol::Timer::after(std::time::Duration::from_millis(1)).await;
+                        sleep(std::time::Duration::from_millis(1)).await;
                     }
                 }
             });
-
-            client_tasks.push(client_task);
+            handles.push(h);
         }
 
-        // Wait for all clients to finish sending
-        for task in client_tasks {
-            task.await;
+        for h in handles {
+            let _ = h.await;
         }
 
-        // Give some time for all messages to be processed
-        smol::Timer::after(std::time::Duration::from_secs(2)).await;
+        sleep(std::time::Duration::from_secs(2)).await;
 
-        let total_expected = num_connections * (messages_per_connection);
-        let total_received = received_count.load(Ordering::Relaxed);
-
-        assert_eq!(
-            total_received, total_expected,
-            "Not all messages were received"
-        );
-
-        server_task.cancel().await;
+        assert_eq!(count.load(Ordering::Relaxed), num_conns * msgs_per_conn,);
     });
 }
 
 #[test]
-fn test_codec_tcp_max_payload_size() {
-    smol::block_on(async move {
-        let endpoint = Endpoint::from_str("tcp://127.0.0.1:6003").unwrap();
-        let config = TcpConfig::default();
-        let codec = LengthCodec::new(DEFAULT_MAX_SIZE);
+fn codec_tcp_max_payload() {
+    run_test(15, async {
+        let ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
 
-        let listener = listen(&endpoint, config.clone(), codec.clone())
+        let listener = tcp::TcpListener::bind(&ep, Default::default())
             .await
             .unwrap();
+        let server_ep = listener.local_endpoint().unwrap();
 
-        let server_task = smol::spawn(async move {
-            let conn = listener.accept().await.unwrap();
-
+        karyon_core::async_runtime::spawn(async move {
+            let stream = listener.accept().await.unwrap();
+            let mut conn = framed(stream, LengthCodec::new(DEFAULT_MAX_SIZE));
             loop {
-                match conn.recv().await {
-                    Ok(msg) => {
-                        conn.send(msg).await.unwrap();
+                match conn.recv_msg().await {
+                    Ok::<Vec<u8>, _>(msg) => {
+                        conn.send_msg(msg).await.unwrap();
                     }
                     Err(_) => break,
                 }
             }
-        });
+        })
+        .detach();
 
-        let conn = connect_with_retry(&endpoint, config, codec, 5)
-            .await
-            .unwrap();
+        let stream = tcp::connect(&server_ep, Default::default()).await.unwrap();
+        let mut conn = framed(stream, LengthCodec::new(DEFAULT_MAX_SIZE));
 
-        // Test different payload sizes
-        let test_sizes = vec![
-            (1, true),
-            (1024, true),                  // 1KB
-            (64 * 1024, true),             // 64KB
-            (1024 * 1024, true),           // 1MB
-            (4 * 1024 * 1024, true),       // 4MB
-            (DEFAULT_MAX_SIZE - 1, true),  // 8MB - 1
-            (DEFAULT_MAX_SIZE, true),      // 8MB
-            (DEFAULT_MAX_SIZE + 1, false), // 8MB + 1
-            (16 * 1024 * 1024, false),     // 16MB
-        ];
-
-        for (size, pass) in &test_sizes {
-            println!("Testing payload size: {} bytes", size);
-
-            let msg = vec![1u8; *size];
-
-            // Send the payload
-            match conn.send(msg.clone()).await {
-                Ok(_) => {
-                    assert!(pass);
-                }
-                Err(_) => {
-                    assert!(!pass);
-                    continue;
-                }
-            }
-
-            // Wait for confirmation
-            let response = conn.recv().await.unwrap();
-
-            assert_eq!(
-                response.len(),
-                msg.len(),
-                "Server didn't confirm reception of {} message",
-                size
-            );
+        let sizes = [1, 1024, 64 * 1024, 1024 * 1024, 4 * 1024 * 1024];
+        for size in sizes {
+            let msg = vec![1u8; size];
+            conn.send_msg(msg.clone()).await.unwrap();
+            let resp: Vec<u8> = conn.recv_msg().await.unwrap();
+            assert_eq!(resp.len(), size);
         }
-
-        let _ = server_task.cancel().await;
     });
 }

@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Arc};
+use std::{future::Future, marker::PhantomData, sync::Arc};
 
 use log::{debug, error, info};
 
@@ -7,136 +7,161 @@ use karyon_core::{
     async_util::{TaskGroup, TaskResult},
     crypto::KeyPair,
 };
-
-use karyon_net::{tcp, tls, Endpoint};
-
-use crate::{
-    codec::NetMsgCodec,
-    message::NetMsg,
-    monitor::{ConnEvent, Monitor},
-    slots::ConnectionSlots,
-    tls_config::tls_server_config,
-    ConnRef, Error, ListenerRef, Result,
+use karyon_net::{
+    codec::Codec,
+    framed,
+    tcp::TcpListener,
+    tls::{ServerTlsConfig, TlsListener},
+    ByteBuffer, ByteStream, Endpoint, FramedConn,
 };
 
-/// Responsible for creating inbound connections with other peers.
-pub struct Listener {
-    /// Identity Key pair
-    key_pair: KeyPair,
+use crate::{
+    codec::PeerNetMsgCodec,
+    conn_queue::ConnQueue,
+    monitor::{ConnectionKind, Monitor},
+    peer::ConnDirection,
+    slots::ConnectionSlots,
+    tls_config::{peer_id_from_certs, tls_server_config},
+    Error, Result,
+};
 
-    /// Managing spawned tasks.
-    task_group: TaskGroup,
-
-    /// Manages available inbound slots.
-    connection_slots: Arc<ConnectionSlots>,
-
-    /// Enables secure connection.
-    enable_tls: bool,
-
-    /// Responsible for network and system monitoring.
-    monitor: Arc<Monitor>,
+/// Listener for byte-stream transports (TCP, TLS). Each `accept` yields
+/// a single `Box<dyn ByteStream>`. QUIC uses a separate `StreamMux` path.
+enum StreamListener {
+    Tcp(TcpListener),
+    Tls(Box<TlsListener>),
 }
 
-impl Listener {
-    /// Creates a new Listener
+impl StreamListener {
+    async fn accept(&self) -> Result<Box<dyn ByteStream>> {
+        match self {
+            Self::Tcp(l) => Ok(l.accept().await?),
+            Self::Tls(l) => Ok(l.accept().await?),
+        }
+    }
+
+    fn local_endpoint(&self) -> Result<Endpoint> {
+        match self {
+            Self::Tcp(l) => Ok(l.local_endpoint()?),
+            Self::Tls(l) => Ok(l.local_endpoint()?),
+        }
+    }
+}
+
+#[cfg(feature = "quic")]
+use karyon_net::{quic, StreamMux};
+
+/// Creates inbound connections with other peers. Generic over the
+/// codec applied to the framed accepted streams so the same accept
+/// machinery serves the peer data-plane (`PeerNetMsgCodec`) and the
+/// kademlia lookup-plane (`KadNetMsgCodec`).
+pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
+    key_pair: KeyPair,
+    task_group: TaskGroup,
+    connection_slots: Arc<ConnectionSlots>,
+    conn_queue: Option<Arc<ConnQueue>>,
+    monitor: Arc<Monitor>,
+    _codec: PhantomData<C>,
+}
+
+impl<C> Listener<C>
+where
+    C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
+{
+    /// Create a new Listener (no auto-queue; use `start_with_callback`).
     pub fn new(
         key_pair: &KeyPair,
         connection_slots: Arc<ConnectionSlots>,
-        enable_tls: bool,
         monitor: Arc<Monitor>,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots,
+            conn_queue: None,
             task_group: TaskGroup::with_executor(ex),
-            enable_tls,
             monitor,
+            _codec: PhantomData,
         })
     }
 
-    /// Starts a listener on the given `endpoint`. For each incoming connection
-    /// that is accepted, it invokes the provided `callback`, and pass the
-    /// connection to the callback.
-    ///
-    /// Returns the resloved listening endpoint.
-    pub async fn start<Fut>(
+    /// Start with a user-provided callback for each connection.
+    pub async fn start_with_callback<Fut>(
         self: &Arc<Self>,
         endpoint: Endpoint,
-        // https://github.com/rust-lang/rfcs/pull/2132
-        callback: impl FnOnce(ConnRef) -> Fut + Clone + Send + 'static,
+        callback: impl FnOnce(FramedConn<C>) -> Fut + Clone + Send + 'static,
     ) -> Result<Endpoint>
     where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
         let listener = match self.listen(&endpoint).await {
-            Ok(listener) => {
+            Ok(l) => {
                 self.monitor
-                    .notify(ConnEvent::Listening(endpoint.clone()))
+                    .notify(ConnectionKind::Listening(endpoint.clone()))
                     .await;
-                listener
+                l
             }
             Err(err) => {
                 error!("Failed to listen on {endpoint}: {err}");
-                self.monitor.notify(ConnEvent::ListenFailed(endpoint)).await;
+                self.monitor
+                    .notify(ConnectionKind::ListenFailed(endpoint))
+                    .await;
                 return Err(err);
             }
         };
 
-        let resolved_endpoint = listener.local_endpoint()?;
-
-        info!("Start listening on {resolved_endpoint}");
+        let resolved = listener.local_endpoint()?;
+        info!("Start listening on {resolved}");
 
         self.task_group.spawn(
             {
                 let this = self.clone();
-                async move { this.listen_loop(listener, callback).await }
+                async move { this.listen_loop_callback(listener, callback).await }
             },
-            |_| async {},
+            |res: TaskResult<()>| async move {
+                debug!("Listener callback loop ended: {res}");
+            },
         );
-        Ok(resolved_endpoint)
+        Ok(resolved)
     }
 
-    /// Shuts down the listener
     pub async fn shutdown(&self) {
         self.task_group.cancel().await;
     }
 
-    async fn listen_loop<Fut>(
+    /// Accept loop (callback mode).
+    async fn listen_loop_callback<Fut>(
         self: Arc<Self>,
-        listener: karyon_net::Listener<NetMsg, Error>,
-        callback: impl FnOnce(ConnRef) -> Fut + Clone + Send + 'static,
+        listener: StreamListener,
+        callback: impl FnOnce(FramedConn<C>) -> Fut + Clone + Send + 'static,
     ) where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
         loop {
-            // Wait for an available inbound slot.
             self.connection_slots.wait_for_slot().await;
             let result = listener.accept().await;
 
-            let (conn, endpoint) = match result {
-                Ok(c) => {
-                    let endpoint = match c.peer_endpoint() {
-                        Ok(ep) => ep,
-                        Err(err) => {
-                            self.monitor.notify(ConnEvent::AcceptFailed).await;
-                            error!("Failed to accept a new connection: {err}");
-                            continue;
-                        }
-                    };
-
-                    self.monitor
-                        .notify(ConnEvent::Accepted(endpoint.clone()))
-                        .await;
-                    (c, endpoint)
-                }
+            let conn: FramedConn<C> = match result {
+                Ok(stream) => framed(stream, C::default()),
                 Err(err) => {
-                    error!("Failed to accept a new connection: {err}");
-                    self.monitor.notify(ConnEvent::AcceptFailed).await;
+                    error!("Failed to accept connection: {err}");
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
                     continue;
                 }
             };
 
+            let endpoint = match conn.peer_endpoint() {
+                Some(ep) => ep,
+                None => {
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    error!("Failed to get peer endpoint");
+                    continue;
+                }
+            };
+
+            self.monitor
+                .notify(ConnectionKind::Accepted(endpoint.clone()))
+                .await;
             self.connection_slots.add();
 
             let on_disconnect = {
@@ -145,7 +170,9 @@ impl Listener {
                     if let TaskResult::Completed(Err(err)) = res {
                         debug!("Inbound connection dropped: {err}");
                     }
-                    this.monitor.notify(ConnEvent::Disconnected(endpoint)).await;
+                    this.monitor
+                        .notify(ConnectionKind::Disconnected(endpoint))
+                        .await;
                     this.connection_slots.remove().await;
                 }
             };
@@ -155,25 +182,262 @@ impl Listener {
         }
     }
 
-    async fn listen(&self, endpoint: &Endpoint) -> Result<ListenerRef> {
-        if self.enable_tls {
-            if !endpoint.is_tcp() && !endpoint.is_tls() {
-                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
+    /// Create a listener for TCP/TLS.
+    async fn listen(&self, endpoint: &Endpoint) -> Result<StreamListener> {
+        match endpoint {
+            Endpoint::Tcp(..) => {
+                let listener = TcpListener::bind(endpoint, Default::default()).await?;
+                Ok(StreamListener::Tcp(listener))
             }
+            Endpoint::Tls(..) => {
+                let tls_config = ServerTlsConfig {
+                    server_config: tls_server_config(&self.key_pair)?,
+                };
+                let tcp_listener = TcpListener::bind(endpoint, Default::default()).await?;
+                let listener = TlsListener::new(tcp_listener, tls_config);
+                Ok(StreamListener::Tls(Box::new(listener)))
+            }
+            _ => Err(Error::UnsupportedEndpoint(endpoint.to_string())),
+        }
+    }
+}
 
-            let tls_config = tls::ServerTlsConfig {
-                tcp_config: Default::default(),
-                server_config: tls_server_config(&self.key_pair)?,
+// Auto-queue paths only live on the peer-plane Listener. The kademlia
+// lookup plane uses `start_with_callback` and handles each connection
+// inline (no ConnQueue / handshake pipeline).
+impl Listener<PeerNetMsgCodec> {
+    /// Create a new Listener with a ConnQueue (auto-queue mode).
+    pub fn new_with_queue(
+        key_pair: &KeyPair,
+        connection_slots: Arc<ConnectionSlots>,
+        conn_queue: Arc<ConnQueue>,
+        monitor: Arc<Monitor>,
+        ex: Executor,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            key_pair: key_pair.clone(),
+            connection_slots,
+            conn_queue: Some(conn_queue),
+            task_group: TaskGroup::with_executor(ex),
+            monitor,
+            _codec: PhantomData,
+        })
+    }
+
+    /// Start listening (auto-queue mode). Returns the resolved endpoint.
+    pub async fn start(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
+        #[cfg(feature = "quic")]
+        if endpoint.is_quic() {
+            return self.start_quic(endpoint).await;
+        }
+
+        let listener = match self.listen(&endpoint).await {
+            Ok(l) => {
+                self.monitor
+                    .notify(ConnectionKind::Listening(endpoint.clone()))
+                    .await;
+                l
+            }
+            Err(err) => {
+                error!("Failed to listen on {endpoint}: {err}");
+                self.monitor
+                    .notify(ConnectionKind::ListenFailed(endpoint))
+                    .await;
+                return Err(err);
+            }
+        };
+
+        let resolved = listener.local_endpoint()?;
+        info!("Start listening on {resolved}");
+
+        self.task_group.spawn(
+            {
+                let this = self.clone();
+                async move { this.listen_loop(listener).await }
+            },
+            |_| async {},
+        );
+        Ok(resolved)
+    }
+
+    /// Accept loop (auto-queue mode).
+    async fn listen_loop(self: Arc<Self>, listener: StreamListener) {
+        let conn_queue = self
+            .conn_queue
+            .as_ref()
+            .expect("listen_loop requires ConnQueue")
+            .clone();
+
+        loop {
+            self.connection_slots.wait_for_slot().await;
+            let result = listener.accept().await;
+
+            let (conn, vpid) = match result {
+                Ok(stream) => {
+                    // Extract peer cert (TLS) before framing consumes the stream.
+                    let vpid = stream
+                        .peer_certificates()
+                        .as_deref()
+                        .and_then(peer_id_from_certs);
+                    let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
+                    (conn, vpid)
+                }
+                Err(err) => {
+                    error!("Failed to accept connection: {err}");
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    continue;
+                }
             };
-            let l = tls::listen(endpoint, tls_config, NetMsgCodec::new()).await?;
-            Ok(Box::new(l))
-        } else {
-            if !endpoint.is_tcp() {
-                return Err(Error::UnsupportedEndpoint(endpoint.to_string()));
-            }
 
-            let l = tcp::listen(endpoint, tcp::TcpConfig::default(), NetMsgCodec::new()).await?;
-            Ok(Box::new(l))
+            let endpoint = match conn.peer_endpoint() {
+                Some(ep) => ep,
+                None => {
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    error!("Failed to get peer endpoint");
+                    continue;
+                }
+            };
+
+            self.monitor
+                .notify(ConnectionKind::Accepted(endpoint.clone()))
+                .await;
+            self.connection_slots.add();
+
+            let on_disconnect = {
+                let this = self.clone();
+                |res: TaskResult<Result<()>>| async move {
+                    if let TaskResult::Completed(Err(err)) = res {
+                        debug!("Inbound connection dropped: {err}");
+                    }
+                    this.monitor
+                        .notify(ConnectionKind::Disconnected(endpoint))
+                        .await;
+                    this.connection_slots.remove().await;
+                }
+            };
+
+            let cq = conn_queue.clone();
+            self.task_group.spawn(
+                async move {
+                    cq.handle(conn, ConnDirection::Inbound, vpid).await?;
+                    Ok(())
+                },
+                on_disconnect,
+            );
+        }
+    }
+
+    /// QUIC listener.
+    #[cfg(feature = "quic")]
+    async fn start_quic(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
+        let rustls_config = tls_server_config(&self.key_pair)?;
+        let server_config = quic::ServerQuicConfig::from_rustls(rustls_config);
+
+        let quic_endpoint = match quic::QuicEndpoint::listen(&endpoint, server_config).await {
+            Ok(ep) => {
+                self.monitor
+                    .notify(ConnectionKind::Listening(endpoint.clone()))
+                    .await;
+                ep
+            }
+            Err(err) => {
+                error!("Failed to listen on {endpoint}: {err}");
+                self.monitor
+                    .notify(ConnectionKind::ListenFailed(endpoint))
+                    .await;
+                return Err(err.into());
+            }
+        };
+
+        let resolved: Endpoint = quic_endpoint.local_endpoint().map_err(Error::from)?;
+        info!("Start listening on {resolved}");
+
+        self.task_group.spawn(
+            {
+                let this = self.clone();
+                async move { this.listen_loop_quic(quic_endpoint).await }
+            },
+            |res: TaskResult<()>| async move {
+                debug!("QUIC listen loop ended: {res}");
+            },
+        );
+
+        Ok(resolved)
+    }
+
+    /// QUIC accept loop.
+    #[cfg(feature = "quic")]
+    async fn listen_loop_quic(self: Arc<Self>, quic_endpoint: quic::QuicEndpoint) {
+        loop {
+            self.connection_slots.wait_for_slot().await;
+
+            let quic_conn = match quic_endpoint.accept().await {
+                Ok(c) => c,
+                Err(err) => {
+                    error!("Failed to accept QUIC conn: {err}");
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    continue;
+                }
+            };
+
+            let peer_ep = match quic_conn.peer_endpoint() {
+                Ok(ep) => ep,
+                Err(err) => {
+                    error!("Failed to get peer endpoint: {err}");
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    continue;
+                }
+            };
+
+            self.monitor
+                .notify(ConnectionKind::Accepted(peer_ep.clone()))
+                .await;
+
+            let vpid = quic_conn
+                .peer_certificates()
+                .as_deref()
+                .and_then(peer_id_from_certs);
+
+            let stream = match quic_conn.accept_stream().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to accept handshake stream: {err}");
+                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
+                    continue;
+                }
+            };
+
+            let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
+
+            self.connection_slots.add();
+
+            let on_disconnect = {
+                let this = self.clone();
+                |res: TaskResult<Result<()>>| async move {
+                    if let TaskResult::Completed(Err(err)) = res {
+                        debug!("Inbound QUIC conn dropped: {err}");
+                    }
+                    this.monitor
+                        .notify(ConnectionKind::Disconnected(peer_ep))
+                        .await;
+                    this.connection_slots.remove().await;
+                }
+            };
+
+            let conn_queue = self
+                .conn_queue
+                .as_ref()
+                .expect("QUIC listener requires ConnQueue")
+                .clone();
+            self.task_group.spawn(
+                async move {
+                    conn_queue
+                        .handle_quic(conn, quic_conn, ConnDirection::Inbound, vpid)
+                        .await?;
+                    Ok(())
+                },
+                on_disconnect,
+            );
         }
     }
 }

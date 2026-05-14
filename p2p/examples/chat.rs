@@ -1,19 +1,26 @@
-mod shared;
-
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use async_trait::async_trait;
+use blocking::unblock;
 use clap::Parser;
 use smol::{channel, Executor};
 
+use karyon_core::testing::run_executor;
 use karyon_p2p::{
-    endpoint::{Endpoint, Port},
+    endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
-    protocol::{Protocol, ProtocolEvent, ProtocolID},
-    Backend, Config, Error, Peer, Version,
+    protocol::{PeerConn, Protocol, ProtocolID},
+    Config, Error, Node, Version,
 };
 
-use shared::{read_line_async, run_executor};
+async fn read_line_async() -> Result<String, io::Error> {
+    unblock(|| {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        Ok(input)
+    })
+    .await
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -26,13 +33,13 @@ struct Cli {
     #[arg(short)]
     peer_endpoints: Vec<Endpoint>,
 
-    /// Optional endpoint for accepting incoming connections.
+    /// Endpoints for accepting incoming connections.
     #[arg(short)]
-    listen_endpoint: Option<Endpoint>,
+    listen_endpoints: Vec<Endpoint>,
 
-    /// Optional TCP/UDP port for the discovery service.
+    /// Discovery endpoints (e.g. tcp://0.0.0.0:7000 udp://0.0.0.0:7000).
     #[arg(short)]
-    discovery_port: Option<Port>,
+    discovery_endpoints: Vec<Endpoint>,
 
     /// Username
     #[arg(long)]
@@ -41,12 +48,12 @@ struct Cli {
 
 pub struct ChatProtocol {
     username: String,
-    peer: Arc<Peer>,
+    peer: PeerConn,
     executor: Arc<Executor<'static>>,
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: Arc<Peer>, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
+    fn new(username: &str, peer: PeerConn, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
         Arc::new(Self {
             peer,
             username: username.to_string(),
@@ -64,14 +71,20 @@ impl Protocol for ChatProtocol {
                 loop {
                     let input = read_line_async().await.expect("Read line from stdin");
                     let msg = format!("> {}: {}", this.username, input.trim());
-                    this.peer.broadcast(&Self::id(), &msg).await;
+                    this.peer.broadcast(msg.into_bytes()).await;
                 }
             }
         });
 
-        while let ProtocolEvent::Message(msg) = self.peer.recv::<Self>().await? {
-            let msg = String::from_utf8(msg).expect("Convert received bytes to string");
-            println!("{msg}");
+        loop {
+            match self.peer.recv().await {
+                Ok(bytes) => {
+                    let msg = String::from_utf8(bytes).expect("Convert received bytes to string");
+                    println!("{msg}");
+                }
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
+            }
         }
 
         task.cancel().await;
@@ -94,21 +107,20 @@ fn main() {
     // Create a PeerID based on the username.
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
-    // Create the configuration for the backend.
+    // Create the configuration for the node.
     let config = Config {
-        listen_endpoint: cli.listen_endpoint,
+        listen_endpoints: cli.listen_endpoints,
+        discovery_endpoints: cli.discovery_endpoints,
         peer_endpoints: cli.peer_endpoints,
         bootstrap_peers: cli.bootstrap_peers,
-        discovery_port: cli.discovery_port.unwrap_or(0),
-        enable_tls: true,
         ..Default::default()
     };
 
     // Create a new Executor
     let ex = Arc::new(Executor::new());
 
-    // Create a new Backend
-    let backend = Backend::new(&key_pair, config, ex.clone().into());
+    // Create a new Node
+    let node = Node::new(&key_pair, config, ex.clone().into());
 
     let (ctrlc_s, ctrlc_r) = channel::unbounded();
     let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
@@ -121,20 +133,19 @@ fn main() {
                 let username = cli.username;
 
                 // Attach the ChatProtocol
-                let c = move |peer| ChatProtocol::new(&username, peer, ex.clone());
-                backend
-                    .attach_protocol::<ChatProtocol>(c)
+                let c = move |peer| Ok(ChatProtocol::new(&username, peer, ex.clone()));
+                node.attach_protocol::<ChatProtocol>(c)
                     .await
-                    .expect("Attach chat protocol to the p2p backend");
+                    .expect("Attach chat protocol to the p2p node");
 
-                // Run the backend
-                backend.run().await.expect("Run the backend");
+                // Run the node
+                node.run().await.expect("Run the node");
 
                 // Wait for ctrlc signal
                 ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
-                // Shutdown the backend
-                backend.shutdown().await;
+                // Shutdown the node
+                node.shutdown().await;
             }
         },
         ex,

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Weak};
 
-use karyon_core::{async_runtime::lock::Mutex, util::random_32};
+use karyon_core::{async_runtime::lock::RwLock, util::random_32};
 
 use crate::{
     error::{Error, Result},
@@ -18,7 +18,7 @@ pub struct NewNotification {
 /// Represents a new subscription
 #[derive(Clone)]
 pub struct Subscription {
-    pub id: SubscriptionID,
+    id: SubscriptionID,
     parent: Weak<Channel>,
     chan: async_channel::Sender<NewNotification>,
     method: String,
@@ -40,6 +40,11 @@ impl Subscription {
         }
     }
 
+    /// Returns the subscription id.
+    pub fn id(&self) -> SubscriptionID {
+        self.id
+    }
+
     /// Sends a notification to the subscriber
     pub async fn notify(&self, res: serde_json::Value) -> Result<()> {
         if self.still_subscribed().await {
@@ -58,7 +63,7 @@ impl Subscription {
     /// Checks from the partent if this subscription is still subscribed
     async fn still_subscribed(&self) -> bool {
         match self.parent.upgrade() {
-            Some(parent) => parent.subs.lock().await.contains(&self.id),
+            Some(parent) => parent.subs.read().await.contains(&self.id),
             None => false,
         }
     }
@@ -67,7 +72,7 @@ impl Subscription {
 /// Represents a connection channel for creating/removing subscriptions
 pub struct Channel {
     chan: async_channel::Sender<NewNotification>,
-    subs: Mutex<HashSet<SubscriptionID>>,
+    subs: RwLock<HashSet<SubscriptionID>>,
 }
 
 impl Channel {
@@ -75,7 +80,7 @@ impl Channel {
     pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> Arc<Channel> {
         Arc::new(Self {
             chan,
-            subs: Mutex::new(HashSet::new()),
+            subs: RwLock::new(HashSet::new()),
         })
     }
 
@@ -86,7 +91,7 @@ impl Channel {
         sub_id: Option<SubscriptionID>,
     ) -> Result<Subscription> {
         let sub_id = sub_id.unwrap_or_else(random_32);
-        if !self.subs.lock().await.insert(sub_id) {
+        if !self.subs.write().await.insert(sub_id) {
             return Err(Error::SubscriptionDuplicated(sub_id.to_string()));
         }
 
@@ -96,7 +101,7 @@ impl Channel {
 
     /// Removes a [`Subscription`]
     pub async fn remove_subscription(&self, id: &SubscriptionID) -> Result<()> {
-        let mut subs = self.subs.lock().await;
+        let mut subs = self.subs.write().await;
         if !subs.remove(id) {
             return Err(Error::SubscriptionNotFound(id.to_string()));
         }

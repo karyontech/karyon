@@ -1,137 +1,133 @@
-use std::collections::HashMap;
-
 use bincode::{Decode, Encode};
 
-use karyon_core::util::encode;
-use karyon_net::{Addr, Port};
+use karyon_net::{Addr, Endpoint, Port};
 
-use crate::{protocol::ProtocolID, routing_table::Entry, version::VersionInt, PeerID, Result};
+use crate::{protocol::ProtocolID, util::encode, Result};
 
-/// Defines the main message in the karyon p2p network.
-///
-/// This message structure consists of a header and payload, where the header
-/// typically contains essential information about the message, and the payload
-/// contains the actual data being transmitted.
+/// Transport protocol used by a peer address.
+#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]
+pub enum Protocol {
+    Tcp,
+    Tls,
+    Udp,
+    Quic,
+}
+
+/// A peer address with protocol and priority.
+/// Lower priority number means higher preference.
+#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]
+pub struct PeerAddr {
+    pub addr: Addr,
+    pub port: Port,
+    pub protocol: Protocol,
+    pub priority: u16,
+}
+
+impl PeerAddr {
+    /// Convert this PeerAddr to a network Endpoint.
+    pub fn to_endpoint(&self) -> Endpoint {
+        match self.protocol {
+            Protocol::Tcp => Endpoint::Tcp(self.addr.clone(), self.port),
+            Protocol::Tls => Endpoint::Tls(self.addr.clone(), self.port),
+            Protocol::Udp => Endpoint::Udp(self.addr.clone(), self.port),
+            Protocol::Quic => Endpoint::Quic(self.addr.clone(), self.port),
+        }
+    }
+
+    /// Create a PeerAddr from an Endpoint with a given priority.
+    pub fn from_endpoint(endpoint: &Endpoint, priority: u16) -> Option<Self> {
+        match endpoint {
+            Endpoint::Tcp(addr, port) => Some(PeerAddr {
+                addr: addr.clone(),
+                port: *port,
+                protocol: Protocol::Tcp,
+                priority,
+            }),
+            Endpoint::Tls(addr, port) => Some(PeerAddr {
+                addr: addr.clone(),
+                port: *port,
+                protocol: Protocol::Tls,
+                priority,
+            }),
+            Endpoint::Udp(addr, port) => Some(PeerAddr {
+                addr: addr.clone(),
+                port: *port,
+                protocol: Protocol::Udp,
+                priority,
+            }),
+            Endpoint::Quic(addr, port) => Some(PeerAddr {
+                addr: addr.clone(),
+                port: *port,
+                protocol: Protocol::Quic,
+                priority,
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// Pick the best endpoint from a list of peer addresses that matches
+/// one of the supported protocols. Returns the highest-priority (lowest number)
+/// matching endpoint.
+pub fn pick_endpoint(addrs: &[PeerAddr], supported: &[Protocol]) -> Option<Endpoint> {
+    addrs
+        .iter()
+        .filter(|a| supported.contains(&a.protocol))
+        .min_by_key(|a| a.priority)
+        .map(|a| a.to_endpoint())
+}
+
+/// First message on any new QUIC stream - identifies which protocol it serves.
+#[cfg(feature = "quic")]
 #[derive(Decode, Encode, Debug, Clone)]
-pub struct NetMsg {
-    pub header: NetMsgHeader,
+pub struct StreamInit {
+    pub protocol_id: ProtocolID,
+}
+
+/// Wire envelope for the peer data-plane (the persistent FramedConn
+/// between two Nodes after the data-plane handshake).
+#[derive(Decode, Encode, Debug, Clone)]
+pub struct PeerNetMsg {
+    pub header: PeerNetMsgHeader,
     pub payload: Vec<u8>,
 }
 
-impl NetMsg {
-    pub fn new<T: Encode>(command: NetMsgCmd, t: T) -> Result<Self> {
+impl PeerNetMsg {
+    pub fn new<T: Encode>(command: PeerNetCmd, t: T) -> Result<Self> {
         Ok(Self {
-            header: NetMsgHeader { command },
+            header: PeerNetMsgHeader { command },
             payload: encode(&t)?,
         })
     }
 }
 
-/// Represents the header of a message.
 #[derive(Decode, Encode, Debug, Clone)]
-pub struct NetMsgHeader {
-    pub command: NetMsgCmd,
+pub struct PeerNetMsgHeader {
+    pub command: PeerNetCmd,
 }
 
-/// Defines message commands.
+/// Commands valid on the peer data-plane wire.
 #[derive(Decode, Encode, Debug, Clone)]
 #[repr(u8)]
-pub enum NetMsgCmd {
+pub enum PeerNetCmd {
+    /// Initial version-exchange message in the handshake.
     Version,
+    /// Acknowledgement for a Version message.
     Verack,
+    /// Wraps an application protocol payload (`ProtocolMsg`).
     Protocol,
+    /// Graceful close marker.
     Shutdown,
-
-    // The following commands are used during the lookup process.
-    Ping,
-    Pong,
-    FindPeer,
-    Peer,
-    Peers,
 }
 
-#[derive(Decode, Encode, Debug, Clone)]
-pub enum RefreshMsg {
-    Ping([u8; 32]),
-    Pong([u8; 32]),
-}
-
-/// Defines a message related to a specific protocol.
+/// Wraps an application protocol's payload. Sent inside a `PeerNetMsg`
+/// with `PeerNetCmd::Protocol`.
 #[derive(Decode, Encode, Debug, Clone)]
 pub struct ProtocolMsg {
     pub protocol_id: ProtocolID,
     pub payload: Vec<u8>,
 }
 
-/// Version message, providing information about a peer's capabilities.
-#[derive(Decode, Encode, Debug, Clone)]
-pub struct VerMsg {
-    pub peer_id: PeerID,
-    pub version: VersionInt,
-    pub protocols: HashMap<ProtocolID, VersionInt>,
-}
-
-/// VerAck message acknowledges the receipt of a Version message. The message
-/// consists of the peer ID and an acknowledgment boolean value indicating
-/// whether the version is accepted.
-#[derive(Decode, Encode, Debug, Clone)]
-pub struct VerAckMsg {
-    pub peer_id: PeerID,
-    pub ack: bool,
-}
-
-/// Shutdown message.
+/// Graceful close payload. Used by both wire surfaces.
 #[derive(Decode, Encode, Debug, Clone)]
 pub struct ShutdownMsg(pub u8);
-
-/// Ping message with a nonce and version information.
-#[derive(Decode, Encode, Debug, Clone)]
-pub struct PingMsg {
-    pub nonce: [u8; 32],
-    pub version: VersionInt,
-}
-
-/// Ping message with a nonce.
-#[derive(Decode, Encode, Debug)]
-pub struct PongMsg(pub [u8; 32]);
-
-/// FindPeer message used to find a specific peer.
-#[derive(Decode, Encode, Debug)]
-pub struct FindPeerMsg(pub PeerID);
-
-/// PeerMsg containing information about a peer.
-#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]
-pub struct PeerMsg {
-    pub peer_id: PeerID,
-    pub addr: Addr,
-    pub port: Port,
-    pub discovery_port: Port,
-}
-
-/// PeersMsg a list of `PeerMsg`.
-#[derive(Decode, Encode, Debug)]
-pub struct PeersMsg {
-    pub peers: Vec<PeerMsg>,
-}
-
-impl From<Entry> for PeerMsg {
-    fn from(entry: Entry) -> PeerMsg {
-        PeerMsg {
-            peer_id: PeerID(entry.key),
-            addr: entry.addr,
-            port: entry.port,
-            discovery_port: entry.discovery_port,
-        }
-    }
-}
-
-impl From<PeerMsg> for Entry {
-    fn from(peer: PeerMsg) -> Entry {
-        Entry {
-            key: peer.peer_id.0,
-            addr: peer.addr,
-            port: peer.port,
-            discovery_port: peer.discovery_port,
-        }
-    }
-}

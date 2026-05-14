@@ -8,44 +8,35 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
-    #[error("Unsupported Protocol Error: {0}")]
+    #[error("Unsupported Protocol: {0}")]
     UnsupportedProtocol(String),
 
     #[error("Unsupported Endpoint: {0}")]
     UnsupportedEndpoint(String),
 
-    #[error("PeerID Try From PublicKey Error")]
+    #[error("Invalid Endpoint: {0}")]
+    InvalidEndpoint(String),
+
+    #[error("PeerID Try From PublicKey")]
     PeerIDTryFromPublicKey,
 
-    #[error("PeerID Try From String Error")]
+    #[error("PeerID Try From String")]
     PeerIDTryFromString,
 
-    #[error("Invalid Message Error: {0}")]
+    #[error("Invalid Message: {0}")]
     InvalidMsg(String),
 
     #[error("Incompatible Peer")]
     IncompatiblePeer,
 
-    #[error("Timeout Error")]
+    #[error("Incompatible Version: {0}")]
+    IncompatibleVersion(String),
+
+    #[error("Timeout")]
     Timeout,
-
-    #[error(transparent)]
-    ParseIntError(#[from] std::num::ParseIntError),
-
-    #[error(transparent)]
-    ParseIntError2(#[from] base64::DecodeError),
-
-    #[error(transparent)]
-    ParseFloatError(#[from] std::num::ParseFloatError),
-
-    #[error(transparent)]
-    SemverError(#[from] semver::Error),
 
     #[error("Parse Error: {0}")]
     ParseError(String),
-
-    #[error("Incompatible Version Error: {0}")]
-    IncompatibleVersion(String),
 
     #[error("Config Error: {0}")]
     Config(String),
@@ -56,40 +47,61 @@ pub enum Error {
     #[error("Invalid Pong Msg")]
     InvalidPongMsg,
 
-    #[error("Discovery error: {0}")]
-    Discovery(String),
-
-    #[error("Lookup error: {0}")]
-    Lookup(String),
-
     #[error("Peer Already Connected")]
     PeerAlreadyConnected,
 
-    #[error("Yasna Error: {0}")]
-    Yasna(#[from] yasna::ASN1Error),
+    #[error("Peer Not Found: {0}")]
+    PeerNotFound(String),
 
-    #[error("X509 Parser Error: {0}")]
-    X509Parser(#[from] x509_parser::error::X509Error),
+    #[error("Discovery Error: {0}")]
+    Discovery(String),
 
-    #[error("Rcgen Error: {0}")]
-    Rcgen(#[from] rcgen::Error),
-
-    #[cfg(feature = "smol")]
-    #[error("Tls Error: {0}")]
-    Rustls(#[from] futures_rustls::rustls::Error),
-
-    #[cfg(feature = "tokio")]
-    #[error("Tls Error: {0}")]
-    Rustls(#[from] tokio_rustls::rustls::Error),
-
-    #[error("Invalid DNS Name: {0}")]
-    InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
+    #[error("Lookup Error: {0}")]
+    Lookup(String),
 
     #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
     #[error(transparent)]
     ChannelRecv(#[from] async_channel::RecvError),
+
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    Base64Decode(#[from] base64::DecodeError),
+
+    #[error(transparent)]
+    BincodeDecode(#[from] bincode::error::DecodeError),
+
+    #[error(transparent)]
+    BincodeEncode(#[from] bincode::error::EncodeError),
+
+    #[error(transparent)]
+    ParseFloatError(#[from] std::num::ParseFloatError),
+
+    #[error(transparent)]
+    SemverError(#[from] semver::Error),
+
+    #[error(transparent)]
+    Yasna(#[from] yasna::ASN1Error),
+
+    #[error(transparent)]
+    X509Parser(#[from] x509_parser::error::X509Error),
+
+    #[error(transparent)]
+    Rcgen(#[from] rcgen::Error),
+
+    #[cfg(feature = "smol")]
+    #[error("TLS Error: {0}")]
+    Rustls(#[from] futures_rustls::rustls::Error),
+
+    #[cfg(feature = "tokio")]
+    #[error("TLS Error: {0}")]
+    Rustls(#[from] tokio_rustls::rustls::Error),
+
+    #[error("Invalid DNS Name: {0}")]
+    InvalidDnsNameError(#[from] rustls_pki_types::InvalidDnsNameError),
 
     #[error(transparent)]
     KaryonCore(#[from] karyon_core::error::Error),
@@ -99,9 +111,6 @@ pub enum Error {
 
     #[error(transparent)]
     KaryonEventEmitter(#[from] karyon_eventemitter::error::Error),
-
-    #[error("Other Error: {0}")]
-    Other(String),
 }
 
 impl<T> From<async_channel::SendError<T>> for Error {

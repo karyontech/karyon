@@ -1,42 +1,48 @@
 [package]
 name = "karyon_net"
-description = "Internal crate for Karyon library."
-version.workspace = true
+description = "A layered async networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5."
+version = "1.0.0-alpha.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
+keywords = ["networking", "tcp", "tls", "quic", "websocket"]
+categories = ["network-programming", "asynchronous"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 default = ["smol", "all-protocols"]
-all-protocols = ["tcp", "tls", "ws", "udp", "unix"]
-stream = ["pin-project-lite", "futures-util"]
-tcp = ["stream"]
+all-protocols = ["tcp", "tls", "ws", "udp", "unix", "proxy", "quic"]
+framing = ["futures-util"]
+tcp = ["framing"]
 tls = ["tcp", "karyon_async_rustls", "rustls-pki-types"]
 ws = ["tcp", "async-tungstenite"]
 udp = []
-unix = ["stream"]
+quic = ["quinn", "rustls-pki-types", "framing", "karyon_async_rustls"]
+unix = ["framing"]
+proxy = ["tcp"]
 smol = [
     "karyon_core/smol",
     "async-tungstenite?/async-std-runtime",
     "karyon_async_rustls?/smol",
+    "quinn?/runtime-smol",
+    "quinn?/futures-io",
 ]
 tokio = [
     "karyon_core/tokio",
     "async-tungstenite?/tokio-runtime",
     "karyon_async_rustls?/tokio",
     "dep:tokio",
+    "quinn?/runtime-tokio",
 ]
-serde = ["dep:serde"]
+serde = ["dep:serde", "url/serde"]
 
 [dependencies]
 karyon_core = { workspace = true }
 karyon_async_rustls = { workspace = true, optional = true }
 
-log = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -44,9 +50,11 @@ bincode = { workspace = true, features = ["derive"] }
 bytes = { workspace = true }
 
 # async
-async-trait = { workspace = true }
-futures-util = { workspace = true, features = ["sink", "alloc"], optional = true }
-pin-project-lite = { workspace = true, optional = true }
+futures-util = { workspace = true, features = [
+    "sink",
+    "alloc",
+    "io",
+], optional = true }
 tokio = { workspace = true, features = ["io-util"], optional = true }
 
 # websocket
@@ -57,5 +65,13 @@ async-tungstenite = { workspace = true, optional = true, features = [
 # tls
 rustls-pki-types = { workspace = true, optional = true }
 
+# quic
+quinn = { workspace = true, optional = true, default-features = false, features = [
+    "rustls-ring",
+    "log",
+] }
+
 [dev-dependencies]
+karyon_core = { workspace = true, features = ["testing"] }
 smol = { workspace = true }
+futures-util = { workspace = true, features = ["io"] }

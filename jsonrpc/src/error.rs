@@ -8,10 +8,10 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
-    #[error("Call Error: code: {0} - msg: {1}")]
+    #[error("Call Error: code: {0} msg: {1}")]
     CallError(i32, String),
 
-    #[error("Subscribe Error: code: {0} - msg: {1}")]
+    #[error("Subscribe Error: code: {0} msg: {1}")]
     SubscribeError(i32, String),
 
     #[error("Encode Error: {0}")]
@@ -20,8 +20,11 @@ pub enum Error {
     #[error("Decode Error: {0}")]
     Decode(String),
 
-    #[error("Invalid Message Error: {0}")]
+    #[error("Invalid Message: {0}")]
     InvalidMsg(String),
+
+    #[error("Invalid State: {0}")]
+    InvalidState(String),
 
     #[error("Buffer Full: {0}")]
     BufferFull(String),
@@ -32,31 +35,38 @@ pub enum Error {
     #[error("Unsupported Protocol: {0}")]
     UnsupportedProtocol(String),
 
-    #[error("Tls config is required")]
+    #[error("TLS config is required")]
     TLSConfigRequired,
 
-    #[error("Receive Close Message From Connection: {0}")]
+    #[cfg(feature = "quic")]
+    #[error("QUIC config is required")]
+    QUICConfigRequired,
+
+    #[error("HTTP Error: {0}")]
+    HttpError(String),
+
+    #[error("Connection Closed: {0}")]
     CloseConnection(String),
 
     #[error("Subscription Not Found: {0}")]
     SubscriptionNotFound(String),
 
-    #[error("Subscription Exceeds The Maximum Buffer Size")]
+    #[error("Subscription Buffer Full")]
     SubscriptionBufferFull,
 
     #[error("Subscription Closed")]
     SubscriptionClosed,
 
-    #[error("Subscription duplicated: {0}")]
+    #[error("Subscription Duplicated: {0}")]
     SubscriptionDuplicated(String),
 
-    #[error("ClientDisconnected")]
+    #[error("Client Disconnected")]
     ClientDisconnected,
 
     #[error(transparent)]
     ChannelRecv(#[from] async_channel::RecvError),
 
-    #[error("Channel send  Error: {0}")]
+    #[error("Channel Send Error: {0}")]
     ChannelSend(String),
 
     #[cfg(feature = "ws")]
@@ -84,7 +94,7 @@ pub type RPCResult<T> = std::result::Result<T, RPCError>;
 /// Represents RPC Error.
 #[derive(ThisError, Debug)]
 pub enum RPCError {
-    #[error("Custom Error:  code: {0} msg: {1}")]
+    #[error("Custom Error: code: {0} msg: {1}")]
     CustomError(i32, String),
 
     #[error("Invalid Params: {0}")]

@@ -1,44 +1,45 @@
 pub mod builder;
 mod message_dispatcher;
+mod multiplexed;
 mod subscriptions;
 
+#[cfg(feature = "http")]
+mod http;
+#[cfg(feature = "quic")]
+mod quic_stream;
+
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::Duration,
+    marker::PhantomData,
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use async_channel::{Receiver, Sender};
-use log::{debug, error, info};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use log::info;
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::json;
 
-#[cfg(feature = "ws")]
-use karyon_net::ws::ClientWsConfig;
-#[cfg(all(feature = "ws", feature = "tls"))]
-use karyon_net::ws::ClientWssConfig;
-#[cfg(feature = "tls")]
-use karyon_net::{async_rustls::rustls, tls::ClientTlsConfig};
+use karyon_core::{async_runtime::Executor, async_util::TaskGroup, util::random_32};
+
+use karyon_net::Endpoint;
 
 #[cfg(feature = "tcp")]
-use crate::net::TcpConfig;
-
-use karyon_net::Conn;
-
-use karyon_core::{
-    async_util::{select, timeout, Either, TaskGroup, TaskResult},
-    util::random_32,
-};
-
-use crate::codec::ClonableJsonCodec;
+use karyon_net::tcp::TcpConfig;
 
 use crate::{
+    codec::{JsonCodec, JsonRpcCodec},
     error::{Error, Result},
     message::{self, SubscriptionID},
-    net::Endpoint,
 };
+
+#[cfg(feature = "quic")]
+use karyon_net::quic::ClientQuicConfig;
+#[cfg(feature = "quic")]
+use parking_lot::Mutex;
+#[cfg(feature = "quic")]
+use std::collections::HashMap;
+
+#[cfg(feature = "ws")]
+use crate::codec::JsonRpcWsCodec;
 
 pub use builder::ClientBuilder;
 pub use subscriptions::Subscription;
@@ -48,45 +49,101 @@ use subscriptions::Subscriptions;
 
 type RequestID = u32;
 
-struct ClientConfig {
-    endpoint: Endpoint,
+/// Bound on the WebSocket codec generic. With the `ws` feature it
+/// requires `JsonRpcWsCodec`; otherwise it accepts any clonable type
+/// (the codec is unused) so callers can pass `JsonCodec` unchanged.
+#[cfg(feature = "ws")]
+pub trait WsCodec: JsonRpcWsCodec {}
+#[cfg(feature = "ws")]
+impl<T: JsonRpcWsCodec> WsCodec for T {}
+
+#[cfg(not(feature = "ws"))]
+pub trait WsCodec: Clone + Send + Sync + 'static {}
+#[cfg(not(feature = "ws"))]
+impl<T: Clone + Send + Sync + 'static> WsCodec for T {}
+
+pub(crate) struct ClientConfig {
+    pub endpoint: Endpoint,
     #[cfg(feature = "tcp")]
-    tcp_config: TcpConfig,
+    pub tcp_config: TcpConfig,
     #[cfg(feature = "tls")]
-    tls_config: Option<(rustls::ClientConfig, String)>,
-    timeout: Option<u64>,
-    subscription_buffer_size: usize,
+    pub tls_config: Option<karyon_net::tls::ClientTlsConfig>,
+    #[cfg(feature = "quic")]
+    pub quic_config: Option<ClientQuicConfig>,
+    pub timeout: Option<u64>,
+    pub subscription_buffer_size: usize,
 }
 
-/// Represents an RPC client
-pub struct Client<C> {
-    disconnect: AtomicBool,
-    message_dispatcher: MessageDispatcher,
-    subscriptions: Arc<Subscriptions>,
-    send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
-    task_group: TaskGroup,
-    config: ClientConfig,
-    codec: C,
+pub(crate) enum ClientBackend {
+    /// One persistent message connection used by many concurrent calls
+    /// and subscriptions. Each request is tagged with a unique id; the
+    /// reader task multiplexes responses back to the right caller.
+    /// Used for TCP, TLS, WS, WSS, and Unix.
+    Multiplexed {
+        message_dispatcher: MessageDispatcher,
+        subscriptions: Arc<Subscriptions>,
+        // TODO what is the reason for this  ?
+        // AND why not using Async queue ?
+        send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
+    },
+    #[cfg(feature = "quic")]
+    QuicStream {
+        quic_conn: Arc<karyon_net::quic::QuicConn>,
+        subscriptions: Arc<Subscriptions>,
+        /// Per-subscription unsubscribe signal: send the unsubscribe
+        /// JSON; the reader task forwards it and exits.
+        // TODO why not using async queue here ?
+        unsub_chans: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
+    },
+    #[cfg(feature = "http")]
+    Http {
+        // Boxed because the HTTP backend (with hyper Client) is much
+        // larger than the other ClientBackend variants.
+        http_backend: Box<http::HttpClientBackend>,
+        #[cfg(feature = "http3")]
+        subscriptions: Arc<Subscriptions>,
+    },
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(untagged)]
-enum NewMsg {
-    Notification(message::Notification),
-    Response(message::Response),
+/// An RPC client that connects to a JSON-RPC 2.0 server.
+///
+/// `B` is the byte-stream codec used for TCP/TLS/Unix/QUIC/HTTP.
+/// `W` is the WebSocket codec used for `ws://` / `wss://`.
+/// Both default to `JsonCodec`.
+pub struct Client<B = JsonCodec, W = JsonCodec> {
+    pub(crate) disconnect: AtomicBool,
+    pub(crate) task_group: Arc<TaskGroup>,
+    pub(crate) config: ClientConfig,
+    pub(crate) backend: ClientBackend,
+    _codecs: PhantomData<(B, W)>,
 }
 
-impl<C> Client<C>
+impl<B, W> Client<B, W>
 where
-    C: ClonableJsonCodec + 'static,
+    B: JsonRpcCodec,
+    W: WsCodec,
 {
-    /// Calls the provided method, waits for the response, and returns the result.
+    /// Call a method, wait for response.
     pub async fn call<T: Serialize + DeserializeOwned, V: DeserializeOwned>(
         &self,
         method: &str,
         params: T,
     ) -> Result<V> {
-        let response = self.send_request(method, params).await?;
+        let response = match &self.backend {
+            #[cfg(feature = "http")]
+            ClientBackend::Http { http_backend, .. } => {
+                self.http_call(http_backend, method, params).await?
+            }
+            #[cfg(feature = "quic")]
+            ClientBackend::QuicStream { quic_conn, .. } => {
+                quic_stream::call(self, quic_conn, method, params).await?
+            }
+            _ => multiplexed::send_request(self, method, params).await?,
+        };
+
+        if let Some(error) = response.error {
+            return Err(Error::CallError(error.code, error.message));
+        }
 
         match response.result {
             Some(result) => Ok(serde_json::from_value::<V>(result)?),
@@ -94,239 +151,150 @@ where
         }
     }
 
-    /// Subscribes to the provided method, waits for the response, and returns the result.
-    ///
-    /// This function sends a subscription request to the specified method
-    /// with the given parameters. It waits for the response and returns a
-    /// `Subscription`.
+    /// Subscribe to a method.
     pub async fn subscribe<T: Serialize + DeserializeOwned>(
-        &self,
+        self: &Arc<Self>,
         method: &str,
         params: T,
     ) -> Result<Arc<Subscription>> {
-        let response = self.send_request(method, params).await?;
-
-        let sub_id = match response.result {
-            Some(result) => serde_json::from_value::<SubscriptionID>(result)?,
-            None => return Err(Error::InvalidMsg("Invalid subscription id".to_string())),
-        };
-
-        let sub = self.subscriptions.subscribe(sub_id).await;
-
-        Ok(sub)
+        match &self.backend {
+            #[cfg(all(feature = "http", not(feature = "http3")))]
+            ClientBackend::Http { .. } => Err(Error::UnsupportedProtocol(
+                "Subscriptions not supported over HTTP/1-2".to_string(),
+            )),
+            #[cfg(feature = "http3")]
+            ClientBackend::Http { http_backend, .. } => {
+                self.h3_subscribe(http_backend, method, params).await
+            }
+            #[cfg(feature = "quic")]
+            ClientBackend::QuicStream {
+                quic_conn,
+                subscriptions,
+                unsub_chans,
+            } => {
+                quic_stream::subscribe(self, quic_conn, subscriptions, unsub_chans, method, params)
+                    .await
+            }
+            ClientBackend::Multiplexed { subscriptions, .. } => {
+                let response = multiplexed::send_request(self, method, params).await?;
+                let sub_id = match response.result {
+                    Some(result) => serde_json::from_value::<SubscriptionID>(result)?,
+                    None => return Err(Error::InvalidMsg("Invalid subscription id".to_string())),
+                };
+                let sub = subscriptions.subscribe(sub_id).await;
+                Ok(sub)
+            }
+        }
     }
 
-    /// Unsubscribes from the provided method, waits for the response, and returns the result.
-    ///
-    /// This function sends an unsubscription request for the specified method
-    /// and subscription ID. It waits for the response to confirm the unsubscription.
+    /// Unsubscribe.
     pub async fn unsubscribe(&self, method: &str, sub_id: SubscriptionID) -> Result<()> {
-        let _ = self.send_request(method, sub_id).await?;
-        self.subscriptions.unsubscribe(&sub_id).await;
-        Ok(())
+        match &self.backend {
+            #[cfg(all(feature = "http", not(feature = "http3")))]
+            ClientBackend::Http { .. } => Err(Error::UnsupportedProtocol(
+                "Subscriptions not supported over HTTP/1-2".to_string(),
+            )),
+            #[cfg(feature = "http3")]
+            ClientBackend::Http { http_backend, .. } => {
+                self.h3_unsubscribe(http_backend, method, sub_id).await
+            }
+            #[cfg(feature = "quic")]
+            ClientBackend::QuicStream {
+                subscriptions,
+                unsub_chans,
+                ..
+            } => {
+                // The QUIC subscription stream's reader and writer halves
+                // are owned by the spawned task. We can't write directly
+                // from here, so we hand the unsubscribe message to that
+                // task via a channel; the task forwards it on the wire
+                // and exits.
+                // Bind the removed sender in its own `let` so the parking_lot
+                // MutexGuard temporary doesn't live across the `.await`.
+                let ch = unsub_chans.lock().remove(&sub_id);
+                if let Some(ch) = ch {
+                    let request = message::Request {
+                        jsonrpc: message::JSONRPC_VERSION.to_string(),
+                        id: json!(random_32()),
+                        method: method.to_string(),
+                        params: Some(json!(sub_id)),
+                    };
+                    let _ = ch.send(serde_json::to_value(request)?).await;
+                }
+                subscriptions.unsubscribe(&sub_id).await;
+                Ok(())
+            }
+            ClientBackend::Multiplexed { subscriptions, .. } => {
+                let _ = multiplexed::send_request(self, method, sub_id).await?;
+                subscriptions.unsubscribe(&sub_id).await;
+                Ok(())
+            }
+        }
     }
 
-    /// Disconnect the client
+    /// Disconnect the client.
     pub async fn stop(&self) {
         self.task_group.cancel().await;
     }
 
-    async fn send_request<T: Serialize + DeserializeOwned>(
-        &self,
-        method: &str,
-        params: T,
-    ) -> Result<message::Response> {
-        let id: RequestID = random_32();
-        let request = message::Request {
-            jsonrpc: message::JSONRPC_VERSION.to_string(),
-            id: json!(id),
-            method: method.to_string(),
-            params: Some(json!(params)),
-        };
+    /// Pick the right backend based on endpoint kind, then build the
+    /// `Client`. Each backend module returns just the `ClientBackend`;
+    /// assembly happens here. Multiplexed mode also needs an extra
+    /// step to start its background reader/writer loop.
+    pub(super) async fn init(
+        config: ClientConfig,
+        byte_codec: B,
+        ws_codec: W,
+        executor: Option<Executor>,
+    ) -> Result<Arc<Self>> {
+        info!("Connecting to RPC endpoint: {}", config.endpoint);
 
-        // Send the request
-        self.send(request).await?;
-
-        // Register a new request
-        let rx = self.message_dispatcher.register(id).await;
-
-        // Wait for the message dispatcher to send the response
-        let result = match self.config.timeout {
-            Some(t) => timeout(Duration::from_millis(t), rx.recv()).await?,
-            None => rx.recv().await,
-        };
-
-        let response = match result {
-            Ok(r) => r,
-            Err(err) => {
-                // Unregister the request if an error occurs
-                self.message_dispatcher.unregister(&id).await;
-                return Err(err.into());
-            }
-        };
-
-        if let Some(error) = response.error {
-            return Err(Error::SubscribeError(error.code, error.message));
-        }
-
-        // It should be OK to unwrap here, as the message dispatcher checks
-        // for the response id.
-        if *response.id.as_ref().expect("Get response id") != id {
-            return Err(Error::InvalidMsg("Invalid response id".to_string()));
-        }
-
-        Ok(response)
-    }
-
-    async fn send(&self, req: message::Request) -> Result<()> {
-        if self.disconnect.load(Ordering::Relaxed) {
-            return Err(Error::ClientDisconnected);
-        }
-        let req = serde_json::to_value(req)?;
-        self.send_chan.0.send(req).await?;
-        Ok(())
-    }
-
-    /// Initializes a new [`Client`] from the provided [`ClientConfig`].
-    async fn init(config: ClientConfig, codec: C) -> Result<Arc<Self>> {
-        let client = Arc::new(Client {
-            disconnect: AtomicBool::new(false),
-            subscriptions: Subscriptions::new(config.subscription_buffer_size),
-            send_chan: async_channel::bounded(10),
-            message_dispatcher: MessageDispatcher::new(),
-            task_group: TaskGroup::new(),
-            config,
-            codec,
+        // Build task_group early so backends (HTTP driver tasks) can
+        // spawn into the same group that Client::stop cancels.
+        let task_group = Arc::new(match executor {
+            Some(ex) => TaskGroup::with_executor(ex),
+            None => TaskGroup::new(),
         });
 
-        let conn = client.connect().await?;
-        info!(
-            "Successfully connected to the RPC server: {}",
-            conn.peer_endpoint()?
-        );
-        client.start_background_loop(conn);
+        #[cfg(feature = "http")]
+        if let Endpoint::Http(..) = &config.endpoint {
+            let backend = http::build_backend(&config, task_group.clone()).await?;
+            return Ok(Self::with_backend(config, task_group, backend));
+        }
+
+        #[cfg(feature = "quic")]
+        if let Endpoint::Quic(..) = &config.endpoint {
+            let backend = quic_stream::build_backend(&config).await?;
+            return Ok(Self::with_backend(config, task_group, backend));
+        }
+
+        #[cfg(feature = "ws")]
+        if matches!(&config.endpoint, Endpoint::Ws(..) | Endpoint::Wss(..)) {
+            let (backend, conn) = multiplexed::build_ws_backend(&config, ws_codec).await?;
+            let client = Self::with_backend(config, task_group, backend);
+            let (reader, writer) = conn.split();
+            multiplexed::start_io_loop(&client, reader, writer);
+            return Ok(client);
+        }
+
+        let (backend, conn) = multiplexed::build_byte_backend(&config, byte_codec).await?;
+        let client = Self::with_backend(config, task_group, backend);
+        let (reader, writer) = conn.split();
+        multiplexed::start_io_loop(&client, reader, writer);
         Ok(client)
     }
 
-    async fn connect(self: &Arc<Self>) -> Result<Conn<serde_json::Value, Error>> {
-        let endpoint = self.config.endpoint.clone();
-        let codec = self.codec.clone();
-        let conn: Conn<serde_json::Value, Error> = match endpoint {
-            #[cfg(feature = "tcp")]
-            Endpoint::Tcp(..) => Box::new(
-                karyon_net::tcp::dial(&endpoint, self.config.tcp_config.clone(), codec).await?,
-            ),
-            #[cfg(feature = "tls")]
-            Endpoint::Tls(..) => match &self.config.tls_config {
-                Some((conf, dns_name)) => Box::new(
-                    karyon_net::tls::dial(
-                        &self.config.endpoint,
-                        ClientTlsConfig {
-                            dns_name: dns_name.to_string(),
-                            client_config: conf.clone(),
-                            tcp_config: self.config.tcp_config.clone(),
-                        },
-                        codec,
-                    )
-                    .await?,
-                ),
-                None => return Err(Error::TLSConfigRequired),
-            },
-            #[cfg(feature = "ws")]
-            Endpoint::Ws(..) => {
-                let config = ClientWsConfig {
-                    tcp_config: self.config.tcp_config.clone(),
-                    wss_config: None,
-                };
-                Box::new(karyon_net::ws::dial(&endpoint, config, codec).await?)
-            }
-            #[cfg(all(feature = "ws", feature = "tls"))]
-            Endpoint::Wss(..) => match &self.config.tls_config {
-                Some((conf, dns_name)) => Box::new(
-                    karyon_net::ws::dial(
-                        &endpoint,
-                        ClientWsConfig {
-                            tcp_config: self.config.tcp_config.clone(),
-                            wss_config: Some(ClientWssConfig {
-                                dns_name: dns_name.clone(),
-                                client_config: conf.clone(),
-                            }),
-                        },
-                        codec,
-                    )
-                    .await?,
-                ),
-                None => return Err(Error::TLSConfigRequired),
-            },
-            #[cfg(all(feature = "unix", target_family = "unix"))]
-            Endpoint::Unix(..) => {
-                Box::new(karyon_net::unix::dial(&endpoint, Default::default(), codec).await?)
-            }
-            _ => return Err(Error::UnsupportedProtocol(endpoint.to_string())),
-        };
-
-        Ok(conn)
-    }
-
-    fn start_background_loop(self: &Arc<Self>, conn: Conn<serde_json::Value, Error>) {
-        let on_complete = {
-            let this = self.clone();
-            |result: TaskResult<Result<()>>| async move {
-                if let TaskResult::Completed(Err(err)) = result {
-                    error!("Client stopped: {err}");
-                }
-                this.disconnect.store(true, Ordering::Relaxed);
-                this.subscriptions.clear().await;
-                this.message_dispatcher.clear().await;
-            }
-        };
-
-        // Spawn a new task
-        self.task_group.spawn(
-            {
-                let this = self.clone();
-                async move { this.background_loop(conn).await }
-            },
-            on_complete,
-        );
-    }
-
-    async fn background_loop(self: Arc<Self>, conn: Conn<serde_json::Value, Error>) -> Result<()> {
-        loop {
-            match select(self.send_chan.1.recv(), conn.recv()).await {
-                Either::Left(req) => {
-                    conn.send(req?).await?;
-                }
-                Either::Right(msg) => match self.handle_msg(msg?).await {
-                    Err(Error::SubscriptionBufferFull) => {
-                        return Err(Error::SubscriptionBufferFull);
-                    }
-                    Err(err) => {
-                        let endpoint = conn.peer_endpoint()?;
-                        error!("Handle a new msg from the endpoint {endpoint} : {err}",);
-                    }
-                    Ok(_) => {}
-                },
-            }
-        }
-    }
-
-    async fn handle_msg(&self, msg: serde_json::Value) -> Result<()> {
-        match serde_json::from_value::<NewMsg>(msg.clone()) {
-            Ok(msg) => match msg {
-                NewMsg::Response(res) => {
-                    debug!("<-- {res}");
-                    self.message_dispatcher.dispatch(res).await
-                }
-                NewMsg::Notification(nt) => {
-                    debug!("<-- {nt}");
-                    self.subscriptions.notify(nt).await
-                }
-            },
-            Err(err) => {
-                error!("Receive unexpected msg {msg}: {err}");
-                Err(Error::InvalidMsg("Unexpected msg".to_string()))
-            }
-        }
+    fn with_backend(
+        config: ClientConfig,
+        task_group: Arc<TaskGroup>,
+        backend: ClientBackend,
+    ) -> Arc<Self> {
+        Arc::new(Client {
+            disconnect: AtomicBool::new(false),
+            task_group,
+            config,
+            backend,
+            _codecs: PhantomData,
+        })
     }
 }

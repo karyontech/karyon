@@ -22,158 +22,156 @@ macro_rules! err {
 
 #[proc_macro_attribute]
 pub fn rpc_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let item2 = item.clone();
-    let parsed_input = parse_macro_input!(item2 as ItemImpl);
-
-    let self_ty = match *parsed_input.self_ty {
-        Type::Path(p) => p,
-        _ => err!(
-            parsed_input.span(),
-            "Implementing the trait `RPCService` on this type is unsupported"
-        ),
-    };
-
-    let mut service_name = None;
-    if !attr.is_empty() {
-        let parsed_attr = syn::parse_macro_input!(attr as syn::Meta);
-        service_name = match parse_service_name(parsed_attr) {
-            Ok(res) => res,
-            Err(err) => return err.to_compile_error().into(),
-        };
-    }
-
-    let default_sn = match self_ty.path.require_ident() {
-        Ok(res) => res.to_string(),
-        Err(err) => return err.to_compile_error().into(),
-    };
-    let service_name = service_name.unwrap_or(default_sn);
-
-    let methods = match parse_struct_methods(&self_ty, parsed_input.items) {
-        Ok(res) => res,
-        Err(err) => return err.to_compile_error().into(),
-    };
-
-    let mut method_idents = vec![];
-    for (mn, method) in methods.iter() {
-        if method.inputs.len() != 2 {
-            err!(
-                method.span(),
-                "requires `&self` and a parameter of type `serde_json::Value`"
-            );
-        }
-
-        method_idents.push((
-            mn.clone().unwrap_or(method.ident.to_string()),
-            method.ident.clone(),
-        ));
-    }
-
-    let impl_methods: Vec<TokenStream2> = method_idents
-        .iter()
-        .map(|(n, m)| {
-            quote! {
-                #n => Some(Box::new(move |params: serde_json::Value| Box::pin(self.#m(params)))),
-            }
-        })
-        .collect();
-
-    let item: TokenStream2 = item.into();
-    quote! {
-        impl karyon_jsonrpc::server::RPCService for #self_ty {
-            fn get_method(
-                &self,
-                name: &str
-            ) -> Option<karyon_jsonrpc::server::RPCMethod> {
-                match name {
-                #(#impl_methods)*
-                    _ => None,
-                }
-            }
-            fn name(&self) -> String{
-                #service_name.to_string()
-            }
-        }
-        #item
-    }
-    .into()
+    expand_service_impl(attr, item, ServiceKind::Rpc)
 }
 
 #[proc_macro_attribute]
 pub fn rpc_pubsub_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+    expand_service_impl(attr, item, ServiceKind::PubSub)
+}
+
+#[derive(Clone, Copy)]
+enum ServiceKind {
+    Rpc,
+    PubSub,
+}
+
+impl ServiceKind {
+    fn arity(self) -> usize {
+        match self {
+            // &self + serde_json::Value
+            ServiceKind::Rpc => 2,
+            // &self + Arc<Channel>, String, serde_json::Value
+            ServiceKind::PubSub => 4,
+        }
+    }
+
+    fn arity_error(self) -> &'static str {
+        match self {
+            ServiceKind::Rpc => "requires `&self` and a parameter of type `serde_json::Value`",
+            ServiceKind::PubSub => {
+                "requires `&self` and three parameters: \
+                `Arc<Channel>`, method: `String`, and `serde_json::Value`"
+            }
+        }
+    }
+
+    fn unsupported_self_type_error(self) -> &'static str {
+        match self {
+            ServiceKind::Rpc => "Implementing the trait `RPCService` on this type is unsupported",
+            ServiceKind::PubSub => {
+                "Implementing the trait `PubSubRPCService` on this type is unsupported"
+            }
+        }
+    }
+
+    fn dispatch_arm(self, name: &str, ident: &syn::Ident) -> TokenStream2 {
+        match self {
+            ServiceKind::Rpc => quote! {
+                #name => Some(Box::new(
+                    move |params: serde_json::Value| Box::pin(self.#ident(params))
+                )),
+            },
+            ServiceKind::PubSub => quote! {
+                #name => Some(Box::new(
+                    move |chan: std::sync::Arc<karyon_jsonrpc::server::channel::Channel>,
+                          method: String,
+                          params: serde_json::Value| {
+                        Box::pin(self.#ident(chan, method, params))
+                    }
+                )),
+            },
+        }
+    }
+
+    fn impl_block(
+        self,
+        self_ty: &TypePath,
+        service_name: &str,
+        arms: &[TokenStream2],
+    ) -> TokenStream2 {
+        match self {
+            ServiceKind::Rpc => quote! {
+                impl karyon_jsonrpc::server::RPCService for #self_ty {
+                    fn get_method(
+                        &self,
+                        name: &str,
+                    ) -> Option<karyon_jsonrpc::server::RPCMethod> {
+                        match name {
+                            #(#arms)*
+                            _ => None,
+                        }
+                    }
+                    fn name(&self) -> String {
+                        #service_name.to_string()
+                    }
+                }
+            },
+            ServiceKind::PubSub => quote! {
+                impl karyon_jsonrpc::server::PubSubRPCService for #self_ty {
+                    fn get_pubsub_method(
+                        &self,
+                        name: &str,
+                    ) -> Option<karyon_jsonrpc::server::PubSubRPCMethod> {
+                        match name {
+                            #(#arms)*
+                            _ => None,
+                        }
+                    }
+                    fn name(&self) -> String {
+                        #service_name.to_string()
+                    }
+                }
+            },
+        }
+    }
+}
+
+fn expand_service_impl(attr: TokenStream, item: TokenStream, kind: ServiceKind) -> TokenStream {
     let item2 = item.clone();
     let parsed_input = parse_macro_input!(item2 as ItemImpl);
 
     let self_ty = match *parsed_input.self_ty {
         Type::Path(p) => p,
-        _ => err!(
-            parsed_input.span(),
-            "Implementing the trait `PubSubRPCService` on this type is unsupported"
-        ),
+        _ => err!(parsed_input.span(), kind.unsupported_self_type_error()),
     };
 
-    let mut service_name = None;
-    if !attr.is_empty() {
-        let parsed_attr = syn::parse_macro_input!(attr as syn::Meta);
-        service_name = match parse_service_name(parsed_attr) {
-            Ok(res) => res,
-            Err(err) => return err.to_compile_error().into(),
-        };
-    }
-
-    let default_sn = match self_ty.path.require_ident() {
-        Ok(res) => res.to_string(),
+    let service_name = match resolve_service_name(attr, &self_ty) {
+        Ok(name) => name,
         Err(err) => return err.to_compile_error().into(),
     };
-    let service_name = service_name.unwrap_or(default_sn);
 
     let methods = match parse_struct_methods(&self_ty, parsed_input.items) {
         Ok(res) => res,
         Err(err) => return err.to_compile_error().into(),
     };
 
-    let mut method_idents = vec![];
-    for (mn, method) in methods.iter() {
-        if method.inputs.len() != 4 {
-            err!(method.span(), "requires `&self` and three parameters: `Arc<Channel>`, method: `String`, and `serde_json::Value`");
+    let mut arms = Vec::with_capacity(methods.len());
+    for (rename, sig) in methods.iter() {
+        if sig.inputs.len() != kind.arity() {
+            err!(sig.span(), kind.arity_error());
         }
-
-        method_idents.push((
-            mn.clone().unwrap_or(method.ident.to_string()),
-            method.ident.clone(),
-        ));
+        let name = rename.clone().unwrap_or(sig.ident.to_string());
+        arms.push(kind.dispatch_arm(&name, &sig.ident));
     }
 
-    let impl_methods: Vec<TokenStream2> = method_idents.iter().map(
-        |(n, m)| quote! {
-            #n => {
-                Some(Box::new(
-                    move |chan: std::sync::Arc<karyon_jsonrpc::server::channel::Channel>, method: String, params: serde_json::Value| {
-                    Box::pin(self.#m(chan, method, params))
-                }))
-            },
-        },
-    ).collect();
-
-    let item: TokenStream2 = item.into();
+    let impl_block = kind.impl_block(&self_ty, &service_name, &arms);
+    let original: TokenStream2 = item.into();
     quote! {
-        impl karyon_jsonrpc::server::PubSubRPCService for #self_ty {
-            fn get_pubsub_method(
-                &self,
-                name: &str
-            ) -> Option<karyon_jsonrpc::server::PubSubRPCMethod> {
-                match name {
-                #(#impl_methods)*
-                    _ => None,
-                }
-            }
-
-            fn name(&self) -> String{
-                #service_name.to_string()
-            }
-        }
-        #item
+        #impl_block
+        #original
     }
     .into()
+}
+
+fn resolve_service_name(attr: TokenStream, self_ty: &TypePath) -> Result<String, syn::Error> {
+    if !attr.is_empty() {
+        let parsed_attr: syn::Meta = syn::parse(attr)?;
+        if let Some(name) = parse_service_name(parsed_attr)? {
+            return Ok(name);
+        }
+    }
+    Ok(self_ty.path.require_ident()?.to_string())
 }
 
 fn parse_struct_methods(

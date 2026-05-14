@@ -1,36 +1,59 @@
+//! JSON codec for JSON-RPC message framing.
+//!
+//! Provides `JsonCodec` which encodes/decodes `serde_json::Value`
+//! messages with a configurable max payload size (default 4MB).
+
+use std::io;
+
+pub use karyon_net::codec::Codec;
+pub use karyon_net::ByteBuffer;
+
 #[cfg(feature = "ws")]
-use async_tungstenite::tungstenite::Message;
-
-pub use karyon_net::codec::{ByteBuffer, Codec, Decoder, Encoder};
-
-#[cfg(feature = "ws")]
-pub use karyon_net::codec::{WebSocketCodec, WebSocketDecoder, WebSocketEncoder};
-
-use crate::error::Error;
+use karyon_net::layers::ws::Message as WsMessage;
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
-#[cfg(not(feature = "ws"))]
-pub trait ClonableJsonCodec: Codec<Message = serde_json::Value, Error = Error> + Clone {}
-#[cfg(not(feature = "ws"))]
-impl<T: Codec<Message = serde_json::Value, Error = Error> + Clone> ClonableJsonCodec for T {}
-
-#[cfg(feature = "ws")]
-pub trait ClonableJsonCodec:
-    Codec<Message = serde_json::Value, Error = Error>
-    + WebSocketCodec<Message = serde_json::Value, Error = Error>
+/// Byte-stream codec used for TCP, TLS, Unix, QUIC, and HTTP.
+pub trait JsonRpcCodec:
+    Codec<ByteBuffer, Message = serde_json::Value, Error = karyon_net::Error>
     + Clone
-{
-}
-#[cfg(feature = "ws")]
-impl<
-        T: Codec<Message = serde_json::Value, Error = Error>
-            + WebSocketCodec<Message = serde_json::Value, Error = Error>
-            + Clone,
-    > ClonableJsonCodec for T
+    + Send
+    + Sync
+    + 'static
 {
 }
 
+impl<T> JsonRpcCodec for T where
+    T: Codec<ByteBuffer, Message = serde_json::Value, Error = karyon_net::Error>
+        + Clone
+        + Send
+        + Sync
+        + 'static
+{
+}
+
+/// WebSocket-message codec used for `ws://` and `wss://` endpoints.
+#[cfg(feature = "ws")]
+pub trait JsonRpcWsCodec:
+    Codec<WsMessage, Message = serde_json::Value, Error = karyon_net::Error>
+    + Clone
+    + Send
+    + Sync
+    + 'static
+{
+}
+
+#[cfg(feature = "ws")]
+impl<T> JsonRpcWsCodec for T where
+    T: Codec<WsMessage, Message = serde_json::Value, Error = karyon_net::Error>
+        + Clone
+        + Send
+        + Sync
+        + 'static
+{
+}
+
+/// Default JSON codec with configurable max payload size.
 #[derive(Clone)]
 pub struct JsonCodec {
     max_size: usize,
@@ -52,23 +75,21 @@ impl JsonCodec {
     }
 }
 
-impl Codec for JsonCodec {
+impl Codec<ByteBuffer> for JsonCodec {
     type Message = serde_json::Value;
-    type Error = Error;
-}
+    type Error = karyon_net::Error;
 
-impl Encoder for JsonCodec {
-    type EnMessage = serde_json::Value;
-    type EnError = Error;
-    fn encode(&self, src: &Self::EnMessage, dst: &mut ByteBuffer) -> Result<usize, Self::EnError> {
-        let msg = match serde_json::to_string(src) {
-            Ok(m) => m,
-            Err(err) => return Err(Error::Encode(err.to_string())),
-        };
+    fn encode(
+        &self,
+        src: &serde_json::Value,
+        dst: &mut ByteBuffer,
+    ) -> std::result::Result<usize, karyon_net::Error> {
+        let msg =
+            serde_json::to_string(src).map_err(|e| karyon_net::Error::IO(io::Error::other(e)))?;
         let buf = msg.as_bytes();
 
         if buf.len() > self.max_size {
-            return Err(Error::BufferFull(format!(
+            return Err(karyon_net::Error::BufferFull(format!(
                 "Buffer size {} exceeds maximum {}",
                 buf.len(),
                 self.max_size
@@ -78,17 +99,13 @@ impl Encoder for JsonCodec {
         dst.extend_from_slice(buf);
         Ok(buf.len())
     }
-}
 
-impl Decoder for JsonCodec {
-    type DeMessage = serde_json::Value;
-    type DeError = Error;
     fn decode(
         &self,
         src: &mut ByteBuffer,
-    ) -> Result<Option<(usize, Self::DeMessage)>, Self::DeError> {
+    ) -> std::result::Result<Option<(usize, serde_json::Value)>, karyon_net::Error> {
         if src.len() > self.max_size {
-            return Err(Error::BufferFull(format!(
+            return Err(karyon_net::Error::BufferFull(format!(
                 "Buffer size {} exceeds maximum {}",
                 src.len(),
                 self.max_size
@@ -101,7 +118,7 @@ impl Decoder for JsonCodec {
         let item = match iter.next() {
             Some(Ok(item)) => item,
             Some(Err(ref e)) if e.is_eof() => return Ok(None),
-            Some(Err(e)) => return Err(Error::Decode(e.to_string())),
+            Some(Err(e)) => return Err(karyon_net::Error::IO(io::Error::other(e))),
             None => return Ok(None),
         };
 
@@ -109,50 +126,42 @@ impl Decoder for JsonCodec {
     }
 }
 
+/// WS codec for JSON values over WebSocket text messages.
 #[cfg(feature = "ws")]
-#[derive(Clone)]
-pub struct WsJsonCodec {}
-
-#[cfg(feature = "ws")]
-impl WebSocketCodec for JsonCodec {
+impl Codec<WsMessage> for JsonCodec {
     type Message = serde_json::Value;
-    type Error = Error;
-}
+    type Error = karyon_net::Error;
 
-#[cfg(feature = "ws")]
-impl WebSocketEncoder for JsonCodec {
-    type EnMessage = serde_json::Value;
-    type EnError = Error;
-
-    fn encode(&self, src: &Self::EnMessage) -> Result<Message, Self::EnError> {
-        let msg = match serde_json::to_string(src) {
-            Ok(m) => m,
-            Err(err) => return Err(Error::Encode(err.to_string())),
-        };
-        Ok(Message::Text(msg.into()))
+    fn encode(
+        &self,
+        src: &serde_json::Value,
+        dst: &mut WsMessage,
+    ) -> std::result::Result<usize, karyon_net::Error> {
+        let json =
+            serde_json::to_string(src).map_err(|e| karyon_net::Error::IO(io::Error::other(e)))?;
+        let len = json.len();
+        *dst = WsMessage::Text(json);
+        Ok(len)
     }
-}
 
-#[cfg(feature = "ws")]
-impl WebSocketDecoder for JsonCodec {
-    type DeMessage = serde_json::Value;
-    type DeError = Error;
-
-    fn decode(&self, src: &Message) -> Result<Option<Self::DeMessage>, Self::DeError> {
+    fn decode(
+        &self,
+        src: &mut WsMessage,
+    ) -> std::result::Result<Option<(usize, serde_json::Value)>, karyon_net::Error> {
         match src {
-            Message::Text(s) => match serde_json::from_str(s) {
-                Ok(m) => Ok(Some(m)),
-                Err(err) => Err(Error::Decode(err.to_string())),
-            },
-            Message::Binary(s) => match serde_json::from_slice(s) {
-                Ok(m) => Ok(m),
-                Err(err) => Err(Error::Decode(err.to_string())),
-            },
-            Message::Close(_) => Err(Error::IO(std::io::ErrorKind::ConnectionAborted.into())),
-            m => Err(Error::Decode(format!(
-                "Receive unexpected message: {:?}",
-                m
-            ))),
+            WsMessage::Text(text) => {
+                let len = text.len();
+                if len > self.max_size {
+                    return Err(karyon_net::Error::BufferFull(format!(
+                        "Buffer size {} exceeds maximum {}",
+                        len, self.max_size
+                    )));
+                }
+                let val = serde_json::from_str(text)
+                    .map_err(|e| karyon_net::Error::IO(io::Error::other(e)))?;
+                Ok(Some((len, val)))
+            }
+            _ => Ok(None),
         }
     }
 }

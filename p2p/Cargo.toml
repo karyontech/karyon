@@ -1,21 +1,24 @@
 [package]
 name = "karyon_p2p"
 description = "A lightweight, extensible, and customizable p2p network stack."
-version.workspace = true
+version = "1.0.0-alpha.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
+keywords = ["p2p", "networking", "kademlia", "dht", "decentralized"]
+categories = ["network-programming", "asynchronous"]
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["smol"]
+default = ["smol", "quic"]
 smol = ["karyon_core/smol", "karyon_net/smol", "futures-rustls"]
 tokio = ["karyon_core/tokio", "karyon_net/tokio", "tokio-rustls"]
 serde = ["dep:serde", "karyon_net/serde"]
+quic = ["karyon_net/quic"]
 
 [dependencies]
 karyon_core = { workspace = true, features = ["crypto"] }
@@ -29,6 +32,7 @@ rand = { workspace = true }
 thiserror = { workspace = true }
 semver = { workspace = true }
 sha2 = { workspace = true }
+siphasher = { workspace = true }
 parking_lot = { workspace = true }
 
 # encode/decode
@@ -50,12 +54,13 @@ tokio-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
 rustls-pki-types = { workspace = true }
 
 [dev-dependencies]
-karyon_core = { workspace = true, features = ["crypto"] }
+karyon_core = { workspace = true, features = ["crypto", "testing"] }
+karyon_net = { workspace = true, features = ["tcp", "tls", "udp", "quic"] }
 smol = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-async-channel = { workspace = true }
 blocking = "1.6"
 clap = { version = "4.5", features = ["derive"] }
 ctrlc = "3.4"
-easy-parallel = "3.3"
 env_logger = "0.11"
+rcgen = { workspace = true }
+rustls-pki-types = { workspace = true }

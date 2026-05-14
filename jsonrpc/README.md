@@ -1,155 +1,222 @@
 # karyon jsonrpc
 
 A fast and lightweight async implementation of [JSON-RPC
-2.0](https://www.jsonrpc.org/specification).
+2.0](https://www.jsonrpc.org/specification). Runs over TCP, TLS,
+WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets,
+with pub/sub and custom JSON codecs.
 
-features: 
-- Supports TCP, TLS, WebSocket, and Unix protocols.
-- Uses `smol`(async-std) as the async runtime, with support for `tokio` via the 
-  `tokio` feature.
-- Enables the registration of multiple services (structs) on a single server.
-- Offers support for custom JSON codec.
-- Includes support for pub/sub.  
-- Allows the use of an `async_executors::Executor` or `tokio::Runtime` when building
-  the server.
-
-
-## Install 
+## Install
 
 ```bash
-    
-$ cargo add karyon_jsonrpc 
-
+$ cargo add karyon_jsonrpc
 ```
+
+## Feature Flags
+
+| Feature | Description |
+|---------|-------------|
+| `tcp` | TCP (included by default) |
+| `tls` | TLS over TCP (implies `tcp`) |
+| `ws` | WebSocket over TCP (implies `tcp`) |
+| `quic` | QUIC |
+| `http` | HTTP/1.1 and HTTP/2 over TCP (implies `tcp`) |
+| `http3` | HTTP/3 over QUIC (implies `http` and `quic`) |
+| `unix` | Unix socket (included by default) |
+| `smol` | Use smol async runtime (default) |
+| `tokio` | Use tokio async runtime |
+
+```toml
+# QUIC support
+karyon_jsonrpc = { version = "1.0", features = ["quic"] }
+
+# HTTP/1.1 + HTTP/2
+karyon_jsonrpc = { version = "1.0", features = ["http"] }
+
+# HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
+karyon_jsonrpc = { version = "1.0", features = ["http3"] }
+
+# All wire formats
+karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
+```
+
+## Architecture
+
+```TEXT
+  ClientBuilder / ServerBuilder
+           |
+     endpoint dispatch
+           |
+  +--------+--------+--------+--------+
+  | TCP    | TLS    | QUIC   | HTTP   |
+  +--------+--------+--------+--------+
+  |        |        |        |        |
+  | framed | framed | stream | hyper  |
+  | conn   | conn   | per    | / h3   |
+  |        |        | call   |        |
+  +--------+--------+--------+--------+
+           |
+     FramedReader / FramedWriter
+     (concurrent recv_msg / send_msg)
+```
+
+- **TCP/TLS/Unix**: `tcp::connect()` or `TcpListener::bind()`, optionally wrapped with
+  `TlsLayer`, then `framed()` to get a `FramedConn`. The connection is split into
+  `FramedReader` + `FramedWriter` for concurrent request reading and response writing.
+- **QUIC**: each RPC call opens a new bidirectional stream via `StreamMux`. Each subscription
+  also opens its own dedicated stream and splits it for concurrent notification writing +
+  unsubscribe reading.
+- **HTTP/1-2**: standard hyper request/response. No persistent connection.
+- **HTTP/3**: QUIC-based. Subscriptions stream DATA frames on a single request.
 
 ## Example
 
+### Server
+
 ```rust
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use serde_json::Value;
-use smol::stream::StreamExt;
 
 use karyon_jsonrpc::{
-    error::RPCError, server::{Server, ServerBuilder, Channel}, client::ClientBuilder,
-    rpc_impl, rpc_pubsub_impl, rpc_method, message::SubscriptionID,
+    error::RPCError, rpc_impl, server::ServerBuilder,
 };
 
-struct HelloWorld {}
+struct Calc {}
 
-// It is possible to change the service name by adding a `name` attribute 
 #[rpc_impl]
-impl HelloWorld {
-    async fn say_hello(&self, params: Value) -> Result<Value, RPCError> {
-        let msg: String = serde_json::from_value(params)?;
-        Ok(serde_json::json!(format!("Hello {msg}!")))
+impl Calc {
+    async fn add(&self, params: Value) -> Result<Value, RPCError> {
+        let (a, b): (i32, i32) = serde_json::from_value(params)?;
+        Ok(serde_json::json!(a + b))
     }
 
-    #[rpc_method(name = "foo_method")]
-    async fn foo(&self, params: Value) -> Result<Value, RPCError> {
-        Ok(serde_json::json!("foo!"))
-    }
-
-    async fn bar(&self, params: Value) -> Result<Value, RPCError> {
-        Ok(serde_json::json!("bar!"))
+    async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
+        Ok(serde_json::json!("pong"))
     }
 }
 
+async {
+    let service = Arc::new(Calc {});
 
-// It is possible to change the service name by adding a `name` attribute 
+    let server = ServerBuilder::new("tcp://127.0.0.1:60000")
+        .expect("create server builder")
+        .service(service)
+        .build()
+        .await
+        .expect("build the server");
+
+    server.start_block().await.expect("start the server");
+};
+```
+
+### Client
+
+```rust
+use karyon_jsonrpc::client::ClientBuilder;
+
+async {
+    let client = ClientBuilder::new("tcp://127.0.0.1:60000")
+        .expect("create client builder")
+        .build()
+        .await
+        .expect("build the client");
+
+    let result: i32 = client
+        .call("Calc.add", (1, 2))
+        .await
+        .expect("call add");
+};
+```
+
+### Pub/Sub
+
+```rust
+use std::sync::Arc;
+
+use serde_json::Value;
+
+use karyon_jsonrpc::{
+    error::RPCError, rpc_impl, rpc_pubsub_impl,
+    message::SubscriptionID,
+    server::{channel::Channel, ServerBuilder},
+    client::ClientBuilder,
+};
+
+struct MyService {}
+
+#[rpc_impl]
+impl MyService {
+    async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
+        Ok(serde_json::json!("pong"))
+    }
+}
+
 #[rpc_pubsub_impl]
-impl HelloWorld {
-    async fn log_subscribe(&self, chan: Arc<Channel>, method: String, _params: Value) -> Result<Value, RPCError> {
-        let sub = chan.new_subscription(&method, None).await.expect("Failed to subscribe");
-        let sub_id = sub.id.clone();
-        smol::spawn(async move {
-            loop {
-                smol::Timer::after(std::time::Duration::from_secs(1)).await;
-                if let Err(err) = sub.notify(serde_json::json!("Hello")).await {
-                    println!("Failed to send notification: {err}");
-                    break;
-                }
-            }
-        })
-        .detach();
-
+impl MyService {
+    async fn log_subscribe(
+        &self,
+        chan: Arc<Channel>,
+        method: String,
+        _params: Value,
+    ) -> Result<Value, RPCError> {
+        let sub = chan
+            .new_subscription(&method, None)
+            .await
+            .map_err(|e| RPCError::InvalidRequest(e.to_string()))?;
+        let sub_id = sub.id();
         Ok(serde_json::json!(sub_id))
     }
 
-    async fn log_unsubscribe(&self, chan: Arc<Channel>, method: String, params: Value) -> Result<Value, RPCError> {
+    async fn log_unsubscribe(
+        &self,
+        chan: Arc<Channel>,
+        _method: String,
+        params: Value,
+    ) -> Result<Value, RPCError> {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
-        chan.remove_subscription(&sub_id).await;
-        Ok(serde_json::json!(true))
+        let ok = chan.remove_subscription(&sub_id).await.is_ok();
+        Ok(serde_json::json!(ok))
     }
 }
 
-
-// Server
 async {
-    let service = Arc::new(HelloWorld {});
-    // Creates a new server
+    let service = Arc::new(MyService {});
 
-    let server = ServerBuilder::new("tcp://127.0.0.1:60000")
-        .expect("create new server builder")
+    // Server with pubsub
+    let server = ServerBuilder::new("ws://127.0.0.1:60000")
+        .expect("create server builder")
         .service(service.clone())
         .pubsub_service(service)
         .build()
         .await
         .expect("build the server");
 
-    // Starts the server
-    server.start_block()
-        .await
-        .expect("Start the server");
+    server.clone().start();
 
-};
-
-// Client
-async {
-    // Creates a new client
-    let client = ClientBuilder::new("tcp://127.0.0.1:60000")
-        .expect("create new client builder")
+    // Client subscribes
+    let client = ClientBuilder::new("ws://127.0.0.1:60000")
+        .expect("create client builder")
         .build()
         .await
         .expect("build the client");
 
-    let result: String = client.call("HelloWorld.say_hello", "world".to_string())
-        .await
-        .expect("send a request");
-
-    let result: String = client.call("HelloWorld.foo_method", ())
-        .await
-        .expect("send a request");
-
     let sub = client
-            .subscribe("HelloWorld.log_subscribe", ())
-            .await
-            .expect("Subscribe to log_subscribe method");
-
-    let sub_id = sub.id();
-    smol::spawn(async move {
-        loop {
-            let m = sub.recv().await.expect("Receive new log msg");
-            println!("Receive new log {m}");
-        }
-    })
-    .detach();
-
-    // Unsubscribe after 5 seconds
-    smol::Timer::after(std::time::Duration::from_secs(5)).await;
-
-    client
-        .unsubscribe("HelloWorld.log_unsubscribe", sub_id)
+        .subscribe("MyService.log_subscribe", ())
         .await
-        .expect("Unsubscribe from log_unsubscirbe method");
-};
+        .expect("subscribe");
 
+    // Receive notifications
+    let msg = sub.recv().await.expect("receive notification");
+
+    // Unsubscribe
+    client
+        .unsubscribe("MyService.log_unsubscribe", sub.id())
+        .await
+        .expect("unsubscribe");
+};
 ```
 
-## Supported Client Implementations 
+## Clients
 
-- [X] [Golang](https://github.com/karyontech/karyon-go)
-- [ ] Python 
-- [ ] JavaScript/TypeScript 
-
-
+The server speaks standard JSON-RPC 2.0, so any compliant client works.
+A Go client is available at [karyon-jsonrpc-go](https://github.com/karyontech/karyon-jsonrpc-go).

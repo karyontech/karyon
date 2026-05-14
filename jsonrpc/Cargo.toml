@@ -1,32 +1,45 @@
 [package]
 name = "karyon_jsonrpc"
 description = "A fast and lightweight async JSONRPC2.0 implementation."
-version.workspace = true
+version = "1.0.0-alpha.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
 readme = "README.md"
+keywords = ["jsonrpc", "rpc", "json", "async", "networking"]
+categories = ["network-programming", "asynchronous"]
 
 
 [features]
-default = ["smol", "tcp", "unix"]
+default = ["smol", "tcp", "unix", "quic", "http", "http3", "tls", "ws"]
 tcp = ["karyon_net/tcp"]
 tls = ["tcp", "karyon_net/tls"]
 ws = ["tcp", "karyon_net/ws", "async-tungstenite"]
+quic = ["karyon_net/quic"]
+http = [
+    "tcp",
+    "dep:hyper",
+    "dep:hyper-util",
+    "dep:http-body-util",
+    "dep:smol-hyper",
+]
+http3 = ["http", "quic", "dep:h3", "dep:h3-quinn", "dep:futures-util"]
 unix = ["karyon_net/unix"]
 smol = [
     "karyon_core/smol",
     "karyon_net/smol",
     "karyon_jsonrpc_macro/smol",
     "async-tungstenite?/async-std-runtime",
+    "smol-hyper?/smol",
 ]
 tokio = [
     "karyon_core/tokio",
     "karyon_net/tokio",
     "karyon_jsonrpc_macro/tokio",
     "async-tungstenite?/tokio-runtime",
+    "hyper-util?/tokio",
 ]
 
 [dependencies]
@@ -41,20 +54,41 @@ thiserror = { workspace = true }
 # encode/decode
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+bytes = { workspace = true }
 
-# async 
+# async
 async-trait = { workspace = true }
 async-channel = { workspace = true }
+parking_lot = { workspace = true }
 
 # websocket
 async-tungstenite = { workspace = true, optional = true }
 
+# http
+futures-util = { workspace = true, optional = true }
+hyper = { workspace = true, optional = true, features = [
+    "http1",
+    "http2",
+    "server",
+    "client",
+] }
+hyper-util = { workspace = true, optional = true, features = [
+    "http1",
+    "http2",
+    "client-legacy",
+    "server-auto",
+] }
+http-body-util = { workspace = true, optional = true }
+h3 = { workspace = true, optional = true }
+h3-quinn = { workspace = true, optional = true }
+smol-hyper = { workspace = true, optional = true }
+
 [dev-dependencies]
-karyon_core = { workspace = true }
+karyon_core = { workspace = true, features = ["testing"] }
 smol = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-async-channel = { workspace = true }
-easy-parallel = "3.3"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-env_logger = "0.11"
+rcgen = { workspace = true }
+rustls-pki-types = { workspace = true }
+env_logger = { workspace = true }

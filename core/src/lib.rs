@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 #[cfg(all(feature = "smol", feature = "tokio"))]
 compile_error!("Only one async runtime feature should be enabled");
 
@@ -19,5 +21,9 @@ pub mod async_runtime;
 #[cfg(feature = "crypto")]
 /// Collects common cryptographic tools
 pub mod crypto;
+
+#[cfg(feature = "testing")]
+/// Test utilities for running async tests with timeouts and executors.
+pub mod testing;
 
 pub use error::{Error, Result};

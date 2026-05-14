@@ -1,8 +1,34 @@
-use karyon_net::{Endpoint, Port};
+use karyon_net::Endpoint;
 
 use crate::Version;
 
-/// the Configuration for the P2P network.
+/// Configuration for the p2p network.
+///
+/// `peer_endpoints` are static peers dialed directly (use for fixed
+/// topologies). `bootstrap_peers` are seeds for the default Kademlia
+/// discovery; the DHT grows the connection set from there. Custom
+/// `Discovery` implementations may interpret `bootstrap_peers`
+/// differently or ignore it. Pick one, or combine.
+///
+/// # Example
+///
+/// ```
+/// use karyon_p2p::Config;
+///
+/// let config = Config {
+///     listen_endpoints: vec![
+///         "tcp://0.0.0.0:8000".parse().unwrap(),
+///     ],
+///     discovery_endpoints: vec![
+///         "tcp://0.0.0.0:7000".parse().unwrap(),
+///         "udp://0.0.0.0:7000".parse().unwrap(),
+///     ],
+///     bootstrap_peers: vec![
+///         "tcp://seed.example.com:7000".parse().unwrap(),
+///     ],
+///     ..Config::default()
+/// };
+/// ```
 pub struct Config {
     /// Represents the network version.
     pub version: Version,
@@ -27,10 +53,32 @@ pub struct Config {
     /////////////////
     // DISCOVERY
     ////////////////
+    //
+    // Discovery is pluggable via the `Discovery` trait. The default
+    // implementation is `KademliaDiscovery`, which is what the fields
+    // below describe. Custom implementations may interpret these fields
+    // differently or ignore them entirely.
+    //
     /// A list of bootstrap peers for the seeding process.
     pub bootstrap_peers: Vec<Endpoint>,
-    /// An optional listening endpoint to accept incoming connections.
-    pub listen_endpoint: Option<Endpoint>,
+    /// Endpoints to listen on for incoming peer connections.
+    /// e.g. [tcp://0.0.0.0:8000, quic://0.0.0.0:9000]
+    pub listen_endpoints: Vec<Endpoint>,
+    /// Endpoints used by the discovery service (Kademlia by default).
+    ///
+    /// Kademlia needs two sockets that serve different roles:
+    /// - one stream endpoint for the lookup service
+    ///   (`tcp://`, `tls://`, or `quic://` when the `quic` feature is on).
+    ///   Handles short-lived FIND_NODE / Ping queries from other peers.
+    /// - one `udp://` endpoint for the refresh service.
+    ///   Handles UDP liveness pings against routing-table entries.
+    ///
+    /// Either provide both (one of each kind) or leave the vector empty
+    /// to disable Kademlia-style DHT discovery and rely on
+    /// `peer_endpoints` + `bootstrap_peers` for static peering.
+    ///
+    /// e.g. [tcp://0.0.0.0:7000, udp://0.0.0.0:7000]
+    pub discovery_endpoints: Vec<Endpoint>,
     /// A list of endpoints representing peers that the `Discovery` will
     /// manually connect to.
     pub peer_endpoints: Vec<Endpoint>,
@@ -38,8 +86,6 @@ pub struct Config {
     pub inbound_slots: usize,
     /// The number of available outbound slots for outgoing connections.
     pub outbound_slots: usize,
-    /// TCP/UDP port for lookup and refresh processes.
-    pub discovery_port: Port,
     /// Time interval, in seconds, at which the Discovery restarts the
     /// seeding process.
     pub seeding_interval: u64,
@@ -74,9 +120,6 @@ pub struct Config {
     /// The maximum number of retries for outbound connection establishment
     /// during the refresh process.
     pub refresh_connect_retries: usize,
-
-    /// Enables TLS for all connections.
-    pub enable_tls: bool,
 }
 
 impl Default for Config {
@@ -91,12 +134,12 @@ impl Default for Config {
             ping_timeout: 2,
 
             bootstrap_peers: vec![],
-            listen_endpoint: None,
+            listen_endpoints: vec![],
+            discovery_endpoints: vec![],
             peer_endpoints: vec![],
             inbound_slots: 12,
             outbound_slots: 12,
             max_connect_retries: 3,
-            discovery_port: 0,
             seeding_interval: 60,
 
             lookup_inbound_slots: 20,
@@ -108,8 +151,6 @@ impl Default for Config {
             refresh_interval: 1800,
             refresh_response_timeout: 1,
             refresh_connect_retries: 3,
-
-            enable_tls: false,
         }
     }
 }

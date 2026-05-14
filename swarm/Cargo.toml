@@ -1,0 +1,31 @@
+[package]
+name = "karyon_swarm"
+description = "Swarm layer for protocol-aware peer groups on top of karyon_p2p."
+version = "1.0.0-alpha.6"
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["p2p", "swarm", "protocol", "broadcast", "karyon"]
+categories = ["network-programming", "asynchronous"]
+
+[features]
+default = ["smol"]
+smol = ["karyon_p2p/smol", "karyon_core/smol"]
+tokio = ["karyon_p2p/tokio", "karyon_core/tokio"]
+
+[dependencies]
+karyon_p2p = { workspace = true }
+karyon_core = { workspace = true }
+
+bincode = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+karyon_core = { workspace = true, features = ["testing"] }
+async-trait = { workspace = true }
+smol = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
