@@ -87,6 +87,9 @@ pub enum Error {
     Yasna(#[from] yasna::ASN1Error),
 
     #[error(transparent)]
+    Rand(#[from] rand::rand_core::OsError),
+
+    #[error(transparent)]
     X509Parser(#[from] x509_parser::error::X509Error),
 
     #[error(transparent)]

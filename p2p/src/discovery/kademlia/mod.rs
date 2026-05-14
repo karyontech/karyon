@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::error;
-use rand::{rngs::OsRng, seq::SliceRandom};
+use rand::seq::IndexedRandom;
 
 use karyon_core::{
     async_runtime::Executor,
@@ -184,7 +184,10 @@ impl KademliaDiscovery {
             }
             None => {
                 let peers = &self.config.bootstrap_peers;
-                for endpoint in peers.choose_multiple(&mut OsRng, peers.len()) {
+                let shuffled: Vec<_> = peers
+                    .choose_multiple(&mut rand::rng(), peers.len())
+                    .collect();
+                for endpoint in shuffled {
                     if let Err(err) = self.lookup_service.start_lookup(endpoint, None).await {
                         error!("Failed to do lookup: {endpoint}: {err}");
                     }

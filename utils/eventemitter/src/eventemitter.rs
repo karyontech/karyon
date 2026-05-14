@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::trace;
 use parking_lot::Mutex;
-use rand::{rngs::OsRng, Rng};
+use rand::Rng;
 
 use crate::error::{Error, Result};
 
@@ -24,7 +24,7 @@ pub type EventListenerID = u64;
 type Listeners<T> = HashMap<T, HashMap<String, HashMap<EventListenerID, Sender<Event>>>>;
 
 fn random_id() -> EventListenerID {
-    OsRng.gen()
+    rand::rng().random()
 }
 
 /// EventEmitter asynchronous event emitter.

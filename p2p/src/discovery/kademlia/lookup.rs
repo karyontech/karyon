@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
-use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+use rand::{rngs::OsRng, seq::IndexedRandom, TryRngCore};
 
 use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair};
 
@@ -200,7 +200,7 @@ impl LookupService {
         random_peers: &mut Vec<PeerMsg>,
     ) -> Result<()> {
         for _ in 0..2 {
-            let random_peer_id = PeerID::random();
+            let random_peer_id = PeerID::random()?;
             let peers = self
                 .connect(endpoint.clone(), peer_id.clone(), &random_peer_id)
                 .await?;
@@ -227,7 +227,7 @@ impl LookupService {
         peer_buffer: &mut Vec<PeerMsg>,
     ) -> Result<()> {
         let mut results = FuturesUnordered::new();
-        for peer in random_peers.choose_multiple(&mut OsRng, random_peers.len()) {
+        for peer in random_peers.choose_multiple(&mut rand::rng(), random_peers.len()) {
             let endpoint = match pick_endpoint(&peer.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS) {
                 Some(ep) => ep,
                 None => continue,
@@ -380,7 +380,7 @@ impl LookupService {
     async fn send_ping_msg(&self, conn: &mut KadConnRef) -> Result<PingMsg> {
         trace!("Send Pong msg");
         let mut nonce: [u8; 32] = [0; 32];
-        RngCore::fill_bytes(&mut OsRng, &mut nonce);
+        OsRng.try_fill_bytes(&mut nonce)?;
 
         let ping_msg = PingMsg {
             version: self.config.version.v.clone(),

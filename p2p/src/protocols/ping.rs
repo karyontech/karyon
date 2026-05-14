@@ -6,7 +6,7 @@ use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use bincode::{Decode, Encode};
 use log::trace;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, TryRngCore};
 
 use karyon_core::async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult};
 
@@ -88,14 +88,13 @@ impl PingProtocol {
     }
 
     async fn ping_loop(&self, chan: Receiver<[u8; 32]>) -> Result<()> {
-        let rng = &mut OsRng;
         let mut retry = 0;
 
         while retry < MAX_FAILURES {
             sleep(Duration::from_secs(self.ping_interval)).await;
 
             let mut nonce: [u8; 32] = [0; 32];
-            rng.fill_bytes(&mut nonce);
+            OsRng.try_fill_bytes(&mut nonce)?;
 
             trace!("Send Ping {nonce:?}");
             let bytes = encode(&PingProtocolMsg::Ping(nonce))?;

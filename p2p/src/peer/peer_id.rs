@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use bincode::{Decode, Encode};
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, TryRngCore};
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "serde")]
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use karyon_core::crypto::PublicKey;
 
-use crate::Error;
+use crate::{Error, Result};
 
 /// Represents a unique identifier for a peer.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Decode, Encode)]
@@ -32,10 +32,10 @@ impl PeerID {
     }
 
     /// Generates a random PeerID.
-    pub fn random() -> Self {
+    pub fn random() -> Result<Self> {
         let mut id: [u8; 32] = [0; 32];
-        OsRng.fill_bytes(&mut id);
-        Self(id)
+        OsRng.try_fill_bytes(&mut id)?;
+        Ok(Self(id))
     }
 }
 
@@ -54,7 +54,7 @@ impl From<PeerID> for String {
 impl TryFrom<String> for PeerID {
     type Error = Error;
 
-    fn try_from(i: String) -> Result<Self, Self::Error> {
+    fn try_from(i: String) -> std::result::Result<Self, Self::Error> {
         let result: [u8; 32] = STANDARD
             .decode(i)?
             .try_into()
@@ -66,7 +66,7 @@ impl TryFrom<String> for PeerID {
 impl TryFrom<PublicKey> for PeerID {
     type Error = Error;
 
-    fn try_from(pk: PublicKey) -> Result<Self, Self::Error> {
+    fn try_from(pk: PublicKey) -> std::result::Result<Self, Self::Error> {
         let pk: [u8; 32] = pk
             .as_bytes()
             .try_into()
