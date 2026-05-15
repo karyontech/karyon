@@ -1,0 +1,152 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="karyon net"><title>karyon_net - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_net" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_net</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_net/index.html">karyon_<wbr>net</a><span class="version">1.0.0-alpha.7</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-net" title="karyon net">karyon net</a><ul><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#feature-flags" title="Feature Flags">Feature Flags</a></li><li><a href="#core-traits-and-types" title="Core Traits and Types">Core Traits and Types</a></li><li><a href="#layers" title="Layers">Layers</a></li><li><a href="#usage" title="Usage">Usage</a></li><li><a href="#endpoint-url-schemes" title="Endpoint URL Schemes">Endpoint URL Schemes</a></li><li><a href="#runtime-support" title="Runtime Support">Runtime Support</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>karyon_<wbr>net</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_net/lib.rs.html#1-73">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-net"><a class="doc-anchor" href="#karyon-net">§</a>karyon net</h2>
+<p>A layered async networking stack over TCP, QUIC, UDP, and Unix
+sockets, with composable layers for TLS, WebSocket, and SOCKS5.</p>
+<h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3><div class="example-wrap"><pre class="language-TEXT"><code>                              Application
+                                  |
+           +----------------------+----------------------+
+           |                                             |
+     Stream Path                                    Mux Path
+           |                                             |
+   Box&lt;dyn ByteStream&gt;                         Box&lt;dyn StreamMux&gt;
+           |                                         /        \
+      FramedConn                              open_stream  accept_stream
+      (+ codec)                                    |             |
+      /      \                             Box&lt;dyn ByteStream&gt;
+ recv_msg  send_msg                                |
+      \      /                                FramedConn (+ codec)
+   split() -&gt; FramedReader + FramedWriter     /      \
+                                         recv_msg  send_msg</code></pre></div><h4 id="layer-composition"><a class="doc-anchor" href="#layer-composition">§</a>Layer Composition</h4><div class="example-wrap"><pre class="language-TEXT"><code>    Application
+        |
+    FramedConn / WsConn   &lt;- message framing (codec)
+        |
+    ByteStream            &lt;- byte duplex (AsyncRead+Write)
+        |
+    +----+-----+--------+-----+
+    | WS | TLS | SOCKS5 | ... |  &lt;- optional layers (compose)
+    +----+-----+--------+-----+
+        |
+    TCP / QUIC-stream / Unix</code></pre></div>
+<p>Construction is bottom-up: start with a transport (TCP, Unix, or a stream from
+a QUIC <code>StreamMux</code>), wrap it in any number of optional layers, then apply a
+codec to get a message connection. <code>TLS</code> and <code>SOCKS5</code> transform <code>ByteStream</code>
+into <code>ByteStream</code> and can stack, with the exception for WebSocket which can’t
+have another layer added on top.</p>
+<h3 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature Flags</h3><div><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>tcp</code></td><td>TCP transport</td></tr>
+<tr><td><code>tls</code></td><td>TLS layer (implies <code>tcp</code>)</td></tr>
+<tr><td><code>ws</code></td><td>WebSocket layer (implies <code>tcp</code>)</td></tr>
+<tr><td><code>quic</code></td><td>QUIC transport (StreamMux)</td></tr>
+<tr><td><code>udp</code></td><td>UDP datagram transport</td></tr>
+<tr><td><code>unix</code></td><td>Unix domain socket transport</td></tr>
+<tr><td><code>proxy</code></td><td>SOCKS5 proxy layer (implies <code>tcp</code>)</td></tr>
+<tr><td><code>framing</code></td><td>FramedConn codec framing (auto-enabled by <code>tcp</code>, <code>quic</code>, <code>unix</code>)</td></tr>
+<tr><td><code>smol</code></td><td>Use smol async runtime (default)</td></tr>
+<tr><td><code>tokio</code></td><td>Use tokio async runtime</td></tr>
+</tbody></table>
+</div><div class="example-wrap"><pre class="language-toml"><code># Default (smol + all protocols)
+karyon_net = &quot;1.0&quot;
+
+# With QUIC and proxy
+karyon_net = { version = &quot;1.0&quot;, features = [&quot;quic&quot;, &quot;proxy&quot;] }
+
+# Tokio runtime
+karyon_net = { version = &quot;1.0&quot;, default-features = false, features = [&quot;tokio&quot;, &quot;tcp&quot;, &quot;tls&quot;] }</code></pre></div><h3 id="core-traits-and-types"><a class="doc-anchor" href="#core-traits-and-types">§</a>Core Traits and Types</h3>
+<ul>
+<li><strong>ByteStream</strong> - byte-oriented bidirectional stream (<code>AsyncRead + AsyncWrite</code>)</li>
+<li><strong>Codec&lt;W&gt;</strong> - encodes/decodes messages from a wire type (<code>ByteBuffer</code> for byte streams, <code>ws::Message</code> for WebSocket)</li>
+<li><strong>ClientLayer / ServerLayer</strong> - composable async middleware (TLS, WebSocket, SOCKS5 proxy)</li>
+<li><strong>StreamMux</strong> - multiplexed connection yielding multiple streams (QUIC)</li>
+<li><strong>FramedConn&lt;C&gt;</strong> - message connection over a byte stream + codec; <code>recv_msg()</code>, <code>send_msg()</code>, <code>split()</code></li>
+<li><strong>FramedReader&lt;C&gt; / FramedWriter&lt;C&gt;</strong> - split halves for concurrent use</li>
+<li><strong>WsConn&lt;C&gt;</strong> - WebSocket message connection + codec; same API as FramedConn</li>
+<li><strong>WsReader&lt;C&gt; / WsWriter&lt;C&gt;</strong> - split halves of a WsConn</li>
+<li><strong>framed()</strong> - creates a <code>FramedConn</code> from <code>Box&lt;dyn ByteStream&gt;</code> + codec</li>
+</ul>
+<h3 id="layers"><a class="doc-anchor" href="#layers">§</a>Layers</h3><div><table><thead><tr><th>Layer</th><th>Feature</th><th>Direction</th><th>Input</th><th>Output</th></tr></thead><tbody>
+<tr><td>TLS</td><td><code>tls</code></td><td>Client + Server</td><td><code>Box&lt;dyn ByteStream&gt;</code></td><td><code>Box&lt;dyn ByteStream&gt;</code></td></tr>
+<tr><td>WebSocket</td><td><code>ws</code></td><td>Client + Server</td><td><code>Box&lt;dyn ByteStream&gt;</code></td><td><code>WsConn&lt;C&gt;</code></td></tr>
+<tr><td>SOCKS5</td><td><code>proxy</code></td><td>Client only</td><td><code>Box&lt;dyn ByteStream&gt;</code></td><td><code>Box&lt;dyn ByteStream&gt;</code></td></tr>
+</tbody></table>
+</div><h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3><h4 id="tcp"><a class="doc-anchor" href="#tcp">§</a>TCP</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, framed, codec::LengthCodec, Endpoint};
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"tcp://127.0.0.1:8000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>stream = tcp::connect(<span class="kw-2">&amp;</span>ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span><span class="kw-2">mut </span>conn = framed(stream, LengthCodec::default());
+conn.send_msg(Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>_msg = conn.recv_msg().<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Split for concurrent read/write across tasks
+</span><span class="kw">let </span>(<span class="kw-2">mut </span>_reader, <span class="kw-2">mut </span>_writer) = conn.split();
+<span class="comment">// reader.recv_msg() in one task, writer.send_msg() in another</span></code></pre></div><h4 id="tls"><a class="doc-anchor" href="#tls">§</a>TLS</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, framed, codec::LengthCodec, ClientLayer, Endpoint};
+<span class="kw">use </span>karyon_net::tls::TlsLayer;
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"tls://127.0.0.1:8000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>stream = tcp::connect(<span class="kw-2">&amp;</span>ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>tls_stream = ClientLayer::handshake(
+    <span class="kw-2">&amp;</span>TlsLayer::client(tls_config), stream
+).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>_conn = framed(tls_stream, LengthCodec::default());</code></pre></div><h4 id="websocket"><a class="doc-anchor" href="#websocket">§</a>WebSocket</h4>
+<p><code>WsLayer</code> needs a codec that implements <code>Codec&lt;ws::Message&gt;</code>. There’s no
+built-in one (since the message kind depends on the application), so the
+caller provides their own; here is the wiring pattern.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, ClientLayer, Endpoint, WsLayer};
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"ws://127.0.0.1:8000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>stream = tcp::connect(<span class="kw-2">&amp;</span>ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>ws_layer = WsLayer::client(<span class="string">"ws://127.0.0.1:8000"</span>, AppCodec);
+<span class="kw">let </span><span class="kw-2">mut </span>_ws_conn = ClientLayer::handshake(<span class="kw-2">&amp;</span>ws_layer, stream).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div><h4 id="quic-multiplexed"><a class="doc-anchor" href="#quic-multiplexed">§</a>QUIC (multiplexed)</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{quic, framed, codec::LengthCodec, StreamMux, Endpoint};
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"quic://127.0.0.1:9000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>quic_conn = quic::QuicEndpoint::dial(<span class="kw-2">&amp;</span>ep, client_quic_config).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>stream = quic_conn.open_stream().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>_conn = framed(stream, LengthCodec::default());</code></pre></div><h4 id="socks5-proxy"><a class="doc-anchor" href="#socks5-proxy">§</a>SOCKS5 Proxy</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, ClientLayer, Endpoint};
+<span class="kw">use </span>karyon_net::proxy::Socks5Layer;
+
+<span class="kw">let </span>proxy_ep: Endpoint = <span class="string">"tcp://127.0.0.1:1080"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>stream = tcp::connect(<span class="kw-2">&amp;</span>proxy_ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>layer = Socks5Layer::new(<span class="string">"example.com"</span>, <span class="number">443</span>);
+<span class="kw">let </span>_tunneled = ClientLayer::handshake(<span class="kw-2">&amp;</span>layer, stream).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div><h4 id="listener"><a class="doc-anchor" href="#listener">§</a>Listener</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, framed, codec::LengthCodec, Endpoint};
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"tcp://0.0.0.0:8000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>listener = tcp::TcpListener::bind(<span class="kw-2">&amp;</span>ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="kw">loop </span>{
+    <span class="kw">let </span>stream = listener.accept().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>_conn = framed(stream, LengthCodec::default());
+    <span class="comment">// conn.recv_msg(), conn.send_msg(), or conn.split()
+</span>}</code></pre></div><h4 id="tls-listener"><a class="doc-anchor" href="#tls-listener">§</a>TLS Listener</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::{tcp, codec::LengthCodec, framed, Endpoint};
+<span class="kw">use </span>karyon_net::tls::TlsListener;
+
+<span class="kw">let </span>ep: Endpoint = <span class="string">"tls://0.0.0.0:8000"</span>.parse()<span class="question-mark">?</span>;
+<span class="kw">let </span>tcp_listener = tcp::TcpListener::bind(<span class="kw-2">&amp;</span>ep, Default::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>listener = TlsListener::new(tcp_listener, tls_config);
+
+<span class="kw">loop </span>{
+    <span class="kw">let </span>stream = listener.accept().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>_conn = framed(stream, LengthCodec::default());
+}</code></pre></div><h3 id="endpoint-url-schemes"><a class="doc-anchor" href="#endpoint-url-schemes">§</a>Endpoint URL Schemes</h3><div><table><thead><tr><th>Scheme</th><th>Transport</th></tr></thead><tbody>
+<tr><td><code>tcp://host:port</code></td><td>Plain TCP</td></tr>
+<tr><td><code>tls://host:port</code></td><td>TLS over TCP</td></tr>
+<tr><td><code>udp://host:port</code></td><td>UDP</td></tr>
+<tr><td><code>ws://host:port</code></td><td>WebSocket over TCP</td></tr>
+<tr><td><code>wss://host:port</code></td><td>WebSocket over TLS</td></tr>
+<tr><td><code>quic://host:port</code></td><td>QUIC</td></tr>
+<tr><td><code>http://host:port</code></td><td>HTTP</td></tr>
+<tr><td><code>https://host:port</code></td><td>HTTPS</td></tr>
+<tr><td><code>unix:path</code></td><td>Unix domain socket</td></tr>
+</tbody></table>
+</div><h3 id="runtime-support"><a class="doc-anchor" href="#runtime-support">§</a>Runtime Support</h3>
+<p>Supports both <strong>smol</strong> (default) and <strong>tokio</strong> async runtimes.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.WsConn"><code>pub use layers::ws::<a class="struct" href="layers/ws/struct.WsConn.html" title="struct karyon_net::layers::ws::WsConn">WsConn</a>;</code></dt><dt id="reexport.WsLayer"><code>pub use layers::ws::<a class="struct" href="layers/ws/struct.WsLayer.html" title="struct karyon_net::layers::ws::WsLayer">WsLayer</a>;</code></dt><dt id="reexport.WsReader"><code>pub use layers::ws::<a class="struct" href="layers/ws/struct.WsReader.html" title="struct karyon_net::layers::ws::WsReader">WsReader</a>;</code></dt><dt id="reexport.WsWriter"><code>pub use layers::ws::<a class="struct" href="layers/ws/struct.WsWriter.html" title="struct karyon_net::layers::ws::WsWriter">WsWriter</a>;</code></dt><dt id="reexport.proxy"><code>pub use layers::<a class="mod" href="layers/proxy/index.html" title="mod karyon_net::layers::proxy">proxy</a>;</code></dt><dt id="reexport.tls"><code>pub use layers::<a class="mod" href="layers/tls/index.html" title="mod karyon_net::layers::tls">tls</a>;</code></dt><dt id="reexport.async_rustls"><code>pub use karyon_async_rustls as async_rustls;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="buffer/index.html" title="mod karyon_net::buffer">buffer</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="codec/index.html" title="mod karyon_net::codec">codec</a></dt><dd>Message encoding and decoding.</dd><dt><a class="mod" href="endpoint/index.html" title="mod karyon_net::endpoint">endpoint</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="error/index.html" title="mod karyon_net::error">error</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="framed/index.html" title="mod karyon_net::framed">framed</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="layer/index.html" title="mod karyon_net::layer">layer</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="layers/index.html" title="mod karyon_net::layers">layers</a></dt><dt><a class="mod" href="message/index.html" title="mod karyon_net::message">message</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Read/write traits over message connections.</dd><dt><a class="mod" href="quic/index.html" title="mod karyon_net::quic">quic</a></dt><dt><a class="mod" href="stream/index.html" title="mod karyon_net::stream">stream</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="stream_mux/index.html" title="mod karyon_net::stream_mux">stream_<wbr>mux</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="tcp/index.html" title="mod karyon_net::tcp">tcp</a></dt><dt><a class="mod" href="transports/index.html" title="mod karyon_net::transports">transports</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="udp/index.html" title="mod karyon_net::udp">udp</a></dt><dt><a class="mod" href="unix/index.html" title="mod karyon_net::unix">unix</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Buffer.html" title="struct karyon_net::Buffer">Buffer</a></dt><dd>Mutable, growable byte container. Used by codecs to build and consume
+framed payloads, and as an owned container for transport-level payloads.</dd><dt><a class="struct" href="struct.Bytes.html" title="struct karyon_net::Bytes">Bytes</a></dt><dd>Immutable, cheaply cloneable byte container. .</dd><dt><a class="struct" href="struct.FramedConn.html" title="struct karyon_net::FramedConn">Framed<wbr>Conn</a></dt><dd>Framed message connection over a byte stream.</dd><dt><a class="struct" href="struct.FramedReader.html" title="struct karyon_net::FramedReader">Framed<wbr>Reader</a></dt><dd>Read half of a framed connection.</dd><dt><a class="struct" href="struct.FramedWriter.html" title="struct karyon_net::FramedWriter">Framed<wbr>Writer</a></dt><dd>Write half of a framed connection.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Addr.html" title="enum karyon_net::Addr">Addr</a></dt><dd>Addr defines a type for an address, either IP or domain.</dd><dt><a class="enum" href="enum.Endpoint.html" title="enum karyon_net::Endpoint">Endpoint</a></dt><dd>Endpoint defines generic network endpoints for karyon.</dd><dt><a class="enum" href="enum.Error.html" title="enum karyon_net::Error">Error</a></dt></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.ByteStream.html" title="trait karyon_net::ByteStream">Byte<wbr>Stream</a></dt><dd>Byte-oriented bidirectional stream.</dd><dt><a class="trait" href="trait.ClientLayer.html" title="trait karyon_net::ClientLayer">Client<wbr>Layer</a></dt><dd>Client-side middleware layer. Upgrades an input via handshake.</dd><dt><a class="trait" href="trait.MessageRx.html" title="trait karyon_net::MessageRx">Message<wbr>Rx</a></dt><dd>Read half of a message connection.</dd><dt><a class="trait" href="trait.MessageTx.html" title="trait karyon_net::MessageTx">Message<wbr>Tx</a></dt><dd>Write half of a message connection.</dd><dt><a class="trait" href="trait.ServerLayer.html" title="trait karyon_net::ServerLayer">Server<wbr>Layer</a></dt><dd>Server-side middleware layer. Upgrades an accepted input via handshake.</dd><dt><a class="trait" href="trait.StreamMux.html" title="trait karyon_net::StreamMux">Stream<wbr>Mux</a></dt><dd>Multiplexed connection that yields multiple independent streams
+from a single underlying connection (e.g., QUIC).</dd><dt><a class="trait" href="trait.ToEndpoint.html" title="trait karyon_net::ToEndpoint">ToEndpoint</a></dt></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.framed.html" title="fn karyon_net::framed">framed</a></dt><dd>Convert a ByteStream + codec into a FramedConn.
+The codec handles both framing and serialization over the
+byte stream. Call <code>split()</code> for concurrent read/write.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.ByteBuffer.html" title="type karyon_net::ByteBuffer">Byte<wbr>Buffer</a></dt><dd>Back-compat alias used as the wire type in <code>Codec&lt;W&gt;</code> for byte-stream
+framing.</dd><dt><a class="type" href="type.Port.html" title="type karyon_net::Port">Port</a></dt><dd>Port defined as a u16.</dd><dt><a class="type" href="type.Result.html" title="type karyon_net::Result">Result</a></dt></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</div>","&mut [u8]":"<h3>Notable traits for <code>&amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for &amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</div>"}</script></section></div></main></body></html>

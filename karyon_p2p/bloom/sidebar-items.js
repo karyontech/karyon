@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["bit_indices"],"struct":["Bloom"],"type":["BloomRef"]};

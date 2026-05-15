@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_ADDRS_PER_PEER","MAX_DISCOVERY_ADDRS_PER_PEER","MAX_PEERS_IN_PEERSMSG"],"fn":["validate_peer_msg"],"struct":["LookupEndpoints","LookupService"],"type":["KadConnRef"]};

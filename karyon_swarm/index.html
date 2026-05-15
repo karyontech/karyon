@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Karyon Swarm"><title>karyon_swarm - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_swarm" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_swarm</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_swarm/index.html">karyon_<wbr>swarm</a><span class="version">1.0.0-alpha.7</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-swarm" title="Karyon Swarm">Karyon Swarm</a><ul><li><a href="#feature-flags" title="Feature Flags">Feature Flags</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#limitations" title="Limitations">Limitations</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>karyon_<wbr>swarm</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_swarm/lib.rs.html#1-285">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-swarm"><a class="doc-anchor" href="#karyon-swarm">§</a>Karyon Swarm</h2>
+<p>A swarm layer on top of <a href="https://crates.io/crates/karyon_p2p">karyon_p2p</a>
+for protocol-aware peer groups, with BitTorrent-style swarm-keyed
+discovery.</p>
+<p>Each swarm is identified by a <code>SwarmKey</code> derived from a protocol id and
+an instance name (e.g. <code>("ChatProto", "general")</code>). Peers with different
+protocol sets can coexist; peers are automatically assigned to the
+swarms they support based on their negotiated protocols.</p>
+<h3 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature Flags</h3><div><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>smol</code></td><td>Use smol async runtime (default)</td></tr>
+<tr><td><code>tokio</code></td><td>Use tokio async runtime</td></tr>
+</tbody></table>
+</div><div class="example-wrap"><pre class="language-toml"><code>karyon_swarm = &quot;1&quot;</code></pre></div><h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_core::async_runtime::global_executor;
+<span class="kw">use </span>karyon_p2p::{Node, Config, keypair::{KeyPair, KeyPairType}};
+<span class="kw">use </span>karyon_swarm::Swarm;
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>key_pair = KeyPair::generate(<span class="kw-2">&amp;</span>KeyPairType::Ed25519);
+
+    <span class="kw">let </span>node = Node::new(<span class="kw-2">&amp;</span>key_pair, Config::default(), global_executor());
+    <span class="kw">let </span>swarm = Swarm::new(node, global_executor());
+
+    <span class="comment">// Join a swarm. SwarmKey defaults to hash(ProtocolID); call multiple
+    // times with different protocols (or instances) to manage many swarms
+    // from the same Swarm instance.
+    // let chat_key = swarm.join::&lt;ChatProtocol&gt;(ChatProtocol::new).await?;
+    // For sub-grouping inside a protocol (rooms, topics):
+    // let room_key = swarm.join_with_instance::&lt;ChatProtocol&gt;("general", ChatProtocol::new).await?;
+
+    </span>swarm.run().<span class="kw">await</span>.expect(<span class="string">"run swarm"</span>);
+
+    <span class="comment">// Send a message to all peers in the "general" chat swarm.
+    // swarm.broadcast(&amp;chat_key, msg_bytes).await;
+
+    // Connected peers currently in this swarm.
+    // let peers = swarm.peers(&amp;chat_key).await;
+
+    // Routing-table candidates that may belong to this swarm.
+    // let candidates = swarm.find_peers(&amp;chat_key);
+
+    </span>swarm.shutdown().<span class="kw">await</span>;
+};</code></pre></div><h3 id="limitations"><a class="doc-anchor" href="#limitations">§</a>Limitations</h3>
+<p><strong>Late <code>join</code> does not actively reshape the connection pool.</strong> The
+connector fills outbound slots at startup based on the local node’s
+state at that moment. If you call <code>swarm.join(...)</code> <em>after</em>
+<code>swarm.run()</code>, the slots are already occupied by peers picked under the
+previous state; the new swarm only gains members as those existing
+connections churn (timeout, ping fail, explicit shutdown). On a stable
+network this can leave a freshly-joined swarm empty for a long time.</p>
+<p>Recommended pattern today: register every swarm via <code>swarm.join(...)</code>
+<em>before</em> calling <code>swarm.run()</code>.</p>
+<p>A future release will add proactive dialing for late joins (and
+optionally eviction of non-member peers to make room) so swarm
+membership can be reshaped at runtime without restarting the node.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="swarm_key/index.html" title="mod karyon_swarm::swarm_key">swarm_<wbr>key</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Swarm.html" title="struct karyon_swarm::Swarm">Swarm</a></dt><dd>Swarm layer on top of Node. Manages protocol-aware peer groups
+and advertises swarm membership in the Node’s bloom filter.</dd><dt><a class="struct" href="struct.SwarmInfo.html" title="struct karyon_swarm::SwarmInfo">Swarm<wbr>Info</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Per-swarm state.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.compute_swarm_key.html" title="fn karyon_swarm::compute_swarm_key">compute_<wbr>swarm_<wbr>key</a></dt><dd>Swarm key with an extra instance name for sub-grouping within a
+protocol: <code>sha256(protocol_id + ":" + instance)</code>.</dd><dt><a class="fn" href="fn.swarm_key_from_protocol.html" title="fn karyon_swarm::swarm_key_from_protocol">swarm_<wbr>key_<wbr>from_<wbr>protocol</a></dt><dd>Default swarm key: <code>sha256(protocol_id)</code>. One swarm per protocol.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.SwarmKey.html" title="type karyon_swarm::SwarmKey">Swarm<wbr>Key</a></dt><dd>A 32-byte key identifying a swarm.</dd></dl></section></div></main></body></html>

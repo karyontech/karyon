@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["RECV_QUEUE_SIZE","SEND_QUEUE_SIZE"],"fn":["broadcast_shutdown","build_recv_queues","from_queued","setup_quic_streams","spawn_demux_reader","spawn_quic_reader","spawn_writer_task"],"struct":["MuxConnection","MuxStream","SingleConnection"],"trait":["PeerConnection"]};

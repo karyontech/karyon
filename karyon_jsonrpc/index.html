@@ -1,0 +1,188 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="karyon jsonrpc"><title>karyon_jsonrpc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_jsonrpc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_jsonrpc</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_jsonrpc/index.html">karyon_<wbr>jsonrpc</a><span class="version">1.0.0-alpha.7</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-jsonrpc" title="karyon jsonrpc">karyon jsonrpc</a><ul><li><a href="#install" title="Install">Install</a></li><li><a href="#feature-flags" title="Feature Flags">Feature Flags</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#clients" title="Clients">Clients</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>karyon_<wbr>jsonrpc</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_jsonrpc/lib.rs.html#1-12">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-jsonrpc"><a class="doc-anchor" href="#karyon-jsonrpc">§</a>karyon jsonrpc</h2>
+<p>A fast and lightweight async implementation of <a href="https://www.jsonrpc.org/specification">JSON-RPC
+2.0</a>. Runs over TCP, TLS,
+WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets,
+with pub/sub and custom JSON codecs.</p>
+<h3 id="install"><a class="doc-anchor" href="#install">§</a>Install</h3><div class="example-wrap"><pre class="language-bash"><code>$ cargo add karyon_jsonrpc</code></pre></div><h3 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature Flags</h3><div><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>tcp</code></td><td>TCP (included by default)</td></tr>
+<tr><td><code>tls</code></td><td>TLS over TCP (implies <code>tcp</code>)</td></tr>
+<tr><td><code>ws</code></td><td>WebSocket over TCP (implies <code>tcp</code>)</td></tr>
+<tr><td><code>quic</code></td><td>QUIC</td></tr>
+<tr><td><code>http</code></td><td>HTTP/1.1 and HTTP/2 over TCP (implies <code>tcp</code>)</td></tr>
+<tr><td><code>http3</code></td><td>HTTP/3 over QUIC (implies <code>http</code> and <code>quic</code>)</td></tr>
+<tr><td><code>unix</code></td><td>Unix socket (included by default)</td></tr>
+<tr><td><code>smol</code></td><td>Use smol async runtime (default)</td></tr>
+<tr><td><code>tokio</code></td><td>Use tokio async runtime</td></tr>
+</tbody></table>
+</div><div class="example-wrap"><pre class="language-toml"><code># QUIC support
+karyon_jsonrpc = { version = &quot;1.0&quot;, features = [&quot;quic&quot;] }
+
+# HTTP/1.1 + HTTP/2
+karyon_jsonrpc = { version = &quot;1.0&quot;, features = [&quot;http&quot;] }
+
+# HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
+karyon_jsonrpc = { version = &quot;1.0&quot;, features = [&quot;http3&quot;] }
+
+# All wire formats
+karyon_jsonrpc = { version = &quot;1.0&quot;, features = [&quot;tcp&quot;, &quot;tls&quot;, &quot;ws&quot;, &quot;quic&quot;, &quot;http3&quot;, &quot;unix&quot;] }</code></pre></div><h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3><div class="example-wrap"><pre class="language-TEXT"><code>  ClientBuilder / ServerBuilder
+           |
+     endpoint dispatch
+           |
+  +--------+--------+--------+--------+
+  | TCP    | TLS    | QUIC   | HTTP   |
+  +--------+--------+--------+--------+
+  |        |        |        |        |
+  | framed | framed | stream | hyper  |
+  | conn   | conn   | per    | / h3   |
+  |        |        | call   |        |
+  +--------+--------+--------+--------+
+           |
+     FramedReader / FramedWriter
+     (concurrent recv_msg / send_msg)</code></pre></div>
+<ul>
+<li><strong>TCP/TLS/Unix</strong>: <code>tcp::connect()</code> or <code>TcpListener::bind()</code>, optionally wrapped with
+<code>TlsLayer</code>, then <code>framed()</code> to get a <code>FramedConn</code>. The connection is split into
+<code>FramedReader</code> + <code>FramedWriter</code> for concurrent request reading and response writing.</li>
+<li><strong>QUIC</strong>: each RPC call opens a new bidirectional stream via <code>StreamMux</code>. Each subscription
+also opens its own dedicated stream and splits it for concurrent notification writing +
+unsubscribe reading.</li>
+<li><strong>HTTP/1-2</strong>: standard hyper request/response. No persistent connection.</li>
+<li><strong>HTTP/3</strong>: QUIC-based. Subscriptions stream DATA frames on a single request.</li>
+</ul>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3><h4 id="server"><a class="doc-anchor" href="#server">§</a>Server</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use </span>serde_json::Value;
+
+<span class="kw">use </span>karyon_jsonrpc::{
+    error::RPCError, rpc_impl, server::ServerBuilder,
+};
+
+<span class="kw">struct </span>Calc {}
+
+<span class="attr">#[rpc_impl]
+</span><span class="kw">impl </span>Calc {
+    <span class="kw">async fn </span>add(<span class="kw-2">&amp;</span><span class="self">self</span>, params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>(a, b): (i32, i32) = serde_json::from_value(params)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(a + b))
+    }
+
+    <span class="kw">async fn </span>ping(<span class="kw-2">&amp;</span><span class="self">self</span>, _params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="string">"pong"</span>))
+    }
+}
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>service = Arc::new(Calc {});
+
+    <span class="kw">let </span>server = ServerBuilder::new(<span class="string">"tcp://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create server builder"</span>)
+        .service(service)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the server"</span>);
+
+    server.start_block().<span class="kw">await</span>.expect(<span class="string">"start the server"</span>);
+};</code></pre></div><h4 id="client"><a class="doc-anchor" href="#client">§</a>Client</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_jsonrpc::client::ClientBuilder;
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>client = ClientBuilder::new(<span class="string">"tcp://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create client builder"</span>)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the client"</span>);
+
+    <span class="kw">let </span>result: i32 = client
+        .call(<span class="string">"Calc.add"</span>, (<span class="number">1</span>, <span class="number">2</span>))
+        .<span class="kw">await
+        </span>.expect(<span class="string">"call add"</span>);
+};</code></pre></div><h4 id="pubsub"><a class="doc-anchor" href="#pubsub">§</a>Pub/Sub</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use </span>serde_json::Value;
+
+<span class="kw">use </span>karyon_jsonrpc::{
+    error::RPCError, rpc_impl, rpc_pubsub_impl,
+    message::SubscriptionID,
+    server::{channel::Channel, ServerBuilder},
+    client::ClientBuilder,
+};
+
+<span class="kw">struct </span>MyService {}
+
+<span class="attr">#[rpc_impl]
+</span><span class="kw">impl </span>MyService {
+    <span class="kw">async fn </span>ping(<span class="kw-2">&amp;</span><span class="self">self</span>, _params: Value) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(<span class="string">"pong"</span>))
+    }
+}
+
+<span class="attr">#[rpc_pubsub_impl]
+</span><span class="kw">impl </span>MyService {
+    <span class="kw">async fn </span>log_subscribe(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        chan: Arc&lt;Channel&gt;,
+        method: String,
+        _params: Value,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>sub = chan
+            .new_subscription(<span class="kw-2">&amp;</span>method, <span class="prelude-val">None</span>)
+            .<span class="kw">await
+            </span>.map_err(|e| RPCError::InvalidRequest(e.to_string()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>sub_id = sub.id();
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(sub_id))
+    }
+
+    <span class="kw">async fn </span>log_unsubscribe(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        chan: Arc&lt;Channel&gt;,
+        _method: String,
+        params: Value,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Value, RPCError&gt; {
+        <span class="kw">let </span>sub_id: SubscriptionID = serde_json::from_value(params)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ok = chan.remove_subscription(<span class="kw-2">&amp;</span>sub_id).<span class="kw">await</span>.is_ok();
+        <span class="prelude-val">Ok</span>(<span class="macro">serde_json::json!</span>(ok))
+    }
+}
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>service = Arc::new(MyService {});
+
+    <span class="comment">// Server with pubsub
+    </span><span class="kw">let </span>server = ServerBuilder::new(<span class="string">"ws://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create server builder"</span>)
+        .service(service.clone())
+        .pubsub_service(service)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the server"</span>);
+
+    server.clone().start();
+
+    <span class="comment">// Client subscribes
+    </span><span class="kw">let </span>client = ClientBuilder::new(<span class="string">"ws://127.0.0.1:60000"</span>)
+        .expect(<span class="string">"create client builder"</span>)
+        .build()
+        .<span class="kw">await
+        </span>.expect(<span class="string">"build the client"</span>);
+
+    <span class="kw">let </span>sub = client
+        .subscribe(<span class="string">"MyService.log_subscribe"</span>, ())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"subscribe"</span>);
+
+    <span class="comment">// Receive notifications
+    </span><span class="kw">let </span>msg = sub.recv().<span class="kw">await</span>.expect(<span class="string">"receive notification"</span>);
+
+    <span class="comment">// Unsubscribe
+    </span>client
+        .unsubscribe(<span class="string">"MyService.log_unsubscribe"</span>, sub.id())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"unsubscribe"</span>);
+};</code></pre></div><h3 id="clients"><a class="doc-anchor" href="#clients">§</a>Clients</h3>
+<p>The server speaks standard JSON-RPC 2.0, so any compliant client works.
+A Go client is available at <a href="https://github.com/karyontech/karyon-jsonrpc-go">karyon-jsonrpc-go</a>.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="client/index.html" title="mod karyon_jsonrpc::client">client</a></dt><dt><a class="mod" href="codec/index.html" title="mod karyon_jsonrpc::codec">codec</a></dt><dd>JSON codec for JSON-RPC message framing.</dd><dt><a class="mod" href="error/index.html" title="mod karyon_jsonrpc::error">error</a></dt><dt><a class="mod" href="hyper_exec/index.html" title="mod karyon_jsonrpc::hyper_exec">hyper_<wbr>exec</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd><code>hyper::rt::Executor</code> impl shared by the HTTP server and the
+tokio HTTP/1+2 client. Spawns hyper’s internal tasks via the
+owning Server/Client task_group so they get cancelled on stop.</dd><dt><a class="mod" href="message/index.html" title="mod karyon_jsonrpc::message">message</a></dt><dt><a class="mod" href="server/index.html" title="mod karyon_jsonrpc::server">server</a></dt></dl><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.rpc_impl.html" title="attr karyon_jsonrpc::rpc_impl">rpc_<wbr>impl</a></dt><dt><a class="attr" href="attr.rpc_method.html" title="attr karyon_jsonrpc::rpc_method">rpc_<wbr>method</a></dt><dt><a class="attr" href="attr.rpc_pubsub_impl.html" title="attr karyon_jsonrpc::rpc_pubsub_impl">rpc_<wbr>pubsub_<wbr>impl</a></dt></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</div>","&mut [u8]":"<h3>Notable traits for <code>&amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for &amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</div>","<Arc<S> as Service<Request>>::Future":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/sync/struct.Arc.html\" title=\"struct alloc::sync::Arc\">Arc</a>&lt;<a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/std/fs/struct.File.html\" title=\"struct std::fs::File\">File</a>&gt;</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/sync/struct.Arc.html\" title=\"struct alloc::sync::Arc\">Arc</a>&lt;<a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/std/fs/struct.File.html\" title=\"struct std::fs::File\">File</a>&gt;</div><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/sync/struct.Arc.html\" title=\"struct alloc::sync::Arc\">Arc</a>&lt;<a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/std/fs/struct.File.html\" title=\"struct std::fs::File\">File</a>&gt;</div>"}</script></section></div></main></body></html>

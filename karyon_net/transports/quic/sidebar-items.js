@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_READ_CHUNK_SIZE"],"enum":["ClientSource","ServerSource"],"fn":["build_transport_config"],"struct":["ClientQuicConfig","QuicBiStream","QuicConfig","QuicConn","QuicEndpoint","ServerQuicConfig"],"type":["QuicRecvStream","QuicSendStream"]};

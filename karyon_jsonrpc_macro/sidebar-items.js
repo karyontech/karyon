@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["rpc_impl","rpc_method","rpc_pubsub_impl"],"enum":["ServiceKind"],"fn":["expand_service_impl","parse_service_name","parse_struct_methods","resolve_service_name","validate_method"],"macro":["err"]};

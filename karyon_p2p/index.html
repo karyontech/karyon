@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Karyon p2p"><title>karyon_p2p - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_p2p" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_p2p</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_p2p/index.html">karyon_<wbr>p2p</a><span class="version">1.0.0-alpha.7</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-p2p" title="Karyon p2p">Karyon p2p</a><ul><li><a href="#install" title="Install">Install</a></li><li><a href="#feature-flags" title="Feature Flags">Feature Flags</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>karyon_<wbr>p2p</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_p2p/lib.rs.html#1-48">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-p2p"><a class="doc-anchor" href="#karyon-p2p">§</a>Karyon p2p</h2>
+<p>A lightweight, extensible, and customizable peer-to-peer network stack.
+Multi-transport (TCP, TCP/TLS, QUIC) with pluggable custom protocols via the
+<code>Protocol</code> trait, pluggable discovery with a built-in Kademlia DHT.</p>
+<h3 id="install"><a class="doc-anchor" href="#install">§</a>Install</h3><div class="example-wrap"><pre class="language-bash"><code>$ cargo add karyon_p2p</code></pre></div><h3 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature Flags</h3><div><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>smol</code></td><td>Use smol async runtime (default)</td></tr>
+<tr><td><code>tokio</code></td><td>Use tokio async runtime</td></tr>
+<tr><td><code>quic</code></td><td>Enable QUIC transport</td></tr>
+<tr><td><code>serde</code></td><td>Enable serde support for p2p types</td></tr>
+</tbody></table>
+</div><div class="example-wrap"><pre class="language-toml"><code># Default (smol + TCP/TLS)
+karyon_p2p = &quot;1.0&quot;
+
+# With QUIC
+karyon_p2p = { version = &quot;1.0&quot;, features = [&quot;quic&quot;] }
+
+# With tokio
+karyon_p2p = { version = &quot;1.0&quot;, default-features = false, features = [&quot;tokio&quot;, &quot;quic&quot;] }</code></pre></div><h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3><div class="example-wrap"><pre class="language-TEXT"><code>                          Node
+                            |
+   +------------+-----------+-----------+
+   |            |                       |
+Discovery   PeerPool             Connector / Listener
+   |            |                       |
+Routing     Peers + Protocols       ConnQueue
+table           |                       |
+                +------- Handshake -----+
+                             |
+                          karyon_net (TCP / TLS / QUIC)</code></pre></div>
+<ul>
+<li><strong>Node</strong>: top-level lifecycle. Creates the discovery, pool, connector,
+and listener; wires them together; exposes the public API.</li>
+<li><strong>Discovery</strong>: finds peers and yields them as <code>DiscoveredPeer</code>. Default
+is Kademlia DHT; custom implementations of the <code>Discovery</code> trait plug in.</li>
+<li><strong>Connector / Listener</strong>: dial and accept connections over the
+configured transports, then hand them to <code>ConnQueue</code>.</li>
+<li><strong>ConnQueue</strong>: short-lived bridge between accept/dial and handshake.</li>
+<li><strong>Handshake</strong>: version + protocol negotiation. Verifies peer identity
+bound to the secure transport’s certificate.</li>
+<li><strong>PeerPool</strong>: registry of post-handshake peers. Owns the per-peer
+<code>Peer</code> state and broadcasts lifecycle events.</li>
+<li><strong>Peer / Protocol</strong>: per-peer read loop dispatching to the registered
+protocols. Custom protocols implement the <code>Protocol</code> trait.</li>
+</ul>
+<h4 id="transport"><a class="doc-anchor" href="#transport">§</a>Transport</h4>
+<p>Peers can listen and connect over multiple transports simultaneously.
+Configuration uses endpoint URLs (<code>tcp://</code>, <code>tls://</code>, <code>quic://</code>); TLS
+uses self-signed certs derived from the node’s keypair, and QUIC
+multiplexes one stream per protocol.</p>
+<h4 id="discovery"><a class="doc-anchor" href="#discovery">§</a>Discovery</h4>
+<p>Implementations of the <code>Discovery</code> trait yield candidate peers; the
+Node dials them. The default is a Kademlia DHT; plug in your own (mDNS,
+static, …) by implementing the trait.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[async_trait]
+</span><span class="kw">pub trait </span>Discovery: Send + Sync {
+    <span class="kw">async fn </span>start(<span class="self">self</span>: Arc&lt;<span class="self">Self</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;;
+    <span class="kw">async fn </span>shutdown(<span class="kw-2">&amp;</span><span class="self">self</span>);
+    <span class="kw">async fn </span>recv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DiscoveredPeer;
+    <span class="kw">fn </span>on_event(<span class="kw-2">&amp;</span><span class="self">self</span>, event: PeerConnectionEvent);
+    <span class="kw">fn </span>find_peers_with(<span class="kw-2">&amp;</span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;DiscoveredPeer&gt;;
+}</code></pre></div><h4 id="protocols"><a class="doc-anchor" href="#protocols">§</a>Protocols</h4>
+<p>A built-in <code>Ping</code> keep-alive runs on every connection; everything else
+is a custom protocol. For TCP/TLS, protocols share a single framed
+connection. For QUIC, each protocol gets its own bidirectional stream.</p>
+<p><code>Protocol::kind()</code> defaults to <code>Optional</code>. Override to <code>Mandatory</code> for
+protocols every peer must speak.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>MyProtocol {
+    peer: PeerConn,
+}
+
+<span class="kw">impl </span>MyProtocol {
+    <span class="kw">fn </span>new(peer: PeerConn) -&gt; Arc&lt;<span class="kw">dyn </span>Protocol&gt; {
+        Arc::new(<span class="self">Self </span>{ peer })
+    }
+}
+
+<span class="attr">#[async_trait]
+</span><span class="kw">impl </span>Protocol <span class="kw">for </span>MyProtocol {
+    <span class="kw">async fn </span>start(<span class="self">self</span>: Arc&lt;<span class="self">Self</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+        <span class="kw">loop </span>{
+            <span class="kw">match </span><span class="self">self</span>.peer.recv().<span class="kw">await </span>{
+                <span class="prelude-val">Ok</span>(_msg) =&gt; { <span class="comment">/* handle */ </span>}
+                <span class="prelude-val">Err</span>(Error::PeerShutdown) =&gt; <span class="kw">break</span>,
+                <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e),
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>version() -&gt; <span class="prelude-ty">Result</span>&lt;Version, Error&gt; {
+        <span class="string">"0.1.0, &gt;0.1.0"</span>.parse()
+    }
+
+    <span class="kw">fn </span>id() -&gt; ProtocolID {
+        <span class="string">"MYPROTO"</span>.into()
+    }
+
+    <span class="comment">// Optional override (defaults to ProtocolKind::Optional)
+    // fn kind() -&gt; ProtocolKind { ProtocolKind::Mandatory }
+</span>}</code></pre></div><h4 id="monitor"><a class="doc-anchor" href="#monitor">§</a>Monitor</h4>
+<p>Subscribe to <code>node.monitor()</code> to observe what the network is doing -
+connections opening and closing, peer add/remove, handshake failures,
+discovery lookups and refreshes. Each topic is a separate event type
+with its own listener; every subscriber gets every event independently.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>listener = node.monitor().register::&lt;ConnectionEvent&gt;();
+<span class="kw">while let </span><span class="prelude-val">Ok</span>(ev) = listener.recv().<span class="kw">await </span>{
+    <span class="macro">println!</span>(<span class="string">"conn event: {} {:?}"</span>, ev.event, ev.endpoint);
+}</code></pre></div>
+<p>Available event types: <code>ConnectionEvent</code>, <code>PeerPoolEvent</code>,
+<code>DiscoveryEvent</code>. Gated by <code>Config::enable_monitor</code>.</p>
+<h4 id="network-security"><a class="doc-anchor" href="#network-security">§</a>Network Security</h4>
+<p>TLS is available for TCP connections. QUIC has built-in TLS 1.3. The
+p2p layer generates self-signed certificates from the node’s key pair
+for mutual authentication.</p>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_core::async_runtime::global_executor;
+<span class="kw">use </span>karyon_p2p::{
+    Node, Config,
+    keypair::{KeyPair, KeyPairType},
+};
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>key_pair = KeyPair::generate(<span class="kw-2">&amp;</span>KeyPairType::Ed25519);
+
+    <span class="kw">let </span>config = Config {
+        listen_endpoints: <span class="macro">vec!</span>[
+            <span class="string">"tcp://0.0.0.0:8000"</span>.parse().unwrap(),
+        ],
+        discovery_endpoints: <span class="macro">vec!</span>[
+            <span class="string">"tcp://0.0.0.0:7000"</span>.parse().unwrap(),
+            <span class="string">"udp://0.0.0.0:7000"</span>.parse().unwrap(),
+        ],
+        ..Config::default()
+    };
+
+    <span class="kw">let </span>node = Node::new(<span class="kw-2">&amp;</span>key_pair, config, global_executor());
+
+    node.run().<span class="kw">await</span>.expect(<span class="string">"run node"</span>);
+
+    <span class="comment">// Register custom protocols, connect to peers, etc.
+
+    </span>node.shutdown().<span class="kw">await</span>;
+};</code></pre></div><h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<p>See <a href="./examples">examples/</a> for a basic peer node and a chat application.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="bloom/index.html" title="mod karyon_p2p::bloom">bloom</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="codec/index.html" title="mod karyon_p2p::codec">codec</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="config/index.html" title="mod karyon_p2p::config">config</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="conn_queue/index.html" title="mod karyon_p2p::conn_queue">conn_<wbr>queue</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="connector/index.html" title="mod karyon_p2p::connector">connector</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="discovery/index.html" title="mod karyon_p2p::discovery">discovery</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="endpoint/index.html" title="mod karyon_p2p::endpoint">endpoint</a></dt><dt><a class="mod" href="error/index.html" title="mod karyon_p2p::error">error</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="handshake/index.html" title="mod karyon_p2p::handshake">handshake</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="keypair/index.html" title="mod karyon_p2p::keypair">keypair</a></dt><dt><a class="mod" href="listener/index.html" title="mod karyon_p2p::listener">listener</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="message/index.html" title="mod karyon_p2p::message">message</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="monitor/index.html" title="mod karyon_p2p::monitor">monitor</a></dt><dd>Responsible for network and system monitoring.
+<a href="./monitor/struct.Monitor.html"><code>Read More</code></a></dd><dt><a class="mod" href="node/index.html" title="mod karyon_p2p::node">node</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="peer/index.html" title="mod karyon_p2p::peer">peer</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="peer_pool/index.html" title="mod karyon_p2p::peer_pool">peer_<wbr>pool</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="protocol/index.html" title="mod karyon_p2p::protocol">protocol</a></dt><dd>Defines the protocol trait.
+<a href="./protocol/trait.Protocol.html"><code>Read More</code></a></dd><dt><a class="mod" href="protocols/index.html" title="mod karyon_p2p::protocols">protocols</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="slots/index.html" title="mod karyon_p2p::slots">slots</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="tls_config/index.html" title="mod karyon_p2p::tls_config">tls_<wbr>config</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="util/index.html" title="mod karyon_p2p::util">util</a></dt><dd>Bincode encode/decode helpers.</dd><dt><a class="mod" href="version/index.html" title="mod karyon_p2p::version">version</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Bloom.html" title="struct karyon_p2p::Bloom">Bloom</a></dt><dd>Two 128-bit bloom filters (k=2 hashes) bundled into one wire type.</dd><dt><a class="struct" href="struct.Config.html" title="struct karyon_p2p::Config">Config</a></dt><dd>Configuration for the p2p network.</dd><dt><a class="struct" href="struct.DiscoveredPeer.html" title="struct karyon_p2p::DiscoveredPeer">Discovered<wbr>Peer</a></dt><dd>Represents a discovered peer that the discovery protocol wants the
+Node to connect to.</dd><dt><a class="struct" href="struct.KademliaDiscovery.html" title="struct karyon_p2p::KademliaDiscovery">Kademlia<wbr>Discovery</a></dt><dt><a class="struct" href="struct.Node.html" title="struct karyon_p2p::Node">Node</a></dt><dd>Central entry point for the p2p network.</dd><dt><a class="struct" href="struct.Peer.html" title="struct karyon_p2p::Peer">Peer</a></dt><dd>A connected peer. Holds a <code>PeerConnection</code> that hides the wire
+shape (single framed pipe vs. per-protocol streams).</dd><dt><a class="struct" href="struct.PeerAddr.html" title="struct karyon_p2p::PeerAddr">Peer<wbr>Addr</a></dt><dd>A peer address with protocol and priority.
+Lower priority number means higher preference.</dd><dt><a class="struct" href="struct.PeerID.html" title="struct karyon_p2p::PeerID">PeerID</a></dt><dd>Represents a unique identifier for a peer.</dd><dt><a class="struct" href="struct.PeerPool.html" title="struct karyon_p2p::PeerPool">Peer<wbr>Pool</a></dt><dt><a class="struct" href="struct.Version.html" title="struct karyon_p2p::Version">Version</a></dt><dd>Represents the network version and protocol version used in karyon p2p.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Error.html" title="enum karyon_p2p::Error">Error</a></dt><dd>Represents karyon’s p2p Error.</dd><dt><a class="enum" href="enum.PeerEvent.html" title="enum karyon_p2p::PeerEvent">Peer<wbr>Event</a></dt><dd>Peer-lifecycle events. Each registered listener receives every
+event independently.</dd><dt><a class="enum" href="enum.Protocol.html" title="enum karyon_p2p::Protocol">Protocol</a></dt><dd>Transport protocol used by a peer address.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Discovery.html" title="trait karyon_p2p::Discovery">Discovery</a></dt><dd>Trait that any discovery protocol must implement.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.BloomRef.html" title="type karyon_p2p::BloomRef">Bloom<wbr>Ref</a></dt><dd>Shared handle to the local bloom. Readers snapshot via <code>*b.read()</code>;
+writers (<code>attach_protocol</code>, swarm joins, …) update in place. Cheap
+to clone (Arc) and lock-free for short reads (parking_lot RwLock).</dd><dt><a class="type" href="type.Result.html" title="type karyon_p2p::Result">Result</a></dt></dl><script type="text/json" id="notable-traits-data">{"&<Vec<T, A> as Index<I>>::Output":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>]</div>","&mut <Vec<T, A> as Index<I>>::Output":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","&mut Vec<u8>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","<Vec<T, A> as IntoIterator>::IntoIter":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","<Vec<T> as ToStatic>::Owned":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","Vec<u8>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.95.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.95.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.95.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>"}</script></section></div></main></body></html>
