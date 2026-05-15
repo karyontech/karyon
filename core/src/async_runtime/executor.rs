@@ -10,6 +10,35 @@ pub use tokio::runtime::Runtime;
 
 use super::Task;
 
+/// A handle to a multi-threaded async executor.
+///
+/// karyon does not run the executor for you. The caller owns the runtime and
+/// is responsible for driving it. On `tokio` this is just a `Runtime`. On
+/// `smol` you must spin up worker threads yourself, e.g. via
+/// [`easy_parallel`](https://docs.rs/easy-parallel):
+///
+/// ```ignore
+/// use std::sync::Arc;
+/// use async_channel::unbounded;
+/// use easy_parallel::Parallel;
+/// use smol::{future, Executor as SmolEx};
+///
+/// let ex = Arc::new(SmolEx::new());
+/// let (signal, shutdown) = unbounded::<()>();
+///
+/// let num_threads = std::thread::available_parallelism()
+///     .map(|n| n.get())
+///     .unwrap_or(1);
+///
+/// Parallel::new()
+///     .each(0..num_threads, |_| future::block_on(ex.run(shutdown.recv())))
+///     .finish(|| future::block_on(async {
+///         // your async main here
+///         drop(signal);
+///     }));
+/// ```
+///
+/// Pass `ex.clone().into()` to karyon APIs that take an [`Executor`].
 #[derive(Clone)]
 pub struct Executor {
     #[cfg(feature = "smol")]
