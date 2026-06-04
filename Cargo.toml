@@ -40,7 +40,7 @@ karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "=
 log = "0.4"
 thiserror = "2.0"
 chrono = "0.4"
-rand = "0.9"
+rand = "0.10"
 url = "2.5"
 parking_lot = "0.12"
 once_cell = "1.21"
@@ -83,7 +83,7 @@ async-tungstenite = { version = "0.34", default-features = false }
 quinn = { version = "0.11", default-features = false }
 
 # http
-hyper = { version = "1.8", default-features = false }
+hyper = { version = "1.10", default-features = false }
 hyper-util = { version = "0.1", default-features = false }
 http-body-util = "0.1"
 h3 = "0.0.8"
