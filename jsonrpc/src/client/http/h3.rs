@@ -7,7 +7,7 @@ use bytes::{Buf, Bytes};
 use hyper::{Request, StatusCode};
 use log::debug;
 
-use karyon_core::async_util::{TaskGroup, TaskResult};
+use karyon_core::async_util::TaskGroup;
 use karyon_net::Endpoint;
 
 use crate::{
@@ -38,7 +38,7 @@ pub(super) async fn connect(
     // connection in the background; without it `send_request` would
     // never make progress. Spawn via the Client task_group so it
     // gets cancelled on stop.
-    task_group.spawn(driver_task(driver), |_: TaskResult<()>| async {});
+    task_group.spawn(driver_task(driver));
 
     Ok(send_request)
 }

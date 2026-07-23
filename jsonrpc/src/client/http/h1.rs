@@ -7,10 +7,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::Request;
 
-use karyon_core::{
-    async_runtime::net::TcpStream,
-    async_util::{TaskGroup, TaskResult},
-};
+use karyon_core::{async_runtime::net::TcpStream, async_util::TaskGroup};
 use karyon_net::Endpoint;
 use smol_hyper::rt::FuturesIo;
 
@@ -42,7 +39,7 @@ pub(super) async fn send(
     // returned `conn` future drives the wire protocol and must be
     // polled concurrently, otherwise `sender` blocks forever. Spawn
     // it via the Client task_group so it gets cancelled on stop.
-    task_group.spawn(driver_task(conn), |_: TaskResult<()>| async {});
+    task_group.spawn(driver_task(conn));
 
     let req = Request::post(endpoint.to_string())
         .header("Content-Type", "application/json")

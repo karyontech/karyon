@@ -205,7 +205,7 @@ impl Wakers {
     }
 
     fn wake(&mut self, signal: bool) {
-        for (_, wk) in self.wakers.iter_mut() {
+        for wk in self.wakers.values_mut() {
             match wk.take() {
                 Some(w) => {
                     w.wake();

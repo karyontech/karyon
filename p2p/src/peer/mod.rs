@@ -154,7 +154,7 @@ impl Peer {
                 }
             };
 
-            self.task_group.spawn(protocol.start(), on_failure);
+            self.task_group.spawn_then(protocol.start(), on_failure);
         }
     }
 

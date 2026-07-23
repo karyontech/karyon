@@ -218,7 +218,7 @@ impl Discovery for KademliaDiscovery {
         }
 
         // Start connect loop
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.connect_loop().await }

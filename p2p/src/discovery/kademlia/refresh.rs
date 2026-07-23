@@ -107,7 +107,7 @@ impl RefreshService {
     /// Start the refresh service
     pub async fn start(self: &Arc<Self>) -> Result<()> {
         if let Some(endpoint) = self.listen_endpoint.clone() {
-            self.task_group.spawn(
+            self.task_group.spawn_then(
                 {
                     let this = self.clone();
                     async move { this.listen_loop(endpoint).await }
@@ -120,7 +120,7 @@ impl RefreshService {
             );
         }
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.refresh_loop().await }

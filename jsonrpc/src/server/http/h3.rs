@@ -7,7 +7,7 @@ use h3_quinn::Connection;
 use hyper::{Method, Request, Response, StatusCode};
 use log::{debug, error};
 
-use karyon_core::{async_runtime::lock::RwLock, async_util::TaskResult};
+use karyon_core::async_runtime::lock::RwLock;
 
 use karyon_net::quic::{QuicConn, QuicEndpoint};
 
@@ -43,10 +43,9 @@ pub(super) async fn accept_h3(server: &Arc<Server>, quic_ep: &QuicEndpoint) {
         }
     };
 
-    server.task_group.spawn(
-        serve_conn_task(server.clone(), quic_conn),
-        |_: TaskResult<Result<()>>| async {},
-    );
+    server
+        .task_group
+        .spawn(serve_conn_task(server.clone(), quic_conn));
 }
 
 async fn serve_conn_task(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
@@ -75,10 +74,9 @@ async fn serve_conn(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
 
     // Dispatcher task: route notifications from the connection-wide
     // channel to the right per-subscription sender.
-    server.task_group.spawn(
-        dispatch_subs_task(ch_rx, sub_senders.clone()),
-        |_: TaskResult<Result<()>>| async {},
-    );
+    server
+        .task_group
+        .spawn(dispatch_subs_task(ch_rx, sub_senders.clone()));
 
     loop {
         match h3_server.accept().await {
@@ -90,16 +88,13 @@ async fn serve_conn(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
                         continue;
                     }
                 };
-                server.task_group.spawn(
-                    handle_request_task(
-                        server.clone(),
-                        channel.clone(),
-                        sub_senders.clone(),
-                        req,
-                        stream,
-                    ),
-                    |_: TaskResult<Result<()>>| async {},
-                );
+                server.task_group.spawn(handle_request_task(
+                    server.clone(),
+                    channel.clone(),
+                    sub_senders.clone(),
+                    req,
+                    stream,
+                ));
             }
             Ok(None) => break,
             Err(err) => {

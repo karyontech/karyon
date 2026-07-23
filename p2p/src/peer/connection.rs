@@ -213,7 +213,7 @@ fn spawn_writer_task(
     mut writer: FramedWriter<PeerNetMsgCodec>,
     queue: Arc<AsyncQueue<PeerNetMsg>>,
 ) {
-    task_group.spawn(
+    task_group.spawn_then(
         async move {
             loop {
                 let msg = queue.recv().await;
@@ -238,7 +238,7 @@ fn spawn_demux_reader(
     recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
     stop_chan: Sender<Result<()>>,
 ) {
-    task_group.spawn(
+    task_group.spawn_then(
         async move {
             loop {
                 let msg = match reader.recv_msg().await {
@@ -295,7 +295,7 @@ fn spawn_quic_reader(
     mut reader: FramedReader<PeerNetMsgCodec>,
     recv_queue: Arc<AsyncQueue<ProtocolEvent>>,
 ) {
-    task_group.spawn(
+    task_group.spawn_then(
         async move {
             loop {
                 let msg = match reader.recv_msg().await {

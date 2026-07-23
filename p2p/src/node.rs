@@ -234,7 +234,7 @@ impl Node {
         self.discovery.clone().start().await?;
 
         // Forward peer lifecycle events to discovery.
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.forward_peer_events().await }
@@ -245,7 +245,7 @@ impl Node {
         );
 
         // Spawn task to connect discovered peers.
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.connect_discovered_peers().await }

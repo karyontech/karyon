@@ -70,7 +70,7 @@ impl Swarm {
         self.node.run().await?;
 
         let this = self.clone();
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             async move { this.monitor_peers().await },
             |res: TaskResult<Result<()>>| async move {
                 debug!("Swarm monitor_peers task ended: {res}");
@@ -139,7 +139,7 @@ impl Swarm {
         self.swarms.write().await.remove(key);
 
         let mut peer_swarms = self.peer_swarms.write().await;
-        for (_, keys) in peer_swarms.iter_mut() {
+        for keys in peer_swarms.values_mut() {
             keys.remove(key);
         }
     }

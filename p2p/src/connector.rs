@@ -236,7 +236,7 @@ impl Connector<PeerNetMsgCodec> {
                 )
             })?
             .clone();
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             async move {
                 match dial_result {
                     DialResult::Channel(conn, vpid) => {

@@ -133,7 +133,7 @@ where
 
     let (reader, writer) = conn.split();
 
-    client.task_group.spawn(
+    client.task_group.spawn_then(
         subscription_stream_task(reader, writer, unsub_rx, sub.clone()),
         |res: TaskResult<Result<()>>| async move {
             debug!("QUIC subscription stream task ended: {res}");

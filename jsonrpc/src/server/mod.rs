@@ -91,8 +91,7 @@ pub struct Server {
 
 impl Server {
     pub fn start(self: Arc<Self>) {
-        self.task_group
-            .spawn(self.clone().start_block(), |_| async {});
+        self.task_group.spawn(self.clone().start_block());
     }
 
     pub async fn start_block(self: Arc<Self>) -> Result<()> {
@@ -164,7 +163,7 @@ impl Server {
         let queue = AsyncQueue::new(RESPONSE_QUEUE_SIZE);
 
         let writer_chan = channel.clone();
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             stream_writer_task(
                 writer,
                 queue.clone(),
@@ -180,7 +179,7 @@ impl Server {
         );
 
         let reader_chan = channel.clone();
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             stream_reader_task(self.clone(), reader, queue, channel),
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {
@@ -199,7 +198,7 @@ impl Server {
         channel: Arc<Channel>,
         msg: serde_json::Value,
     ) {
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             request_task(self.clone(), queue, channel, msg),
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {

@@ -1,10 +1,20 @@
-use std::{future::Future, sync::Arc};
+use std::{
+    collections::HashMap,
+    future::Future,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Weak,
+    },
+};
 
 use parking_lot::Mutex;
 
 use crate::async_runtime::{global_executor, Executor, Task};
 
 use super::{select, CondWait, Either};
+
+/// Identifies a spawned task within a [`TaskGroup`].
+pub type TaskID = usize;
 
 /// TaskGroup A group that contains spawned tasks.
 ///
@@ -19,7 +29,7 @@ use super::{select, CondWait, Either};
 /// async {
 ///     let group = TaskGroup::new();
 ///
-///     group.spawn(sleep(std::time::Duration::MAX), |_| async {});
+///     group.spawn(sleep(std::time::Duration::MAX));
 ///
 ///     group.cancel().await;
 ///
@@ -27,9 +37,23 @@ use super::{select, CondWait, Either};
 ///
 /// ```
 pub struct TaskGroup {
-    tasks: Mutex<Vec<TaskHandler>>,
-    stop_signal: Arc<CondWait>,
+    inner: Arc<Inner>,
+}
+
+/// Shared state of a [`TaskGroup`]. Held behind an `Arc` so each task can
+/// keep a `Weak` reference back to the group and remove itself on
+/// completion, without forcing callers to wrap the group in an `Arc`.
+struct Inner {
+    tasks: Mutex<HashMap<TaskID, TaskHandler>>,
+    next_id: AtomicUsize,
     executor: Executor,
+}
+
+impl Inner {
+    /// Removes a task by id, returning its handler if still present.
+    fn remove(&self, id: TaskID) -> Option<TaskHandler> {
+        self.tasks.lock().remove(&id)
+    }
 }
 
 impl TaskGroup {
@@ -37,63 +61,89 @@ impl TaskGroup {
     ///
     /// This will spawn a task onto a global executor (single-threaded by default).
     pub fn new() -> Self {
-        Self {
-            tasks: Mutex::new(Vec::new()),
-            stop_signal: Arc::new(CondWait::new()),
-            executor: global_executor(),
-        }
+        Self::with_inner(global_executor())
     }
 
     /// Creates a new TaskGroup by providing an executor
     pub fn with_executor(executor: Executor) -> Self {
+        Self::with_inner(executor)
+    }
+
+    fn with_inner(executor: Executor) -> Self {
         Self {
-            tasks: Mutex::new(Vec::new()),
-            stop_signal: Arc::new(CondWait::new()),
-            executor,
+            inner: Arc::new(Inner {
+                tasks: Mutex::new(HashMap::new()),
+                next_id: AtomicUsize::new(0),
+                executor,
+            }),
         }
+    }
+
+    /// Spawns a new task and ignores its result.
+    ///
+    /// Returns the task's [`TaskID`]. The task removes itself from the
+    /// group when it finishes, so the group does not grow without bound.
+    pub fn spawn<T, Fut>(&self, fut: Fut) -> TaskID
+    where
+        T: Send + Sync + 'static,
+        Fut: Future<Output = T> + Send + 'static,
+    {
+        self.spawn_then(fut, |_| async {})
     }
 
     /// Spawns a new task and calls the callback after it has completed
     /// or been canceled. The callback will have the `TaskResult` as a
     /// parameter, indicating whether the task completed or was canceled.
-    pub fn spawn<T, Fut, CallbackF, CallbackFut>(&self, fut: Fut, callback: CallbackF)
+    ///
+    /// Returns the task's [`TaskID`].
+    pub fn spawn_then<T, Fut, CallbackF, CallbackFut>(
+        &self,
+        fut: Fut,
+        callback: CallbackF,
+    ) -> TaskID
     where
         T: Send + Sync + 'static,
         Fut: Future<Output = T> + Send + 'static,
         CallbackF: FnOnce(TaskResult<T>) -> CallbackFut + Send + 'static,
         CallbackFut: Future<Output = ()> + Send + 'static,
     {
+        let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
+        // Hold the lock across spawn and insert so the task cannot try to
+        // remove itself before it has been inserted.
+        let mut tasks = self.inner.tasks.lock();
         let task = TaskHandler::new(
-            self.executor.clone(),
+            self.inner.executor.clone(),
             fut,
             callback,
-            self.stop_signal.clone(),
+            Arc::downgrade(&self.inner),
+            id,
         );
-        self.tasks.lock().push(task);
+        tasks.insert(id, task);
+        id
+    }
+
+    /// Removes a task by id, returning its handler if still present. The
+    /// caller takes ownership and may cancel it.
+    pub fn remove(&self, id: TaskID) -> Option<TaskHandler> {
+        self.inner.remove(id)
     }
 
     /// Checks if the TaskGroup is empty.
     pub fn is_empty(&self) -> bool {
-        self.tasks.lock().is_empty()
+        self.inner.tasks.lock().is_empty()
     }
 
     /// Get the number of the tasks in the group.
     pub fn len(&self) -> usize {
-        self.tasks.lock().len()
+        self.inner.tasks.lock().len()
     }
 
     /// Cancels all tasks in the group.
     pub async fn cancel(&self) {
-        self.stop_signal.broadcast().await;
-
-        loop {
-            // XXX BE CAREFUL HERE, it hold synchronous mutex across .await point.
-            let task = self.tasks.lock().pop();
-            if let Some(t) = task {
-                t.cancel().await
-            } else {
-                break;
-            }
+        // Take all handlers out, then cancel them without holding the lock.
+        let handlers: Vec<TaskHandler> = self.inner.tasks.lock().drain().map(|(_, h)| h).collect();
+        for handler in handlers {
+            handler.cancel().await;
         }
     }
 }
@@ -123,6 +173,10 @@ impl<T: std::fmt::Debug> std::fmt::Display for TaskResult<T> {
 /// TaskHandler
 pub struct TaskHandler {
     task: Task<()>,
+    /// Per-task stop signal. Signaling it makes the task stop and run its
+    /// callback with `Cancelled`.
+    stop_signal: Arc<CondWait>,
+    /// Set once the task has finished running its callback.
     cancel_flag: Arc<CondWait>,
 }
 
@@ -132,7 +186,8 @@ impl TaskHandler {
         ex: Executor,
         fut: Fut,
         callback: CallbackF,
-        stop_signal: Arc<CondWait>,
+        group: Weak<Inner>,
+        id: TaskID,
     ) -> TaskHandler
     where
         T: Send + Sync + 'static,
@@ -140,11 +195,13 @@ impl TaskHandler {
         CallbackF: FnOnce(TaskResult<T>) -> CallbackFut + Send + 'static,
         CallbackFut: Future<Output = ()> + Send + 'static,
     {
+        let stop_signal = Arc::new(CondWait::new());
+        let stop_signal_c = stop_signal.clone();
         let cancel_flag = Arc::new(CondWait::new());
         let cancel_flag_c = cancel_flag.clone();
         let task = ex.spawn(async move {
             // Waits for either the stop signal or the task to complete.
-            let result = select(stop_signal.wait(), fut).await;
+            let result = select(stop_signal_c.wait(), fut).await;
 
             let result = match result {
                 Either::Left(_) => TaskResult::Cancelled,
@@ -155,13 +212,33 @@ impl TaskHandler {
             callback(result).await;
 
             cancel_flag_c.signal().await;
+
+            // Remove ourselves from the group. Detach instead of dropping
+            // the handler, so we are not cancelled from within our own
+            // task. If `cancel` already took us out, this is a no-op.
+            if let Some(group) = group.upgrade() {
+                if let Some(handler) = group.remove(id) {
+                    handler.detach();
+                }
+            }
         });
 
-        TaskHandler { task, cancel_flag }
+        TaskHandler {
+            task,
+            stop_signal,
+            cancel_flag,
+        }
     }
 
-    /// Cancels the task.
+    /// Detaches the task, so dropping the handler does not cancel it.
+    fn detach(self) {
+        self.task.detach();
+    }
+
+    /// Cancels the task: tells it to stop, waits for its callback to run,
+    /// then aborts whatever is left.
     async fn cancel(self) {
+        self.stop_signal.signal().await;
         self.cancel_flag.wait().await;
         self.task.cancel().await;
     }
@@ -183,18 +260,18 @@ mod tests {
         ex.clone().block_on(async move {
             let group = Arc::new(TaskGroup::with_executor(ex.into()));
 
-            group.spawn(future::ready(0), |res| async move {
+            group.spawn_then(future::ready(0), |res| async move {
                 assert!(matches!(res, TaskResult::Completed(0)));
             });
 
-            group.spawn(future::pending::<()>(), |res| async move {
+            group.spawn_then(future::pending::<()>(), |res| async move {
                 assert!(matches!(res, TaskResult::Cancelled));
             });
 
             let groupc = group.clone();
-            group.spawn(
+            group.spawn_then(
                 async move {
-                    groupc.spawn(future::pending::<()>(), |res| async move {
+                    groupc.spawn_then(future::pending::<()>(), |res| async move {
                         assert!(matches!(res, TaskResult::Cancelled));
                     });
                 },
@@ -216,18 +293,18 @@ mod tests {
         smol::block_on(ex.clone().run(async move {
             let group = Arc::new(TaskGroup::with_executor(ex.into()));
 
-            group.spawn(future::ready(0), |res| async move {
+            group.spawn_then(future::ready(0), |res| async move {
                 assert!(matches!(res, TaskResult::Completed(0)));
             });
 
-            group.spawn(future::pending::<()>(), |res| async move {
+            group.spawn_then(future::pending::<()>(), |res| async move {
                 assert!(matches!(res, TaskResult::Cancelled));
             });
 
             let groupc = group.clone();
-            group.spawn(
+            group.spawn_then(
                 async move {
-                    groupc.spawn(future::pending::<()>(), |res| async move {
+                    groupc.spawn_then(future::pending::<()>(), |res| async move {
                         assert!(matches!(res, TaskResult::Cancelled));
                     });
                 },
@@ -247,18 +324,18 @@ mod tests {
         block_on(async {
             let group = Arc::new(TaskGroup::new());
 
-            group.spawn(future::ready(0), |res| async move {
+            group.spawn_then(future::ready(0), |res| async move {
                 assert!(matches!(res, TaskResult::Completed(0)));
             });
 
-            group.spawn(future::pending::<()>(), |res| async move {
+            group.spawn_then(future::pending::<()>(), |res| async move {
                 assert!(matches!(res, TaskResult::Cancelled));
             });
 
             let groupc = group.clone();
-            group.spawn(
+            group.spawn_then(
                 async move {
-                    groupc.spawn(future::pending::<()>(), |res| async move {
+                    groupc.spawn_then(future::pending::<()>(), |res| async move {
                         assert!(matches!(res, TaskResult::Cancelled));
                     });
                 },
@@ -270,6 +347,37 @@ mod tests {
             // Do something
             sleep(std::time::Duration::from_millis(50)).await;
             group.cancel().await;
+        });
+    }
+
+    #[test]
+    fn test_task_group_removes_finished_tasks() {
+        block_on(async {
+            let group = Arc::new(TaskGroup::new());
+
+            // A finished task removes itself; a pending one stays.
+            group.spawn(future::ready(0));
+            group.spawn(future::pending::<()>());
+
+            sleep(std::time::Duration::from_millis(50)).await;
+            assert_eq!(group.len(), 1);
+
+            group.cancel().await;
+            assert!(group.is_empty());
+        });
+    }
+
+    #[test]
+    fn test_task_group_remove_by_id() {
+        block_on(async {
+            let group = Arc::new(TaskGroup::new());
+
+            let id = group.spawn(future::pending::<()>());
+            assert_eq!(group.len(), 1);
+
+            let handler = group.remove(id).expect("task is present");
+            assert!(group.is_empty());
+            handler.cancel().await;
         });
     }
 }
