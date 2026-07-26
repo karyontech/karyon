@@ -114,13 +114,13 @@ impl PeerPool {
 
     /// Starts the [`PeerPool`]
     pub async fn start(self: &Arc<Self>) -> Result<()> {
-        self.task_group.spawn(self.clone().run(), |_| async {});
+        self.task_group.spawn(self.clone().run());
         Ok(())
     }
 
     /// Shuts down
     pub async fn shutdown(&self) {
-        for (_, peer) in self.peers.read().await.iter() {
+        for peer in self.peers.read().await.values() {
             let _ = peer.shutdown().await;
         }
 
@@ -303,7 +303,8 @@ impl PeerPool {
             }
         };
 
-        self.task_group.spawn(peer.clone().run(), on_disconnect);
+        self.task_group
+            .spawn_then(peer.clone().run(), on_disconnect);
 
         info!("Add new peer {pid}");
         self.monitor.notify(PoolEvent::NewPeer(pid.clone())).await;

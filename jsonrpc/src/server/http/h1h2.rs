@@ -12,10 +12,7 @@ use hyper::{
 use hyper_util::server::conn::auto::Builder as HttpConnBuilder;
 use log::{debug, error};
 
-use karyon_core::{
-    async_runtime::net::{TcpListener, TcpStream},
-    async_util::TaskResult,
-};
+use karyon_core::async_runtime::net::{TcpListener, TcpStream};
 
 use crate::{
     error::Result,
@@ -32,10 +29,9 @@ use crate::{
 pub(super) async fn accept_tcp(server: &Arc<Server>, listener: &TcpListener) {
     match listener.accept().await {
         Ok((stream, peer_addr)) => {
-            server.task_group.spawn(
-                serve_task(server.clone(), stream, peer_addr),
-                |_: TaskResult<Result<()>>| async {},
-            );
+            server
+                .task_group
+                .spawn(serve_task(server.clone(), stream, peer_addr));
         }
         Err(err) => {
             error!("Accept TCP connection: {err}");

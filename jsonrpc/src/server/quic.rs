@@ -27,7 +27,7 @@ impl Server {
         let peer = quic_conn.peer_endpoint().ok();
         debug!("Handle QUIC connection {peer:?}");
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             quic_accept_streams_task(self.clone(), Arc::new(quic_conn)),
             move |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {
@@ -47,10 +47,9 @@ async fn quic_accept_streams_task(server: Arc<Server>, quic_conn: Arc<QuicConn>)
     loop {
         let stream = quic_conn.accept_stream().await?;
         let conn = framed(stream, codec.clone());
-        server.task_group.spawn(
-            quic_handle_stream_task(server.clone(), conn),
-            |_: TaskResult<Result<()>>| async {},
-        );
+        server
+            .task_group
+            .spawn(quic_handle_stream_task(server.clone(), conn));
     }
 }
 

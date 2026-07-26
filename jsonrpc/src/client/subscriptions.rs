@@ -70,7 +70,7 @@ impl Subscriptions {
     /// Closes subscription channels and clear the inner map.
     pub(super) async fn clear(&self) {
         let mut subs = self.subs.write().await;
-        for (_, sub) in subs.iter() {
+        for sub in subs.values() {
             sub.close();
         }
         subs.clear();

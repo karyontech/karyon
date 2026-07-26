@@ -242,7 +242,7 @@ where
 
         let sub = subscriptions.subscribe(sub_id).await;
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             h3::notification_reader_task(recv_stream, sub.clone()),
             |res: TaskResult<Result<()>>| async move {
                 log::debug!("H3 notification reader task ended: {res}");

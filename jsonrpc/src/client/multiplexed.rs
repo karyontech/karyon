@@ -95,7 +95,7 @@ where
     Wr: MessageTx<Message = serde_json::Value> + Send + 'static,
 {
     let this = client.clone();
-    client.task_group.spawn(
+    client.task_group.spawn_then(
         background_loop(client.clone(), reader, writer),
         move |result: TaskResult<Result<()>>| async move {
             if let TaskResult::Completed(Err(err)) = result {

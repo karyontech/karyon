@@ -129,7 +129,7 @@ impl Protocol for PingProtocol {
         let stop_signal = async_channel::bounded::<Result<()>>(1);
         let (pong_tx, pong_rx) = async_channel::bounded(1);
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.ping_loop(pong_rx).await }

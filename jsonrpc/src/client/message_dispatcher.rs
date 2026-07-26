@@ -40,7 +40,7 @@ impl MessageDispatcher {
     /// Clear the registered channels.
     pub(super) async fn clear(&self) {
         let mut chans = self.chans.lock().await;
-        for (_, tx) in chans.iter() {
+        for tx in chans.values() {
             tx.close();
         }
         chans.clear();

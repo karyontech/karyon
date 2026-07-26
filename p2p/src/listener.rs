@@ -113,7 +113,7 @@ where
         let resolved = listener.local_endpoint()?;
         info!("Start listening on {resolved}");
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.listen_loop_callback(listener, callback).await }
@@ -178,7 +178,7 @@ where
             };
 
             let callback = callback.clone();
-            self.task_group.spawn(callback(conn), on_disconnect);
+            self.task_group.spawn_then(callback(conn), on_disconnect);
         }
     }
 
@@ -250,13 +250,10 @@ impl Listener<PeerNetMsgCodec> {
         let resolved = listener.local_endpoint()?;
         info!("Start listening on {resolved}");
 
-        self.task_group.spawn(
-            {
-                let this = self.clone();
-                async move { this.listen_loop(listener).await }
-            },
-            |_| async {},
-        );
+        self.task_group.spawn({
+            let this = self.clone();
+            async move { this.listen_loop(listener).await }
+        });
         Ok(resolved)
     }
 
@@ -317,7 +314,7 @@ impl Listener<PeerNetMsgCodec> {
             };
 
             let cq = conn_queue.clone();
-            self.task_group.spawn(
+            self.task_group.spawn_then(
                 async move {
                     cq.handle(conn, ConnDirection::Inbound, vpid).await?;
                     Ok(())
@@ -352,7 +349,7 @@ impl Listener<PeerNetMsgCodec> {
         let resolved: Endpoint = quic_endpoint.local_endpoint().map_err(Error::from)?;
         info!("Start listening on {resolved}");
 
-        self.task_group.spawn(
+        self.task_group.spawn_then(
             {
                 let this = self.clone();
                 async move { this.listen_loop_quic(quic_endpoint).await }
@@ -429,7 +426,7 @@ impl Listener<PeerNetMsgCodec> {
                 .as_ref()
                 .expect("QUIC listener requires ConnQueue")
                 .clone();
-            self.task_group.spawn(
+            self.task_group.spawn_then(
                 async move {
                     conn_queue
                         .handle_quic(conn, quic_conn, ConnDirection::Inbound, vpid)

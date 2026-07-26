@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use karyon_core::async_util::{TaskGroup, TaskResult};
+use karyon_core::async_util::TaskGroup;
 
 #[derive(Clone)]
 pub(crate) struct HyperExecutor {
@@ -23,11 +23,8 @@ where
     F::Output: Send + 'static,
 {
     fn execute(&self, fut: F) {
-        self.task_group.spawn(
-            async move {
-                let _ = fut.await;
-            },
-            |_: TaskResult<()>| async {},
-        );
+        self.task_group.spawn(async move {
+            let _ = fut.await;
+        });
     }
 }
