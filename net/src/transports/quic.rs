@@ -75,7 +75,7 @@ enum ServerSource {
         cert_chain: Vec<CertificateDer<'static>>,
         private_key: Arc<PrivateKeyDer<'static>>,
     },
-    Rustls(rustls::ServerConfig),
+    Rustls(Box<rustls::ServerConfig>),
 }
 
 impl ServerQuicConfig {
@@ -97,7 +97,7 @@ impl ServerQuicConfig {
     /// custom verifiers, client-auth, etc).
     pub fn from_rustls(rustls_config: rustls::ServerConfig) -> Self {
         Self {
-            source: ServerSource::Rustls(rustls_config),
+            source: ServerSource::Rustls(Box::new(rustls_config)),
             config: QuicConfig::default(),
         }
     }
@@ -116,7 +116,7 @@ impl ServerQuicConfig {
             } => quinn::ServerConfig::with_single_cert(cert_chain, private_key.clone_key())
                 .map_err(|e| Error::TlsConfig(e.to_string()))?,
             ServerSource::Rustls(rustls_config) => {
-                let quic_config = quinn::crypto::rustls::QuicServerConfig::try_from(rustls_config)
+                let quic_config = quinn::crypto::rustls::QuicServerConfig::try_from(*rustls_config)
                     .map_err(|e| Error::QuicConfigError(e.to_string()))?;
                 quinn::ServerConfig::with_crypto(Arc::new(quic_config))
             }
