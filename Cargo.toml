@@ -48,7 +48,7 @@ semver = "1.0"
 sha2 = "0.11"
 siphasher = "1.0"
 dirs = "6.0"
-ed25519-dalek = "2.2"
+ed25519-dalek = "3.0"
 
 
 # async 
@@ -69,15 +69,15 @@ bincode = "2.0"
 bytes = "1.11"
 serde = "1.0"
 serde_json = "1.0"
-base64 = "0.22"
+base64 = "0.23"
 
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = "2.0"
+syn = "3.0"
 
 # websocket
-async-tungstenite = { version = "0.34", default-features = false }
+async-tungstenite = { version = "0.35", default-features = false }
 
 # quic
 quinn = { version = "0.11", default-features = false }
