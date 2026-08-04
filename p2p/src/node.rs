@@ -135,6 +135,7 @@ impl Node {
             inbound_slots,
             conn_queue,
             monitor.clone(),
+            config.handshake_timeout,
             ex.clone(),
         );
 
@@ -197,6 +198,7 @@ impl Node {
             inbound_slots,
             conn_queue,
             monitor.clone(),
+            config.handshake_timeout,
             ex.clone(),
         );
 

@@ -93,7 +93,13 @@ impl LookupService {
         let inbound_slots = Arc::new(ConnectionSlots::new(config.lookup_inbound_slots));
         let outbound_slots = Arc::new(ConnectionSlots::new(config.lookup_outbound_slots));
 
-        let listener = Listener::new(key_pair, inbound_slots.clone(), monitor.clone(), ex.clone());
+        let listener = Listener::new(
+            key_pair,
+            inbound_slots.clone(),
+            monitor.clone(),
+            config.handshake_timeout,
+            ex.clone(),
+        );
 
         let connector = Connector::new(
             key_pair,

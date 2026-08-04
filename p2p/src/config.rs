@@ -40,6 +40,9 @@ pub struct Config {
     // PeerPool
     ////////////////
     /// Timeout duration for the handshake with new peers, in seconds.
+    /// Applied twice on an inbound connection: once for the transport
+    /// handshake (TLS, or the first QUIC stream), then once for the
+    /// protocol handshake.
     pub handshake_timeout: u64,
     /// Interval at which the ping protocol sends ping messages to a peer to
     /// maintain connections, in seconds.
@@ -129,7 +132,7 @@ impl Default for Config {
 
             enable_monitor: false,
 
-            handshake_timeout: 2,
+            handshake_timeout: 4,
             ping_interval: 20,
             ping_timeout: 2,
 

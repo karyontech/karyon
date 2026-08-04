@@ -1,10 +1,10 @@
 mod shared;
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use serde_json::Value;
 
-use karyon_core::testing::run_test;
+use karyon_core::{async_runtime::net::TcpStream, testing::run_test};
 
 use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
 use karyon_net::tls::{ClientTlsConfig, ServerTlsConfig};
@@ -159,6 +159,53 @@ fn pubsub_subscription() {
             .await
             .expect("Unsubscribe");
 
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+/// Clients that open a TCP connection and never start the TLS
+/// handshake must not stall the accept loop.
+#[test]
+fn stalled_handshake_does_not_block_accept() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let (server_tls, client_tls) = test_tls_configs();
+
+        let server = ServerBuilder::new("tls://127.0.0.1:0")
+            .expect("Create server builder")
+            .service(service)
+            .tls_config(server_tls)
+            .expect("Set TLS config")
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        // Connect but never send a ClientHello.
+        let addr = SocketAddr::try_from(endpoint.clone()).expect("Endpoint to socket addr");
+        let mut stalled = Vec::new();
+        for _ in 0..8 {
+            stalled.push(TcpStream::connect(addr).await.expect("Open raw connection"));
+        }
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .tls_config(client_tls)
+            .expect("Set TLS config")
+            .build()
+            .await
+            .expect("Build client");
+
+        let result: String = client
+            .call("MathService.ping", ())
+            .await
+            .expect("Call ping");
+        assert_eq!(result, "pong");
+
+        drop(stalled);
         client.stop().await;
         server.shutdown().await;
     });

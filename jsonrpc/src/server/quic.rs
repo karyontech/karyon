@@ -7,7 +7,11 @@ use log::{debug, error};
 
 use karyon_core::async_util::{select, Either, TaskResult};
 
-use karyon_net::{framed, quic::QuicConn, FramedConn, StreamMux};
+use karyon_net::{
+    framed,
+    quic::{QuicConn, QuicIncoming},
+    FramedConn, StreamMux,
+};
 
 use crate::{
     codec::JsonCodec,
@@ -21,9 +25,22 @@ use crate::{
 };
 
 impl Server {
-    /// Accept a QUIC connection; each incoming stream is handled
+    /// Run the handshake off the accept loop, then serve the connection.
+    pub(super) fn handle_quic_incoming(self: &Arc<Self>, incoming: QuicIncoming) {
+        let peer = incoming.peer_endpoint();
+        let server = self.clone();
+        self.task_group.spawn(async move {
+            // Bounded by the QUIC idle timeout (QuicConfig::idle_timeout).
+            match incoming.handshake().await {
+                Ok(quic_conn) => server.handle_quic_conn(quic_conn),
+                Err(err) => debug!("QUIC handshake with {peer} failed: {err}"),
+            }
+        });
+    }
+
+    /// Serve a QUIC connection; each incoming stream is handled
     /// as an independent request.
-    pub(super) fn handle_quic_conn(self: &Arc<Self>, quic_conn: QuicConn) -> Result<()> {
+    fn handle_quic_conn(self: &Arc<Self>, quic_conn: QuicConn) {
         let peer = quic_conn.peer_endpoint().ok();
         debug!("Handle QUIC connection {peer:?}");
 
@@ -37,8 +54,6 @@ impl Server {
                 }
             },
         );
-
-        Ok(())
     }
 }
 
