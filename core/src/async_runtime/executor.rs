@@ -63,7 +63,8 @@ impl Executor {
 
 static GLOBAL_EXECUTOR: OnceCell<Executor> = OnceCell::new();
 
-/// Returns a single-threaded global executor
+/// Returns the process-wide global executor, driven on its own thread.
+/// Single-threaded on `smol`, multi-threaded on `tokio`.
 pub fn global_executor() -> Executor {
     #[cfg(feature = "smol")]
     fn init_executor() -> Executor {

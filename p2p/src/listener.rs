@@ -1,18 +1,18 @@
-use std::{future::Future, marker::PhantomData, sync::Arc};
+use std::{future::Future, marker::PhantomData, sync::Arc, time::Duration};
 
 use log::{debug, error, info};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{TaskGroup, TaskResult},
+    async_util::{timeout, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
 use karyon_net::{
     codec::Codec,
     framed,
     tcp::TcpListener,
-    tls::{ServerTlsConfig, TlsListener},
-    ByteBuffer, ByteStream, Endpoint, FramedConn,
+    tls::{ServerTlsConfig, TlsLayer},
+    ByteBuffer, ByteStream, Endpoint, FramedConn, ServerLayer,
 };
 
 use crate::{
@@ -22,28 +22,50 @@ use crate::{
     peer::ConnDirection,
     slots::ConnectionSlots,
     tls_config::{peer_id_from_certs, tls_server_config},
-    Error, Result,
+    Error, PeerID, Result,
 };
 
-/// Listener for byte-stream transports (TCP, TLS). Each `accept` yields
-/// a single `Box<dyn ByteStream>`. QUIC uses a separate `StreamMux` path.
+/// Listener for byte-stream transports (TCP, TLS). Accepting is split in
+/// two phases: `accept` does only the cheap kernel accept, `handshake`
+/// runs the TLS upgrade. QUIC uses a separate `StreamMux` path.
 enum StreamListener {
     Tcp(TcpListener),
-    Tls(Box<TlsListener>),
+    Tls(TcpListener, Box<TlsLayer>),
 }
 
 impl StreamListener {
+    /// Kernel accept only. Returns the raw stream before any handshake.
     async fn accept(&self) -> Result<Box<dyn ByteStream>> {
         match self {
-            Self::Tcp(l) => Ok(l.accept().await?),
-            Self::Tls(l) => Ok(l.accept().await?),
+            Self::Tcp(l) | Self::Tls(l, _) => Ok(l.accept().await?),
+        }
+    }
+
+    /// TLS upgrade, if this is a TLS listener. Runs off the accept loop.
+    async fn handshake(
+        &self,
+        stream: Box<dyn ByteStream>,
+        handshake_timeout: Duration,
+    ) -> Result<Box<dyn ByteStream>> {
+        match self {
+            Self::Tcp(_) => Ok(stream),
+            Self::Tls(_, layer) => Ok(timeout(
+                handshake_timeout,
+                ServerLayer::handshake(layer.as_ref(), stream),
+            )
+            .await??),
         }
     }
 
     fn local_endpoint(&self) -> Result<Endpoint> {
         match self {
             Self::Tcp(l) => Ok(l.local_endpoint()?),
-            Self::Tls(l) => Ok(l.local_endpoint()?),
+            // The listener is plain TCP; report the TLS scheme so peers
+            // dialling this endpoint run the handshake.
+            Self::Tls(l, _) => {
+                let ep = l.local_endpoint()?;
+                Ok(Endpoint::Tls(ep.addr()?, ep.port()?))
+            }
         }
     }
 }
@@ -61,6 +83,7 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     connection_slots: Arc<ConnectionSlots>,
     conn_queue: Option<Arc<ConnQueue>>,
     monitor: Arc<Monitor>,
+    handshake_timeout: Duration,
     _codec: PhantomData<C>,
 }
 
@@ -69,10 +92,12 @@ where
     C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
 {
     /// Create a new Listener (no auto-queue; use `start_with_callback`).
+    /// `handshake_timeout` is in seconds.
     pub fn new(
         key_pair: &KeyPair,
         connection_slots: Arc<ConnectionSlots>,
         monitor: Arc<Monitor>,
+        handshake_timeout: u64,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -81,6 +106,7 @@ where
             conn_queue: None,
             task_group: TaskGroup::with_executor(ex),
             monitor,
+            handshake_timeout: Duration::from_secs(handshake_timeout),
             _codec: PhantomData,
         })
     }
@@ -116,7 +142,10 @@ where
         self.task_group.spawn_then(
             {
                 let this = self.clone();
-                async move { this.listen_loop_callback(listener, callback).await }
+                async move {
+                    this.listen_loop_callback(Arc::new(listener), callback)
+                        .await
+                }
             },
             |res: TaskResult<()>| async move {
                 debug!("Listener callback loop ended: {res}");
@@ -129,20 +158,35 @@ where
         self.task_group.cancel().await;
     }
 
+    /// Runs the handshake and frames the stream. Called off the accept
+    /// loop. Also returns the peer id proved by the TLS client cert.
+    async fn upgrade(
+        &self,
+        listener: &StreamListener,
+        stream: Box<dyn ByteStream>,
+    ) -> Result<(FramedConn<C>, Option<PeerID>)> {
+        let stream = listener.handshake(stream, self.handshake_timeout).await?;
+        // Extract the peer cert before framing consumes the stream.
+        let vpid = stream
+            .peer_certificates()
+            .as_deref()
+            .and_then(peer_id_from_certs);
+        Ok((framed(stream, C::default()), vpid))
+    }
+
     /// Accept loop (callback mode).
     async fn listen_loop_callback<Fut>(
         self: Arc<Self>,
-        listener: StreamListener,
+        listener: Arc<StreamListener>,
         callback: impl FnOnce(FramedConn<C>) -> Fut + Clone + Send + 'static,
     ) where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
         loop {
             self.connection_slots.wait_for_slot().await;
-            let result = listener.accept().await;
 
-            let conn: FramedConn<C> = match result {
-                Ok(stream) => framed(stream, C::default()),
+            let stream = match listener.accept().await {
+                Ok(s) => s,
                 Err(err) => {
                     error!("Failed to accept connection: {err}");
                     self.monitor.notify(ConnectionKind::AcceptFailed).await;
@@ -150,7 +194,7 @@ where
                 }
             };
 
-            let endpoint = match conn.peer_endpoint() {
+            let endpoint = match stream.peer_endpoint() {
                 Some(ep) => ep,
                 None => {
                     self.monitor.notify(ConnectionKind::AcceptFailed).await;
@@ -162,6 +206,8 @@ where
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
+            // Counted here so `wait_for_slot` keeps throttling. The task
+            // releases it again, including when the handshake fails.
             self.connection_slots.add();
 
             let on_disconnect = {
@@ -177,8 +223,16 @@ where
                 }
             };
 
+            let this = self.clone();
+            let listener = listener.clone();
             let callback = callback.clone();
-            self.task_group.spawn_then(callback(conn), on_disconnect);
+            self.task_group.spawn_then(
+                async move {
+                    let (conn, _) = this.upgrade(&listener, stream).await?;
+                    callback(conn).await
+                },
+                on_disconnect,
+            );
         }
     }
 
@@ -194,8 +248,10 @@ where
                     server_config: tls_server_config(&self.key_pair)?,
                 };
                 let tcp_listener = TcpListener::bind(endpoint, Default::default()).await?;
-                let listener = TlsListener::new(tcp_listener, tls_config);
-                Ok(StreamListener::Tls(Box::new(listener)))
+                Ok(StreamListener::Tls(
+                    tcp_listener,
+                    Box::new(TlsLayer::server(tls_config)),
+                ))
             }
             _ => Err(Error::UnsupportedEndpoint(endpoint.to_string())),
         }
@@ -207,11 +263,13 @@ where
 // inline (no ConnQueue / handshake pipeline).
 impl Listener<PeerNetMsgCodec> {
     /// Create a new Listener with a ConnQueue (auto-queue mode).
+    /// `handshake_timeout` is in seconds.
     pub fn new_with_queue(
         key_pair: &KeyPair,
         connection_slots: Arc<ConnectionSlots>,
         conn_queue: Arc<ConnQueue>,
         monitor: Arc<Monitor>,
+        handshake_timeout: u64,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -220,6 +278,7 @@ impl Listener<PeerNetMsgCodec> {
             conn_queue: Some(conn_queue),
             task_group: TaskGroup::with_executor(ex),
             monitor,
+            handshake_timeout: Duration::from_secs(handshake_timeout),
             _codec: PhantomData,
         })
     }
@@ -252,13 +311,13 @@ impl Listener<PeerNetMsgCodec> {
 
         self.task_group.spawn({
             let this = self.clone();
-            async move { this.listen_loop(listener).await }
+            async move { this.listen_loop(Arc::new(listener)).await }
         });
         Ok(resolved)
     }
 
     /// Accept loop (auto-queue mode).
-    async fn listen_loop(self: Arc<Self>, listener: StreamListener) {
+    async fn listen_loop(self: Arc<Self>, listener: Arc<StreamListener>) {
         let conn_queue = self
             .conn_queue
             .as_ref()
@@ -267,18 +326,9 @@ impl Listener<PeerNetMsgCodec> {
 
         loop {
             self.connection_slots.wait_for_slot().await;
-            let result = listener.accept().await;
 
-            let (conn, vpid) = match result {
-                Ok(stream) => {
-                    // Extract peer cert (TLS) before framing consumes the stream.
-                    let vpid = stream
-                        .peer_certificates()
-                        .as_deref()
-                        .and_then(peer_id_from_certs);
-                    let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
-                    (conn, vpid)
-                }
+            let stream = match listener.accept().await {
+                Ok(s) => s,
                 Err(err) => {
                     error!("Failed to accept connection: {err}");
                     self.monitor.notify(ConnectionKind::AcceptFailed).await;
@@ -286,7 +336,7 @@ impl Listener<PeerNetMsgCodec> {
                 }
             };
 
-            let endpoint = match conn.peer_endpoint() {
+            let endpoint = match stream.peer_endpoint() {
                 Some(ep) => ep,
                 None => {
                     self.monitor.notify(ConnectionKind::AcceptFailed).await;
@@ -298,6 +348,7 @@ impl Listener<PeerNetMsgCodec> {
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
+
             self.connection_slots.add();
 
             let on_disconnect = {
@@ -314,8 +365,11 @@ impl Listener<PeerNetMsgCodec> {
             };
 
             let cq = conn_queue.clone();
+            let this = self.clone();
+            let listener = listener.clone();
             self.task_group.spawn_then(
                 async move {
+                    let (conn, vpid) = this.upgrade(&listener, stream).await?;
                     cq.handle(conn, ConnDirection::Inbound, vpid).await?;
                     Ok(())
                 },
@@ -368,7 +422,10 @@ impl Listener<PeerNetMsgCodec> {
         loop {
             self.connection_slots.wait_for_slot().await;
 
-            let quic_conn = match quic_endpoint.accept().await {
+            // Only the accept runs here. The handshake and the wait for
+            // the peer's first stream both happen in the spawned task,
+            // so a slow peer cannot stall the loop.
+            let incoming = match quic_endpoint.accept_incoming().await {
                 Ok(c) => c,
                 Err(err) => {
                     error!("Failed to accept QUIC conn: {err}");
@@ -377,34 +434,11 @@ impl Listener<PeerNetMsgCodec> {
                 }
             };
 
-            let peer_ep = match quic_conn.peer_endpoint() {
-                Ok(ep) => ep,
-                Err(err) => {
-                    error!("Failed to get peer endpoint: {err}");
-                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
-                    continue;
-                }
-            };
+            let peer_ep = incoming.peer_endpoint();
 
             self.monitor
                 .notify(ConnectionKind::Accepted(peer_ep.clone()))
                 .await;
-
-            let vpid = quic_conn
-                .peer_certificates()
-                .as_deref()
-                .and_then(peer_id_from_certs);
-
-            let stream = match quic_conn.accept_stream().await {
-                Ok(s) => s,
-                Err(err) => {
-                    error!("Failed to accept handshake stream: {err}");
-                    self.monitor.notify(ConnectionKind::AcceptFailed).await;
-                    continue;
-                }
-            };
-
-            let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
 
             self.connection_slots.add();
 
@@ -426,8 +460,20 @@ impl Listener<PeerNetMsgCodec> {
                 .as_ref()
                 .expect("QUIC listener requires ConnQueue")
                 .clone();
+            let handshake_timeout = self.handshake_timeout;
             self.task_group.spawn_then(
                 async move {
+                    // Without this the only bound is the QUIC idle
+                    // timeout, which holds the slot far longer.
+                    let quic_conn = timeout(handshake_timeout, incoming.handshake()).await??;
+                    let vpid = quic_conn
+                        .peer_certificates()
+                        .as_deref()
+                        .and_then(peer_id_from_certs);
+                    // A peer that handshakes and then never opens a
+                    // stream only wastes its own slot.
+                    let stream = timeout(handshake_timeout, quic_conn.accept_stream()).await??;
+                    let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
                     conn_queue
                         .handle_quic(conn, quic_conn, ConnDirection::Inbound, vpid)
                         .await?;

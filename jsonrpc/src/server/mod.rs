@@ -11,21 +11,23 @@ mod quic;
 #[cfg(feature = "http")]
 mod http;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use log::{debug, error, info};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{select, AsyncQueue, Either, TaskGroup, TaskResult},
+    async_util::{select, timeout, AsyncQueue, Either, TaskGroup, TaskResult},
 };
 
 use karyon_net::{Endpoint, MessageRx, MessageTx};
 
+#[cfg(feature = "ws")]
+use karyon_net::layers::ws::WsLayer;
 #[cfg(feature = "tcp")]
 use karyon_net::tcp::{TcpConfig, TcpListener};
 #[cfg(feature = "tls")]
-use karyon_net::tls::TlsListener;
+use karyon_net::tls::TlsLayer;
 #[cfg(all(feature = "unix", target_family = "unix"))]
 use karyon_net::unix::UnixListener;
 
@@ -67,6 +69,12 @@ pub(crate) struct ServerConfig {
     pub quic_config: Option<karyon_net::quic::ServerQuicConfig>,
     pub services: HashMap<String, Arc<dyn RPCService + 'static>>,
     pub pubsub_services: HashMap<String, Arc<dyn PubSubRPCService + 'static>>,
+    /// `None` (the default) means never. Set via
+    /// `ServerBuilder::read_timeout`.
+    pub read_timeout: Option<Duration>,
+    /// Set via `ServerBuilder::handshake_timeout`.
+    #[cfg(any(feature = "tls", feature = "ws"))]
+    pub handshake_timeout: Duration,
     /// User-customizable notification wire format.
     /// Set via `ServerBuilder::with_notification_encoder`.
     pub notification_encoder: fn(NewNotification) -> message::Notification,
@@ -75,7 +83,7 @@ pub(crate) struct ServerConfig {
 /// One variant per backend family. Stream-based transports share
 /// a single `AsyncAcceptor`; QUIC and HTTP have their own loops.
 enum ServerBackend {
-    StreamAcceptor(Box<dyn AsyncAcceptor>),
+    StreamAcceptor(Arc<dyn AsyncAcceptor>),
     #[cfg(feature = "quic")]
     QuicEndpoint(karyon_net::quic::QuicEndpoint),
     #[cfg(feature = "http")]
@@ -104,19 +112,27 @@ impl Server {
 
     async fn accept_loop(self: &Arc<Self>) -> Result<()> {
         match &self.backend {
+            // Only the kernel accept runs here; the handshake runs in a
+            // separate task, so a slow client cannot stall the loop.
             ServerBackend::StreamAcceptor(acceptor) => loop {
-                if let Err(err) = acceptor.accept_and_handle(self).await {
-                    error!("Accept connection: {err}");
+                match acceptor.accept().await {
+                    Ok(stream) => {
+                        let acceptor = acceptor.clone();
+                        let server = self.clone();
+                        self.task_group.spawn(async move {
+                            if let Err(err) = acceptor.handle(stream, &server).await {
+                                error!("Handle connection: {err}");
+                            }
+                        });
+                    }
+                    Err(err) => error!("Accept connection: {err}"),
                 }
             },
+            // As above: the QUIC handshake runs in its own task.
             #[cfg(feature = "quic")]
             ServerBackend::QuicEndpoint(endpoint) => loop {
-                match endpoint.accept().await {
-                    Ok(quic_conn) => {
-                        if let Err(err) = self.handle_quic_conn(quic_conn) {
-                            error!("Handle QUIC conn: {err}")
-                        }
-                    }
+                match endpoint.accept_incoming().await {
+                    Ok(incoming) => self.handle_quic_incoming(incoming),
                     Err(err) => {
                         error!("Accept QUIC conn: {err}")
                     }
@@ -179,8 +195,9 @@ impl Server {
         );
 
         let reader_chan = channel.clone();
+        let read_timeout = self.config.read_timeout;
         self.task_group.spawn_then(
-            stream_reader_task(self.clone(), reader, queue, channel),
+            stream_reader_task(self.clone(), reader, queue, channel, read_timeout),
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {
                     debug!("Connection {peer:?} dropped: {err}");
@@ -281,49 +298,62 @@ where
         #[cfg(feature = "tcp")]
         Endpoint::Tcp(..) => {
             let listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
-            Ok(ServerBackend::StreamAcceptor(Box::new(StreamAcceptor {
+            Ok(ServerBackend::StreamAcceptor(Arc::new(StreamAcceptor {
                 listener: Box::new(listener),
                 codec: byte_codec,
+                #[cfg(feature = "tls")]
+                tls: None,
+                #[cfg(feature = "tls")]
+                handshake_timeout: config.handshake_timeout,
             })))
         }
         #[cfg(feature = "tls")]
         Endpoint::Tls(..) => {
             let tls_config = config.tls_config.as_ref().ok_or(Error::TLSConfigRequired)?;
-            let tcp_listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
-            let listener = TlsListener::new(tcp_listener, tls_config.clone());
-            Ok(ServerBackend::StreamAcceptor(Box::new(StreamAcceptor {
+            // Plain TCP listener; `StreamAcceptor::handle` runs the TLS
+            // handshake.
+            let listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
+            Ok(ServerBackend::StreamAcceptor(Arc::new(StreamAcceptor {
                 listener: Box::new(listener),
                 codec: byte_codec,
+                tls: Some(TlsLayer::server(tls_config.clone())),
+                handshake_timeout: config.handshake_timeout,
             })))
         }
         #[cfg(feature = "ws")]
         Endpoint::Ws(..) => {
             let listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
-            let layer = Arc::new(karyon_net::layers::ws::WsLayer::server(ws_codec));
-            Ok(ServerBackend::StreamAcceptor(Box::new(WsAcceptor {
+            let layer = Arc::new(WsLayer::server(ws_codec));
+            Ok(ServerBackend::StreamAcceptor(Arc::new(WsAcceptor {
                 listener: Box::new(listener),
                 layer,
-                tls: false,
+                #[cfg(feature = "tls")]
+                tls: None,
+                handshake_timeout: config.handshake_timeout,
             })))
         }
         #[cfg(all(feature = "ws", feature = "tls"))]
         Endpoint::Wss(..) => {
             let tls_config = config.tls_config.as_ref().ok_or(Error::TLSConfigRequired)?;
-            let tcp_listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
-            let listener = TlsListener::new(tcp_listener, tls_config.clone());
-            let layer = Arc::new(karyon_net::layers::ws::WsLayer::server(ws_codec));
-            Ok(ServerBackend::StreamAcceptor(Box::new(WsAcceptor {
+            let listener = TcpListener::bind(&endpoint, config.tcp_config.clone()).await?;
+            let layer = Arc::new(WsLayer::server(ws_codec));
+            Ok(ServerBackend::StreamAcceptor(Arc::new(WsAcceptor {
                 listener: Box::new(listener),
                 layer,
-                tls: true,
+                tls: Some(TlsLayer::server(tls_config.clone())),
+                handshake_timeout: config.handshake_timeout,
             })))
         }
         #[cfg(all(feature = "unix", target_family = "unix"))]
         Endpoint::Unix(..) => {
             let listener = UnixListener::bind(&endpoint)?;
-            Ok(ServerBackend::StreamAcceptor(Box::new(StreamAcceptor {
+            Ok(ServerBackend::StreamAcceptor(Arc::new(StreamAcceptor {
                 listener: Box::new(listener),
                 codec: byte_codec,
+                #[cfg(feature = "tls")]
+                tls: None,
+                #[cfg(feature = "tls")]
+                handshake_timeout: config.handshake_timeout,
             })))
         }
         _ => Err(Error::UnsupportedProtocol(endpoint.to_string())),
@@ -359,12 +389,18 @@ async fn stream_reader_task<R>(
     mut reader: R,
     queue: Arc<AsyncQueue<serde_json::Value>>,
     channel: Arc<Channel>,
+    read_timeout: Option<Duration>,
 ) -> Result<()>
 where
     R: MessageRx<Message = serde_json::Value> + Send,
 {
     loop {
-        let msg = reader.recv_msg().await?;
+        // Once set, an idle client is dropped instead of holding the
+        // socket open forever.
+        let msg = match read_timeout {
+            Some(t) => timeout(t, reader.recv_msg()).await??,
+            None => reader.recv_msg().await?,
+        };
         server
             .new_request(queue.clone(), channel.clone(), msg)
             .await;

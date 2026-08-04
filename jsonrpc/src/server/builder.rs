@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use karyon_core::async_runtime::Executor;
 
@@ -27,6 +27,9 @@ use crate::{
 use crate::error::Error;
 
 use super::{Server, ServerConfig};
+
+#[cfg(any(feature = "tls", feature = "ws"))]
+const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Builder for constructing an RPC [`Server`].
 ///
@@ -128,8 +131,23 @@ where
     }
 
     /// Set an executor.
-    pub async fn with_executor(mut self, ex: Executor) -> Self {
+    pub fn with_executor(mut self, ex: Executor) -> Self {
         self.executor = Some(ex);
+        self
+    }
+
+    /// Drop a connection that sends nothing for this long. Off by
+    /// default, because pubsub subscribers idle by design.
+    pub fn read_timeout(mut self, duration: Duration) -> Self {
+        self.config.read_timeout = Some(duration);
+        self
+    }
+
+    /// Drop a client that does not finish the TLS and/or WebSocket
+    /// handshake within this duration. Defaults to 10 seconds.
+    #[cfg(any(feature = "tls", feature = "ws"))]
+    pub fn handshake_timeout(mut self, duration: Duration) -> Self {
+        self.config.handshake_timeout = duration;
         self
     }
 
@@ -181,6 +199,9 @@ impl<B: JsonRpcCodec> ServerBuilder<B, JsonCodec> {
                 #[cfg(feature = "quic")]
                 quic_config: None,
                 notification_encoder: default_notification_encoder,
+                read_timeout: None,
+                #[cfg(any(feature = "tls", feature = "ws"))]
+                handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
             },
             byte_codec: codec,
             ws_codec: JsonCodec::default(),

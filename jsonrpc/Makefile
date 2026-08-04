@@ -1,6 +1,9 @@
 ALL_FEATURES = tcp,tls,ws,quic,http,http3,unix
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
+# Minimal set: no tls, no ws. Guards the cfg-gated handshake paths.
+SMOL_MIN  = smol,tcp,unix
+SMOL_WS   = smol,ws
 
 .PHONY: check fmt clippy unit-test integration-test test \
 	test-tcp test-tls test-ws test-wss test-unix test-quic test-http test-http3 \
@@ -11,6 +14,8 @@ check:
 	cargo check
 	cargo check --no-default-features --features $(SMOL_ALL)
 	cargo check --no-default-features --features $(TOKIO_ALL)
+	cargo check --no-default-features --features $(SMOL_MIN)
+	cargo check --no-default-features --features $(SMOL_WS)
 
 fmt:
 	cargo fmt --check

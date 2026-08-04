@@ -9,7 +9,7 @@ use log::{debug, error};
 
 use karyon_core::async_runtime::lock::RwLock;
 
-use karyon_net::quic::{QuicConn, QuicEndpoint};
+use karyon_net::quic::{QuicConn, QuicEndpoint, QuicIncoming};
 
 use crate::{
     error::{Error, Result},
@@ -35,8 +35,9 @@ type H3Stream = h3::server::RequestStream<h3_quinn::BidiStream<Bytes>, Bytes>;
 type SubSenders = Arc<RwLock<HashMap<SubscriptionID, async_channel::Sender<NewNotification>>>>;
 
 pub(super) async fn accept_h3(server: &Arc<Server>, quic_ep: &QuicEndpoint) {
-    let quic_conn = match quic_ep.accept().await {
-        Ok(conn) => conn,
+    // Only the accept runs here; the handshake runs in the spawned task.
+    let incoming = match quic_ep.accept_incoming().await {
+        Ok(incoming) => incoming,
         Err(err) => {
             error!("Accept QUIC for HTTP/3: {err}");
             return;
@@ -45,7 +46,18 @@ pub(super) async fn accept_h3(server: &Arc<Server>, quic_ep: &QuicEndpoint) {
 
     server
         .task_group
-        .spawn(serve_conn_task(server.clone(), quic_conn));
+        .spawn(serve_incoming_task(server.clone(), incoming));
+}
+
+async fn serve_incoming_task(server: Arc<Server>, incoming: QuicIncoming) -> Result<()> {
+    let peer = incoming.peer_endpoint();
+    match incoming.handshake().await {
+        Ok(quic_conn) => serve_conn_task(server, quic_conn).await,
+        Err(err) => {
+            debug!("QUIC handshake with {peer} failed: {err}");
+            Ok(())
+        }
+    }
 }
 
 async fn serve_conn_task(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {

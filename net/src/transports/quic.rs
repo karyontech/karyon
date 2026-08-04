@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use quinn::Incoming;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::async_rustls::rustls;
@@ -265,19 +266,21 @@ impl QuicEndpoint {
         })
     }
 
-    /// Accept an incoming QUIC connection.
-    pub async fn accept(&self) -> Result<QuicConn> {
-        let incoming = self.inner.accept().await.ok_or(Error::ConnectionClosed)?;
-
-        let connection = incoming.await?;
-        let peer_endpoint = Endpoint::new_quic_addr(connection.remote_address());
-        let local_endpoint = self.local_endpoint.clone();
-
-        Ok(QuicConn {
-            inner: connection,
-            peer_endpoint,
-            local_endpoint,
+    /// Accept an incoming QUIC connection without running its handshake.
+    ///
+    /// Servers should use this and drive [`QuicIncoming::handshake`] in a
+    /// separate task, so a slow peer cannot stall the accept loop.
+    pub async fn accept_incoming(&self) -> Result<QuicIncoming> {
+        let inner = self.inner.accept().await.ok_or(Error::ConnectionClosed)?;
+        Ok(QuicIncoming {
+            inner,
+            local_endpoint: self.local_endpoint.clone(),
         })
+    }
+
+    /// Accept an incoming QUIC connection and run its handshake.
+    pub async fn accept(&self) -> Result<QuicConn> {
+        self.accept_incoming().await?.handshake().await
     }
 
     /// Returns the local endpoint.
@@ -288,6 +291,30 @@ impl QuicEndpoint {
     /// Close the endpoint.
     pub fn close(&self, code: u32, reason: &[u8]) {
         self.inner.close(quinn::VarInt::from_u32(code), reason);
+    }
+}
+
+/// An accepted QUIC connection whose handshake has not run yet.
+pub struct QuicIncoming {
+    inner: Incoming,
+    local_endpoint: Endpoint,
+}
+
+impl QuicIncoming {
+    /// Runs the QUIC/TLS handshake.
+    pub async fn handshake(self) -> Result<QuicConn> {
+        let connection = self.inner.await?;
+        let peer_endpoint = Endpoint::new_quic_addr(connection.remote_address());
+        Ok(QuicConn {
+            inner: connection,
+            peer_endpoint,
+            local_endpoint: self.local_endpoint,
+        })
+    }
+
+    /// Remote address of the peer. Known before the handshake runs.
+    pub fn peer_endpoint(&self) -> Endpoint {
+        Endpoint::new_quic_addr(self.inner.remote_address())
     }
 }
 
