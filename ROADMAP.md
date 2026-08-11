@@ -2,14 +2,17 @@
 
 This document tracks planned features beyond the initial 1.0 release. 
 
-## mDNS discovery
-
-Local network discovery via an mDNS implementation of the `Discovery` trait.
-
-## Access control
+## Access control (done)
 
 For running karyon in private or semi-private deployments. Can be combined with
 any discovery backend.
+
+Implemented in `p2p/src/access_control.rs` (`AccessControl` trait, set via
+`Config::access_control`).
+
+## mDNS discovery
+
+Local network discovery via an mDNS implementation of the `Discovery` trait.
 
 ## Additional crates
 
