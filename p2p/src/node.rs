@@ -15,6 +15,7 @@ use karyon_eventemitter::EventListener;
 use karyon_net::Endpoint;
 
 use crate::{
+    access_control::{Action, Subject},
     bloom::{Bloom, BloomRef},
     codec::PeerNetMsgCodec,
     config::Config,
@@ -24,6 +25,7 @@ use crate::{
     listener::Listener,
     message::{pick_endpoint, Protocol},
     monitor::{Monitor, PoolEvent},
+    peer::ConnDirection,
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
     protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolID, ProtocolKind},
     protocols::PingProtocol,
@@ -136,6 +138,7 @@ impl Node {
             conn_queue,
             monitor.clone(),
             config.handshake_timeout,
+            config.access_control.clone(),
             ex.clone(),
         );
 
@@ -199,6 +202,7 @@ impl Node {
             conn_queue,
             monitor.clone(),
             config.handshake_timeout,
+            config.access_control.clone(),
             ex.clone(),
         );
 
@@ -288,6 +292,14 @@ impl Node {
                 Some(ep) => ep,
                 None => continue,
             };
+
+            if !self.config.access_control.allow(
+                &Subject::Endpoint(&endpoint),
+                Action::Connect(ConnDirection::Outbound),
+            ) {
+                debug!("Skipped dialing denied endpoint {endpoint}");
+                continue;
+            }
 
             let peer_id = discovered.peer_id.clone();
 

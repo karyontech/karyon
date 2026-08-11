@@ -1,6 +1,11 @@
+use std::sync::Arc;
+
 use karyon_net::Endpoint;
 
-use crate::Version;
+use crate::{
+    access_control::{AccessControl, AllowAll},
+    Version,
+};
 
 /// Configuration for the p2p network.
 ///
@@ -35,6 +40,9 @@ pub struct Config {
 
     /// Enable monitor
     pub enable_monitor: bool,
+
+    /// Policy deciding who this node talks to. Defaults to `AllowAll`.
+    pub access_control: Arc<dyn AccessControl>,
 
     /////////////////
     // PeerPool
@@ -131,6 +139,7 @@ impl Default for Config {
             version: "0.1.0".parse().unwrap(),
 
             enable_monitor: false,
+            access_control: Arc::new(AllowAll),
 
             handshake_timeout: 4,
             ping_interval: 20,

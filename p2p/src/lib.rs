@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod access_control;
 mod bloom;
 mod codec;
 mod config;
@@ -28,12 +29,13 @@ pub mod monitor;
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
 
+pub use access_control::{AccessControl, Action, AllowAll, PeerCandidate, Subject};
 pub use bloom::{Bloom, BloomRef};
 pub use config::Config;
 pub use discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery};
 pub use message::{PeerAddr, Protocol};
 pub use node::Node;
-pub use peer::{Peer, PeerID};
+pub use peer::{ConnDirection, Peer, PeerID};
 pub use peer_pool::{PeerEvent, PeerPool};
 pub use version::Version;
 

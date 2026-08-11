@@ -9,6 +9,7 @@ use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair}
 use karyon_net::Endpoint;
 
 use crate::{
+    access_control::{Action, Subject},
     bloom::BloomRef,
     connector::Connector,
     discovery::kademlia::{
@@ -21,6 +22,7 @@ use crate::{
     listener::Listener,
     message::{pick_endpoint, PeerAddr, Protocol, ShutdownMsg},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    peer::ConnDirection,
     slots::ConnectionSlots,
     util::decode,
     version::version_match,
@@ -98,6 +100,7 @@ impl LookupService {
             inbound_slots.clone(),
             monitor.clone(),
             config.handshake_timeout,
+            config.access_control.clone(),
             ex.clone(),
         );
 
@@ -261,6 +264,13 @@ impl LookupService {
         peer_id: Option<PeerID>,
         target_peer_id: &PeerID,
     ) -> Result<Vec<PeerMsg>> {
+        if !self.config.access_control.allow(
+            &Subject::Endpoint(&endpoint),
+            Action::Lookup(ConnDirection::Outbound),
+        ) {
+            return Err(Error::AccessDenied);
+        }
+
         let conn = self.connector.connect(&endpoint, &peer_id).await?;
         let result = self.handle_outbound(conn, target_peer_id).await;
 
