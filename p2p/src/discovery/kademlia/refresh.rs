@@ -16,12 +16,14 @@ use karyon_core::{
 use karyon_net::{udp, Endpoint};
 
 use crate::{
+    access_control::{Action, Subject},
     discovery::kademlia::{
         messages::RefreshMsg,
         routing_table::{BucketEntry, Entry, RoutingTable, PENDING_ENTRY, UNREACHABLE_ENTRY},
     },
     message::{pick_endpoint, Protocol},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    peer::ConnDirection,
     util::{decode, encode},
     Config, Error, Result,
 };
@@ -217,6 +219,14 @@ impl RefreshService {
         let supported = [Protocol::Udp];
         let endpoint = pick_endpoint(&entry.discovery_addrs, &supported)
             .ok_or(Error::Lookup("No UDP discovery address available".into()))?;
+
+        if !self.config.access_control.allow(
+            &Subject::Endpoint(&endpoint),
+            Action::Probe(ConnDirection::Outbound),
+        ) {
+            return Err(Error::AccessDenied);
+        }
+
         let conn = udp::dial(&endpoint, Default::default()).await?;
         let peer_addr = SocketAddr::try_from(endpoint.clone())?;
         let backoff = Backoff::new(100, 5000);
@@ -293,6 +303,15 @@ impl RefreshService {
         }
 
         let sender_ep = Endpoint::new_udp_addr(sender);
+
+        if !self.config.access_control.allow(
+            &Subject::Endpoint(&sender_ep),
+            Action::Probe(ConnDirection::Inbound),
+        ) {
+            trace!("Drop refresh ping from denied source {sender_ip}");
+            return Ok(());
+        }
+
         self.monitor
             .notify(ConnectionKind::Accepted(sender_ep.clone()))
             .await;

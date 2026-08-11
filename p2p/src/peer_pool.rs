@@ -15,11 +15,12 @@ use karyon_eventemitter::{EventEmitter, EventListener, EventTopic, EventValue};
 use karyon_net::Endpoint;
 
 use crate::{
+    access_control::{Action, PeerCandidate, Subject},
     config::Config,
     conn_queue::{ConnQueue, QueuedConn},
     handshake::{handshake, HandshakeParams},
     monitor::{Monitor, PoolEvent},
-    peer::Peer,
+    peer::{ConnDirection, Peer},
     protocol::{Protocol, ProtocolConstructor, ProtocolID, ProtocolMeta},
     Error, PeerID, Result,
 };
@@ -236,7 +237,7 @@ impl PeerPool {
 
             let params = HandshakeParams {
                 own_id: &self.id,
-                is_inbound: matches!(queued.direction, crate::peer::ConnDirection::Inbound),
+                is_inbound: matches!(queued.direction, ConnDirection::Inbound),
                 config_version: &self.config.version,
                 protocols: &meta,
                 timeout_secs: self.config.handshake_timeout,
@@ -259,6 +260,34 @@ impl PeerPool {
                     continue;
                 }
             };
+
+            // Admission gate. Runs before the Peer is built, so a denied
+            // peer never gets tasks spawned or QUIC streams opened.
+            let candidate = PeerCandidate {
+                peer_id: &pid,
+                remote_endpoint: &queued.remote_endpoint,
+                negotiated_protocols: &negotiated,
+            };
+            let allowed = self.config.access_control.allow(
+                &Subject::Peer(&candidate),
+                Action::Connect(queued.direction.clone()),
+            );
+
+            if !allowed {
+                warn!("Access denied for peer {pid}");
+                self.monitor
+                    .notify(PoolEvent::HandshakeFailed(Some(pid.clone())))
+                    .await;
+                let _ = self
+                    .peer_emitter
+                    .emit(&PeerEvent::HandshakeFailed(Some(pid)))
+                    .await;
+                let _ = queued
+                    .disconnect_signal
+                    .send(Err(Error::AccessDenied))
+                    .await;
+                continue;
+            }
 
             if let Err(err) = self.new_peer(queued, pid, negotiated).await {
                 error!("new_peer failed: {err}");

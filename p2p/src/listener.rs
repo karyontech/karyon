@@ -16,6 +16,7 @@ use karyon_net::{
 };
 
 use crate::{
+    access_control::{AccessControl, Action, Subject},
     codec::PeerNetMsgCodec,
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
@@ -84,6 +85,7 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     conn_queue: Option<Arc<ConnQueue>>,
     monitor: Arc<Monitor>,
     handshake_timeout: Duration,
+    access_control: Arc<dyn AccessControl>,
     _codec: PhantomData<C>,
 }
 
@@ -98,6 +100,7 @@ where
         connection_slots: Arc<ConnectionSlots>,
         monitor: Arc<Monitor>,
         handshake_timeout: u64,
+        access_control: Arc<dyn AccessControl>,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -107,6 +110,7 @@ where
             task_group: TaskGroup::with_executor(ex),
             monitor,
             handshake_timeout: Duration::from_secs(handshake_timeout),
+            access_control,
             _codec: PhantomData,
         })
     }
@@ -203,6 +207,15 @@ where
                 }
             };
 
+            // Callback mode is the kademlia lookup plane.
+            if !self.access_control.allow(
+                &Subject::Endpoint(&endpoint),
+                Action::Lookup(ConnDirection::Inbound),
+            ) {
+                debug!("Rejected inbound lookup connection from {endpoint}");
+                continue;
+            }
+
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
@@ -270,6 +283,7 @@ impl Listener<PeerNetMsgCodec> {
         conn_queue: Arc<ConnQueue>,
         monitor: Arc<Monitor>,
         handshake_timeout: u64,
+        access_control: Arc<dyn AccessControl>,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -279,6 +293,7 @@ impl Listener<PeerNetMsgCodec> {
             task_group: TaskGroup::with_executor(ex),
             monitor,
             handshake_timeout: Duration::from_secs(handshake_timeout),
+            access_control,
             _codec: PhantomData,
         })
     }
@@ -344,6 +359,14 @@ impl Listener<PeerNetMsgCodec> {
                     continue;
                 }
             };
+
+            if !self.access_control.allow(
+                &Subject::Endpoint(&endpoint),
+                Action::Connect(ConnDirection::Inbound),
+            ) {
+                debug!("Rejected inbound connection from {endpoint}");
+                continue;
+            }
 
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
@@ -435,6 +458,14 @@ impl Listener<PeerNetMsgCodec> {
             };
 
             let peer_ep = incoming.peer_endpoint();
+
+            if !self.access_control.allow(
+                &Subject::Endpoint(&peer_ep),
+                Action::Connect(ConnDirection::Inbound),
+            ) {
+                debug!("Rejected inbound QUIC connection from {peer_ep}");
+                continue;
+            }
 
             self.monitor
                 .notify(ConnectionKind::Accepted(peer_ep.clone()))

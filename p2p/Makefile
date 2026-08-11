@@ -3,7 +3,7 @@ SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 
 .PHONY: check fmt clippy unit-test integration-test test \
-	test-tcp test-tls test-quic test-multi-transport \
+	test-tcp test-tls test-quic test-multi-transport test-access-control \
 	test-smol test-tokio
 
 check:
@@ -36,6 +36,10 @@ test-quic:
 test-multi-transport:
 	cargo test --no-default-features --features $(SMOL_ALL) --test multi_transport
 	cargo test --no-default-features --features $(TOKIO_ALL) --test multi_transport
+
+test-access-control:
+	cargo test --no-default-features --features $(SMOL_ALL) --test access_control
+	cargo test --no-default-features --features $(TOKIO_ALL) --test access_control
 
 test-smol:
 	cargo test --no-default-features --features $(SMOL_ALL) --tests
