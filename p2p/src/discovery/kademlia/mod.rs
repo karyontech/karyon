@@ -54,7 +54,7 @@ pub struct KademliaDiscovery {
     refresh_service: Arc<RefreshService>,
 
     /// Discovered peers queued for the Node to dial. Producers
-    /// (connect_loop, manual peer_endpoints) push; the Node's
+    /// (connect_loop, manual dial_peers) push; the Node's
     /// connect_discovered_peers task drains via `recv()`.
     peer_queue: Arc<AsyncQueue<DiscoveredPeer>>,
 
@@ -205,8 +205,8 @@ impl Discovery for KademliaDiscovery {
         // Start the refresh service
         self.refresh_service.start().await?;
 
-        // Send manual peer endpoints as DiscoveredPeer
-        for endpoint in self.config.peer_endpoints.iter() {
+        // Send manual dial peers as DiscoveredPeer
+        for endpoint in self.config.dial_peers.iter() {
             if let Some(addr) = PeerAddr::from_endpoint(endpoint, 0) {
                 let peer = DiscoveredPeer {
                     peer_id: None,

@@ -83,7 +83,7 @@ fn denied_peer_never_joins_pool() {
         // Built first so its id can go on node_a's deny list.
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -127,7 +127,7 @@ fn allowed_peer_joins_pool() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -178,7 +178,7 @@ fn denied_endpoint_rejected_before_handshake() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),

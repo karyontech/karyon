@@ -9,7 +9,7 @@ use crate::{
 
 /// Configuration for the p2p network.
 ///
-/// `peer_endpoints` are static peers dialed directly (use for fixed
+/// `dial_peers` are static peers dialed directly (use for fixed
 /// topologies). `bootstrap_peers` are seeds for the default Kademlia
 /// discovery; the DHT grows the connection set from there. Custom
 /// `Discovery` implementations may interpret `bootstrap_peers`
@@ -86,13 +86,13 @@ pub struct Config {
     ///
     /// Either provide both (one of each kind) or leave the vector empty
     /// to disable Kademlia-style DHT discovery and rely on
-    /// `peer_endpoints` + `bootstrap_peers` for static peering.
+    /// `dial_peers` + `bootstrap_peers` for static peering.
     ///
     /// e.g. [tcp://0.0.0.0:7000, udp://0.0.0.0:7000]
     pub discovery_endpoints: Vec<Endpoint>,
     /// A list of endpoints representing peers that the `Discovery` will
     /// manually connect to.
-    pub peer_endpoints: Vec<Endpoint>,
+    pub dial_peers: Vec<Endpoint>,
     /// The number of available inbound slots for incoming connections.
     pub inbound_slots: usize,
     /// The number of available outbound slots for outgoing connections.
@@ -148,7 +148,7 @@ impl Default for Config {
             bootstrap_peers: vec![],
             listen_endpoints: vec![],
             discovery_endpoints: vec![],
-            peer_endpoints: vec![],
+            dial_peers: vec![],
             inbound_slots: 12,
             outbound_slots: 12,
             max_connect_retries: 3,

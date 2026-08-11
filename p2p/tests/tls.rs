@@ -29,7 +29,7 @@ fn two_nodes_direct_connect() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tls://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),

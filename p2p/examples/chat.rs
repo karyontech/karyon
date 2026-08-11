@@ -29,9 +29,9 @@ struct Cli {
     #[arg(short)]
     bootstrap_peers: Vec<Endpoint>,
 
-    /// Optional list of peer endpoints for manual connections.
-    #[arg(short)]
-    peer_endpoints: Vec<Endpoint>,
+    /// Optional list of peers to dial directly.
+    #[arg(short = 'p')]
+    dial_peers: Vec<Endpoint>,
 
     /// Endpoints for accepting incoming connections.
     #[arg(short)]
@@ -111,7 +111,7 @@ fn main() {
     let config = Config {
         listen_endpoints: cli.listen_endpoints,
         discovery_endpoints: cli.discovery_endpoints,
-        peer_endpoints: cli.peer_endpoints,
+        dial_peers: cli.dial_peers,
         bootstrap_peers: cli.bootstrap_peers,
         ..Default::default()
     };

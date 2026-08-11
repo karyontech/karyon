@@ -25,7 +25,7 @@ use crate::{
 
 pub use peer_id::PeerID;
 
-use connection::PeerConnection;
+use connection::Wire;
 
 #[derive(Clone, Debug)]
 pub enum ConnDirection {
@@ -42,17 +42,16 @@ impl fmt::Display for ConnDirection {
     }
 }
 
-/// A connected peer. Holds a `PeerConnection` that hides the wire
-/// shape (single framed pipe vs. per-protocol streams).
+/// A connected peer. Holds a `Wire` that hides the wire shape
+/// (single framed pipe vs. per-protocol streams).
 pub struct Peer {
-    own_id: PeerID,
     id: PeerID,
     peer_pool: Weak<PeerPool>,
 
     direction: ConnDirection,
     remote_endpoint: Endpoint,
 
-    connection: Arc<dyn PeerConnection>,
+    connection: Arc<dyn Wire>,
     disconnect_signal: Sender<Result<()>>,
 
     negotiated_protocols: HashSet<ProtocolID>,
@@ -77,10 +76,6 @@ impl Peer {
 
     pub fn id(&self) -> &PeerID {
         &self.id
-    }
-
-    pub fn own_id(&self) -> &PeerID {
-        &self.own_id
     }
 
     pub fn config(&self) -> Arc<Config> {
@@ -171,7 +166,6 @@ impl Peer {
         negotiated_protocols: HashSet<ProtocolID>,
         protocol_ids: impl IntoIterator<Item = ProtocolID> + Clone,
     ) -> Result<Arc<Self>> {
-        let own_id = peer_pool.id.clone();
         let config = peer_pool.config.clone();
         let executor = peer_pool.executor.clone();
         let task_group = TaskGroup::with_executor(executor.clone());
@@ -192,7 +186,6 @@ impl Peer {
 
         let peer_pool_weak = Arc::downgrade(&peer_pool);
         Ok(Arc::new(Peer {
-            own_id,
             id,
             peer_pool: peer_pool_weak,
             direction,
