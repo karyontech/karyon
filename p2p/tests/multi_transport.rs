@@ -34,7 +34,7 @@ fn tcp_and_tls_coexist() {
 
         let tcp_client = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -66,7 +66,7 @@ fn tcp_and_tls_coexist() {
 
         let tls_client = create_node(
             Config {
-                peer_endpoints: vec![format!("tls://127.0.0.1:{tls_port}").parse().unwrap()],
+                dial_peers: vec![format!("tls://127.0.0.1:{tls_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -114,7 +114,7 @@ fn node_listens_on_multiple_transports() {
         // Client connecting via TCP
         let tcp_client = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -132,7 +132,7 @@ fn node_listens_on_multiple_transports() {
         // Client connecting via TLS
         let tls_client = create_node(
             Config {
-                peer_endpoints: vec![format!("tls://127.0.0.1:{tls_port}").parse().unwrap()],
+                dial_peers: vec![format!("tls://127.0.0.1:{tls_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),

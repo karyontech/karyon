@@ -14,15 +14,14 @@ use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt};
 use karyon_net::{framed, quic::QuicConn, StreamMux};
 
 #[cfg(feature = "quic")]
-use crate::message::StreamInit;
+use crate::{message::StreamInit, peer::ConnDirection, util::encode};
 
 use crate::{
     codec::PeerNetMsgCodec,
     conn_queue::QueuedConn,
     message::{PeerNetCmd, PeerNetMsg, ProtocolMsg, ShutdownMsg},
-    peer::ConnDirection,
     protocol::{ProtocolEvent, ProtocolID},
-    util::{decode, encode},
+    util::decode,
     Error, Result,
 };
 
@@ -32,7 +31,7 @@ const RECV_QUEUE_SIZE: usize = 128;
 /// Per-peer wire abstraction. Hides single-pipe (TCP/TLS) vs.
 /// stream-mux (QUIC) framing from the layers above.
 #[async_trait]
-pub(crate) trait PeerConnection: Send + Sync {
+pub(crate) trait Wire: Send + Sync {
     /// Send pre-encoded payload bytes for `proto_id`.
     async fn send(&self, proto_id: &ProtocolID, payload: Vec<u8>) -> Result<()>;
     /// Pop the next event for `proto_id`. Blocks until a message
@@ -43,7 +42,7 @@ pub(crate) trait PeerConnection: Send + Sync {
     async fn shutdown(&self) -> Result<()>;
 }
 
-/// Build the right `PeerConnection` for the post-handshake `QueuedConn`.
+/// Build the right `Wire` for the post-handshake `QueuedConn`.
 /// Picks `MuxConnection` when QUIC is in use, `SingleConnection` otherwise.
 pub(crate) async fn from_queued(
     queued: QueuedConn,
@@ -51,11 +50,11 @@ pub(crate) async fn from_queued(
     proto_ids: impl IntoIterator<Item = ProtocolID> + Clone,
     task_group: &TaskGroup,
     stop_chan: Sender<Result<()>>,
-) -> Result<Arc<dyn PeerConnection>> {
+) -> Result<Arc<dyn Wire>> {
     #[cfg(feature = "quic")]
     if queued.quic_conn.is_some() {
         let conn = MuxConnection::from_queued(queued, negotiated, proto_ids, task_group).await?;
-        return Ok(Arc::new(conn) as Arc<dyn PeerConnection>);
+        return Ok(Arc::new(conn) as Arc<dyn Wire>);
     }
 
     let _ = negotiated;
@@ -92,7 +91,7 @@ impl SingleConnection {
 }
 
 #[async_trait]
-impl PeerConnection for SingleConnection {
+impl Wire for SingleConnection {
     async fn send(&self, proto_id: &ProtocolID, payload: Vec<u8>) -> Result<()> {
         let proto_msg = ProtocolMsg {
             protocol_id: proto_id.clone(),
@@ -168,7 +167,7 @@ impl MuxConnection {
 
 #[cfg(feature = "quic")]
 #[async_trait]
-impl PeerConnection for MuxConnection {
+impl Wire for MuxConnection {
     async fn send(&self, proto_id: &ProtocolID, payload: Vec<u8>) -> Result<()> {
         let proto_msg = ProtocolMsg {
             protocol_id: proto_id.clone(),

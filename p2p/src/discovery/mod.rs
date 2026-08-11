@@ -22,7 +22,7 @@ pub enum PeerConnectionEvent {
     /// Previously-connected peer has disconnected.
     Disconnected(PeerID),
     /// Connection attempt failed. Peer id may be unknown for
-    /// manual peer endpoints whose id wasn't pre-shared.
+    /// manual dial peers whose id wasn't pre-shared.
     ConnectFailed(Option<PeerID>),
 }
 

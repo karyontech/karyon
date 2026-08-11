@@ -121,7 +121,7 @@ fn heterogeneous_protocols_connect() {
         // Node B: only ChatProto (no FileProto)
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -188,7 +188,7 @@ fn swarm_membership() {
         // Node B: Chat only
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -371,7 +371,7 @@ fn swarm_peer_removal() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),

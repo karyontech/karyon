@@ -29,7 +29,7 @@ fn two_nodes_direct_connect() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -188,7 +188,7 @@ fn peer_disconnect_detection() {
 
         let node_b = create_node(
             Config {
-                peer_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
                 ..fast_config()
             },
             ex.clone(),
@@ -245,7 +245,7 @@ fn multiple_peers_connect() {
         for i in 0..3 {
             let client = create_node(
                 Config {
-                    peer_endpoints: vec![connect_ep.clone()],
+                    dial_peers: vec![connect_ep.clone()],
                     ..fast_config()
                 },
                 ex.clone(),

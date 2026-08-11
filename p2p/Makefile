@@ -2,12 +2,15 @@ ALL_FEATURES = quic
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 
-.PHONY: check fmt clippy unit-test integration-test test \
+.PHONY: check check-examples fmt clippy unit-test integration-test test \
 	test-tcp test-tls test-quic test-multi-transport test-access-control \
 	test-smol test-tokio
 
 check:
 	cargo check
+
+check-examples:
+	cargo check --examples
 
 fmt:
 	cargo fmt --check
