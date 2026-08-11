@@ -285,9 +285,12 @@ where
         return Err(Error::ClientDisconnected);
     }
     let req = serde_json::to_value(request)?;
-    send_chan.0.send(req).await?;
 
     let rx = message_dispatcher.register(id).await;
+    if let Err(err) = send_chan.0.send(req).await {
+        message_dispatcher.unregister(&id).await;
+        return Err(err.into());
+    }
 
     let result = match client.config.timeout {
         Some(t) => timeout(std::time::Duration::from_millis(t), rx.recv()).await?,
