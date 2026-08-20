@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Handler","SanityCheckResult"],"fn":["err_res","method_not_found","sanity_check"],"struct":["NewRequest"]};
