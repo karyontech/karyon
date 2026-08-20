@@ -1,6 +1,6 @@
 [package]
 name = "karyon_net"
-description = "A layered async networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5."
+description = "A layered async networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5, and codec-based message framing."
 version = "1.0.0"
 edition.workspace = true
 homepage.workspace = true
