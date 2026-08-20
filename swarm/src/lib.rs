@@ -16,7 +16,7 @@ use karyon_core::{
 
 use karyon_p2p::{
     protocol::{PeerConn, Protocol, ProtocolID},
-    DiscoveredPeer, Node, PeerEvent, PeerID, Result,
+    DiscoveredPeer, Node, PeerEvent, PeerEventListener, PeerID, Result,
 };
 
 pub use swarm_key::{compute_swarm_key, swarm_key_from_protocol, SwarmKey};
@@ -67,11 +67,14 @@ impl Swarm {
 
     /// Run the node and start tracking peer events for swarm membership.
     pub async fn run(self: &Arc<Self>) -> Result<()> {
+        // Register before the node starts, so a peer connecting right
+        // away cannot emit an event while no listener exists yet.
+        let listener = self.node.register_peer_events();
         self.node.run().await?;
 
         let this = self.clone();
         self.task_group.spawn_then(
-            async move { this.monitor_peers().await },
+            async move { this.monitor_peers(listener).await },
             |res: TaskResult<Result<()>>| async move {
                 debug!("Swarm monitor_peers task ended: {res}");
             },
@@ -83,40 +86,40 @@ impl Swarm {
     /// Register a new swarm whose [`SwarmKey`] is derived from the
     /// protocol id. The same `Swarm` can hold many of these for
     /// different protocols.
-    pub async fn join<P: Protocol>(
+    pub async fn join<P: Protocol + 'static>(
         self: &Arc<Self>,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = swarm_key_from_protocol(&proto_id);
-        self.join_inner::<P>(proto_id, key, c).await
+        self.join_inner(proto_id, key, c).await
     }
 
     /// Join a swarm with an explicit instance name (e.g. a chat room or
     /// pub/sub topic). SwarmKey is derived from `(protocol_id, instance)`.
-    pub async fn join_with_instance<P: Protocol>(
+    pub async fn join_with_instance<P: Protocol + 'static>(
         self: &Arc<Self>,
         instance: &str,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = compute_swarm_key(&proto_id, instance);
-        self.join_inner::<P>(proto_id, key, c).await
+        self.join_inner(proto_id, key, c).await
     }
 
     /// Shared join logic: register the protocol, advertise the swarm
     /// key in the optional bloom, and start tracking connected peers.
-    async fn join_inner<P: Protocol>(
+    async fn join_inner<P: Protocol + 'static>(
         self: &Arc<Self>,
         proto_id: ProtocolID,
         key: SwarmKey,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         // Protocol attach is idempotent in spirit but the underlying
         // peer_pool stores the latest constructor; calling join twice
         // for the same protocol just updates the constructor. Bloom
         // adds are also idempotent (bits already set).
-        self.node.attach_protocol::<P>(c).await?;
+        self.node.attach_protocol(c).await?;
         self.node.bloom_add_optional(key);
 
         let info = SwarmInfo {
@@ -197,8 +200,7 @@ impl Swarm {
     }
 
     /// Forward Node peer events into per-swarm membership.
-    async fn monitor_peers(self: Arc<Self>) -> Result<()> {
-        let listener = self.node.register_peer_events();
+    async fn monitor_peers(self: Arc<Self>, listener: PeerEventListener) -> Result<()> {
         loop {
             let event = match listener.recv().await {
                 Ok(e) => e,

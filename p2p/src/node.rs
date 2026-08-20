@@ -54,7 +54,7 @@ use crate::{
 /// let node = Node::new(&key_pair, config, global_executor());
 ///
 /// // node.run().await.unwrap();
-/// // node.attach_protocol::<MyProto>(|peer| MyProto::new(peer)).await;
+/// // node.attach_protocol(MyProto::new).await;
 /// // node.shutdown().await;
 /// ```
 pub struct Node {
@@ -320,12 +320,18 @@ impl Node {
 
     /// Attach a custom protocol. karyon runs the constructor closure
     /// once per connected peer with a typed `PeerConn` scoped to this
-    /// protocol. Bloom advertises the protocol id according to
+    /// protocol. The protocol type is inferred from the closure's
+    /// return value. Bloom advertises the protocol id according to
     /// `P::kind()`.
-    pub async fn attach_protocol<P: ProtocolTrait>(
+    ///
+    /// ```ignore
+    /// node.attach_protocol(MyProtocol::new).await?;
+    /// ```
+    pub async fn attach_protocol<P: ProtocolTrait + 'static>(
         &self,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn ProtocolTrait>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<()> {
+        let c = move |conn| Arc::new(c(conn)) as Arc<dyn ProtocolTrait>;
         self.peer_pool.attach_protocol::<P>(Box::new(c)).await?;
         let id = P::id();
         match P::kind() {
@@ -337,10 +343,7 @@ impl Node {
 
     /// Attach the core protocols (PING). Called once during `run`.
     async fn attach_core_protocols(self: &Arc<Self>) -> Result<()> {
-        self.attach_protocol::<PingProtocol>(|conn| {
-            Ok(PingProtocol::new(conn) as Arc<dyn ProtocolTrait>)
-        })
-        .await
+        self.attach_protocol(PingProtocol::new).await
     }
 
     /// Add an item the local node REQUIRES peers to also support.

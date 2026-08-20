@@ -50,6 +50,9 @@ impl EventTopic for PeerEvent {
     }
 }
 
+/// Listener returned by `register_peer_events`.
+pub type PeerEventListener = EventListener<PeerEventTopic, PeerEvent>;
+
 pub struct PeerPool {
     /// Peer's ID
     pub id: PeerID,

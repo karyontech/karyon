@@ -11,63 +11,6 @@ with pub/sub and custom JSON codecs.
 $ cargo add karyon_jsonrpc
 ```
 
-## Feature Flags
-
-| Feature | Description |
-|---------|-------------|
-| `tcp` | TCP (included by default) |
-| `tls` | TLS over TCP (implies `tcp`) |
-| `ws` | WebSocket over TCP (implies `tcp`) |
-| `quic` | QUIC |
-| `http` | HTTP/1.1 and HTTP/2 over TCP (implies `tcp`) |
-| `http3` | HTTP/3 over QUIC (implies `http` and `quic`) |
-| `unix` | Unix socket (included by default) |
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
-
-```toml
-# QUIC support
-karyon_jsonrpc = { version = "1.0", features = ["quic"] }
-
-# HTTP/1.1 + HTTP/2
-karyon_jsonrpc = { version = "1.0", features = ["http"] }
-
-# HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
-karyon_jsonrpc = { version = "1.0", features = ["http3"] }
-
-# All wire formats
-karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
-```
-
-## Architecture
-
-```TEXT
-  ClientBuilder / ServerBuilder
-           |
-     endpoint dispatch
-           |
-  +--------+--------+--------+--------+
-  | TCP    | TLS    | QUIC   | HTTP   |
-  +--------+--------+--------+--------+
-  |        |        |        |        |
-  | framed | framed | stream | hyper  |
-  | conn   | conn   | per    | / h3   |
-  |        |        | call   |        |
-  +--------+--------+--------+--------+
-           |
-     FramedReader / FramedWriter
-     (concurrent recv_msg / send_msg)
-```
-
-- **TCP/TLS/Unix**: `tcp::connect()` or `TcpListener::bind()`, optionally wrapped with
-  `TlsLayer`, then `framed()` to get a `FramedConn`. The connection is split into
-  `FramedReader` + `FramedWriter` for concurrent request reading and response writing.
-- **QUIC**: each RPC call opens a new bidirectional stream via `StreamMux`. Each subscription
-  also opens its own dedicated stream and splits it for concurrent notification writing +
-  unsubscribe reading.
-- **HTTP/1-2**: standard hyper request/response. No persistent connection.
-- **HTTP/3**: QUIC-based. Subscriptions stream DATA frames on a single request.
-
 ## Example
 
 ### Server
@@ -215,6 +158,63 @@ async {
         .expect("unsubscribe");
 };
 ```
+
+## Feature Flags
+
+| Feature | Description |
+|---------|-------------|
+| `tcp` | TCP (included by default) |
+| `tls` | TLS over TCP (implies `tcp`) |
+| `ws` | WebSocket over TCP (implies `tcp`) |
+| `quic` | QUIC |
+| `http` | HTTP/1.1 and HTTP/2 over TCP (implies `tcp`) |
+| `http3` | HTTP/3 over QUIC (implies `http` and `quic`) |
+| `unix` | Unix socket (included by default) |
+| `smol` | Use smol async runtime (default) |
+| `tokio` | Use tokio async runtime |
+
+```toml
+# QUIC support
+karyon_jsonrpc = { version = "1.0", features = ["quic"] }
+
+# HTTP/1.1 + HTTP/2
+karyon_jsonrpc = { version = "1.0", features = ["http"] }
+
+# HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
+karyon_jsonrpc = { version = "1.0", features = ["http3"] }
+
+# All wire formats
+karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
+```
+
+## Architecture
+
+```TEXT
+  ClientBuilder / ServerBuilder
+           |
+     endpoint dispatch
+           |
+  +--------+--------+--------+--------+
+  | TCP    | TLS    | QUIC   | HTTP   |
+  +--------+--------+--------+--------+
+  |        |        |        |        |
+  | framed | framed | stream | hyper  |
+  | conn   | conn   | per    | / h3   |
+  |        |        | call   |        |
+  +--------+--------+--------+--------+
+           |
+     FramedReader / FramedWriter
+     (concurrent recv_msg / send_msg)
+```
+
+- **TCP/TLS/Unix**: `tcp::connect()` or `TcpListener::bind()`, optionally wrapped with
+  `TlsLayer`, then `framed()` to get a `FramedConn`. The connection is split into
+  `FramedReader` + `FramedWriter` for concurrent request reading and response writing.
+- **QUIC**: each RPC call opens a new bidirectional stream via `StreamMux`. Each subscription
+  also opens its own dedicated stream and splits it for concurrent notification writing +
+  unsubscribe reading.
+- **HTTP/1-2**: standard hyper request/response. No persistent connection.
+- **HTTP/3**: QUIC-based. Subscriptions stream DATA frames on a single request.
 
 ## Clients
 

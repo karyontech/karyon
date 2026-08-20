@@ -39,15 +39,15 @@ pub struct PingProtocol {
 }
 
 impl PingProtocol {
-    pub(crate) fn new(peer: PeerConn) -> Arc<Self> {
+    pub(crate) fn new(peer: PeerConn) -> Self {
         let cfg = peer.inner().config();
         let executor = peer.inner().executor();
-        Arc::new(Self {
+        Self {
             ping_interval: cfg.ping_interval,
             ping_timeout: cfg.ping_timeout,
             task_group: TaskGroup::with_executor(executor),
             peer,
-        })
+        }
     }
 
     async fn recv_loop(&self, pong_chan: Sender<[u8; 32]>) -> Result<()> {

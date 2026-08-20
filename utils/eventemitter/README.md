@@ -1,4 +1,4 @@
-# karyon-eventemitter
+# karyon eventemitter
 
 A lightweight, asynchronous event emitter for Rust. It provides a
 flexible pub-sub (publish-subscribe) mechanism, enabling decoupled
@@ -9,7 +9,13 @@ This crate is similar to the EventEmitter in
 [Node.js](https://nodejs.org/en/learn/asynchronous-work/the-nodejs-event-emitter)
 and can also be used as a [Message
 Dispatcher](https://www.enterpriseintegrationpatterns.com/patterns/messaging/MessageDispatcher.html).
-See the examples for more details.
+See the [examples](./examples) for more details.
+
+## Install
+
+```bash
+$ cargo add karyon_eventemitter
+```
 
 ## Example
 
@@ -59,4 +65,13 @@ See the examples for more details.
 
 ```
 
+Events derive `EventValue` to get a unique event id. Implement
+`EventTopic` for an event to give it a default topic, so it can be
+emitted with `emit` instead of `emit_by_topic`.
+
+## Feature Flags
+
+| Feature | Description |
+|---------|-------------|
+| `derive` | The `#[derive(EventValue)]` macro (default) |
 

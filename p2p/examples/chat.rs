@@ -53,12 +53,12 @@ pub struct ChatProtocol {
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: PeerConn, executor: Arc<Executor<'static>>) -> Arc<dyn Protocol> {
-        Arc::new(Self {
+    fn new(username: &str, peer: PeerConn, executor: Arc<Executor<'static>>) -> Self {
+        Self {
             peer,
             username: username.to_string(),
             executor,
-        })
+        }
     }
 }
 
@@ -104,7 +104,7 @@ fn main() {
     env_logger::init();
     let cli = Cli::parse();
 
-    // Create a PeerID based on the username.
+    // Generate a random keypair; the PeerID is derived from its public key.
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
     // Create the configuration for the node.
@@ -133,8 +133,7 @@ fn main() {
                 let username = cli.username;
 
                 // Attach the ChatProtocol
-                let c = move |peer| Ok(ChatProtocol::new(&username, peer, ex.clone()));
-                node.attach_protocol::<ChatProtocol>(c)
+                node.attach_protocol(move |peer| ChatProtocol::new(&username, peer, ex.clone()))
                     .await
                     .expect("Attach chat protocol to the p2p node");
 
