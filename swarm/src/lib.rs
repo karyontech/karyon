@@ -83,40 +83,40 @@ impl Swarm {
     /// Register a new swarm whose [`SwarmKey`] is derived from the
     /// protocol id. The same `Swarm` can hold many of these for
     /// different protocols.
-    pub async fn join<P: Protocol>(
+    pub async fn join<P: Protocol + 'static>(
         self: &Arc<Self>,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = swarm_key_from_protocol(&proto_id);
-        self.join_inner::<P>(proto_id, key, c).await
+        self.join_inner(proto_id, key, c).await
     }
 
     /// Join a swarm with an explicit instance name (e.g. a chat room or
     /// pub/sub topic). SwarmKey is derived from `(protocol_id, instance)`.
-    pub async fn join_with_instance<P: Protocol>(
+    pub async fn join_with_instance<P: Protocol + 'static>(
         self: &Arc<Self>,
         instance: &str,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         let proto_id = P::id();
         let key = compute_swarm_key(&proto_id, instance);
-        self.join_inner::<P>(proto_id, key, c).await
+        self.join_inner(proto_id, key, c).await
     }
 
     /// Shared join logic: register the protocol, advertise the swarm
     /// key in the optional bloom, and start tracking connected peers.
-    async fn join_inner<P: Protocol>(
+    async fn join_inner<P: Protocol + 'static>(
         self: &Arc<Self>,
         proto_id: ProtocolID,
         key: SwarmKey,
-        c: impl Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync + 'static,
+        c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<SwarmKey> {
         // Protocol attach is idempotent in spirit but the underlying
         // peer_pool stores the latest constructor; calling join twice
         // for the same protocol just updates the constructor. Bloom
         // adds are also idempotent (bits already set).
-        self.node.attach_protocol::<P>(c).await?;
+        self.node.attach_protocol(c).await?;
         self.node.bloom_add_optional(key);
 
         let info = SwarmInfo {

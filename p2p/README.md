@@ -10,6 +10,79 @@ Multi-transport (TCP, TCP/TLS, QUIC) with pluggable custom protocols via the
 $ cargo add karyon_p2p
 ```
 
+## Example
+
+An echo node: it attaches a custom protocol that broadcasts back every
+message it receives.
+
+```rust
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use karyon_core::async_runtime::global_executor;
+use karyon_p2p::{
+    keypair::{KeyPair, KeyPairType},
+    protocol::{PeerConn, Protocol, ProtocolID},
+    Config, Error, Node, Version,
+};
+
+pub struct EchoProtocol {
+    peer: PeerConn,
+}
+
+impl EchoProtocol {
+    fn new(peer: PeerConn) -> Self {
+        Self { peer }
+    }
+}
+
+#[async_trait]
+impl Protocol for EchoProtocol {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        loop {
+            match self.peer.recv().await {
+                Ok(msg) => self.peer.broadcast(msg).await,
+                Err(Error::PeerShutdown) => break,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    fn version() -> Result<Version, Error> {
+        "0.1.0, 0.1.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        "ECHO".into()
+    }
+}
+
+async {
+    let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
+
+    let config = Config {
+        listen_endpoints: vec!["tcp://0.0.0.0:8000".parse().unwrap()],
+        discovery_endpoints: vec![
+            "tcp://0.0.0.0:7000".parse().unwrap(),
+            "udp://0.0.0.0:7000".parse().unwrap(),
+        ],
+        ..Default::default()
+    };
+
+    let node = Node::new(&key_pair, config, global_executor());
+
+    node.attach_protocol(EchoProtocol::new)
+        .await
+        .expect("Attach echo protocol");
+
+    node.run().await.expect("Run the node");
+
+    node.shutdown().await;
+};
+```
+
 ## Feature Flags
 
 | Feature | Description |
@@ -73,17 +146,6 @@ Implementations of the `Discovery` trait yield candidate peers; the
 Node dials them. The default is a Kademlia DHT; plug in your own (mDNS,
 static, ...) by implementing the trait.
 
-```rust,ignore
-#[async_trait]
-pub trait Discovery: Send + Sync {
-    async fn start(self: Arc<Self>) -> Result<()>;
-    async fn shutdown(&self);
-    async fn recv(&self) -> DiscoveredPeer;
-    fn on_event(&self, event: PeerConnectionEvent);
-    fn find_peers_with(&self, item: &[u8]) -> Vec<DiscoveredPeer>;
-}
-```
-
 ### Protocols
 
 A built-in `Ping` keep-alive runs on every connection; everything else
@@ -93,49 +155,6 @@ connection. For QUIC, each protocol gets its own bidirectional stream.
 `Protocol::kind()` defaults to `Optional`. Override to `Mandatory` for
 protocols every peer must speak.
 
-```rust
-# use std::sync::Arc;
-# use async_trait::async_trait;
-# use karyon_p2p::{
-#     protocol::{PeerConn, Protocol, ProtocolID},
-#     Error, Version,
-# };
-pub struct MyProtocol {
-    peer: PeerConn,
-}
-
-impl MyProtocol {
-    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
-        Arc::new(Self { peer })
-    }
-}
-
-#[async_trait]
-impl Protocol for MyProtocol {
-    async fn start(self: Arc<Self>) -> Result<(), Error> {
-        loop {
-            match self.peer.recv().await {
-                Ok(_msg) => { /* handle */ }
-                Err(Error::PeerShutdown) => break,
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(())
-    }
-
-    fn version() -> Result<Version, Error> {
-        "0.1.0, >0.1.0".parse()
-    }
-
-    fn id() -> ProtocolID {
-        "MYPROTO".into()
-    }
-
-    // Optional override (defaults to ProtocolKind::Optional)
-    // fn kind() -> ProtocolKind { ProtocolKind::Mandatory }
-}
-```
-
 ### Monitor
 
 Subscribe to `node.monitor()` to observe what the network is doing -
@@ -143,21 +162,11 @@ connections opening and closing, peer add/remove, handshake failures,
 discovery lookups and refreshes. Each topic is a separate event type
 with its own listener; every subscriber gets every event independently.
 
-```rust,no_run
-# use karyon_core::async_runtime::global_executor;
-# use karyon_p2p::{
-#     monitor::ConnectionEvent,
-#     keypair::{KeyPair, KeyPairType},
-#     Node, Config,
-# };
-# async {
-# let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-# let node = Node::new(&key_pair, Config::default(), global_executor());
+```rust,ignore
 let listener = node.monitor().register::<ConnectionEvent>();
 while let Ok(ev) = listener.recv().await {
     println!("conn event: {} {:?}", ev.event, ev.endpoint);
 }
-# };
 ```
 
 Available event types: `ConnectionEvent`, `PeerPoolEvent`,
@@ -168,39 +177,6 @@ Available event types: `ConnectionEvent`, `PeerPoolEvent`,
 TLS is available for TCP connections. QUIC has built-in TLS 1.3. The
 p2p layer generates self-signed certificates from the node's key pair
 for mutual authentication.
-
-## Example
-
-```rust,no_run
-use karyon_core::async_runtime::global_executor;
-use karyon_p2p::{
-    Node, Config,
-    keypair::{KeyPair, KeyPairType},
-};
-
-async {
-    let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
-
-    let config = Config {
-        listen_endpoints: vec![
-            "tcp://0.0.0.0:8000".parse().unwrap(),
-        ],
-        discovery_endpoints: vec![
-            "tcp://0.0.0.0:7000".parse().unwrap(),
-            "udp://0.0.0.0:7000".parse().unwrap(),
-        ],
-        ..Config::default()
-    };
-
-    let node = Node::new(&key_pair, config, global_executor());
-
-    node.run().await.expect("run node");
-
-    // Register custom protocols, connect to peers, etc.
-
-    node.shutdown().await;
-};
-```
 
 ## Examples
 

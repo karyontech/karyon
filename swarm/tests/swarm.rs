@@ -24,8 +24,8 @@ struct ChatProtocol {
 }
 
 impl ChatProtocol {
-    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
-        Arc::new(Self { peer })
+    fn new(peer: PeerConn) -> Self {
+        Self { peer }
     }
 }
 
@@ -56,8 +56,8 @@ struct FileProtocol {
 }
 
 impl FileProtocol {
-    fn new(peer: PeerConn) -> Arc<dyn Protocol> {
-        Arc::new(Self { peer })
+    fn new(peer: PeerConn) -> Self {
+        Self { peer }
     }
 }
 
@@ -106,14 +106,8 @@ fn heterogeneous_protocols_connect() {
             ex.clone(),
         );
 
-        node_a
-            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
-        node_a
-            .attach_protocol::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
-            .await
-            .unwrap();
+        node_a.attach_protocol(ChatProtocol::new).await.unwrap();
+        node_a.attach_protocol(FileProtocol::new).await.unwrap();
 
         let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         node_a.run().await.unwrap();
@@ -127,10 +121,7 @@ fn heterogeneous_protocols_connect() {
             ex.clone(),
         );
 
-        node_b
-            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
+        node_b.attach_protocol(ChatProtocol::new).await.unwrap();
 
         let pool_b = node_b.monitor().register::<PeerPoolEvent>();
         node_b.run().await.unwrap();
@@ -174,14 +165,8 @@ fn swarm_membership() {
         let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         let swarm_a = Swarm::new(node_a, ex.clone());
 
-        let chat_key = swarm_a
-            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
-        let file_key = swarm_a
-            .join::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
-            .await
-            .unwrap();
+        let chat_key = swarm_a.join(ChatProtocol::new).await.unwrap();
+        let file_key = swarm_a.join(FileProtocol::new).await.unwrap();
 
         swarm_a.run().await.unwrap();
 
@@ -197,10 +182,7 @@ fn swarm_membership() {
         let pool_b = node_b.monitor().register::<PeerPoolEvent>();
         let swarm_b = Swarm::new(node_b, ex.clone());
 
-        swarm_b
-            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
+        swarm_b.join(ChatProtocol::new).await.unwrap();
 
         swarm_b.run().await.unwrap();
 
@@ -286,10 +268,7 @@ fn bloom_filters_kademlia_dial() {
             },
             ex.clone(),
         );
-        node_a
-            .attach_protocol::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
+        node_a.attach_protocol(ChatProtocol::new).await.unwrap();
         node_a.run().await.unwrap();
 
         // Node C speaks FileProto.
@@ -308,10 +287,7 @@ fn bloom_filters_kademlia_dial() {
             },
             ex.clone(),
         );
-        node_c
-            .attach_protocol::<FileProtocol>(|peer| Ok(FileProtocol::new(peer)))
-            .await
-            .unwrap();
+        node_c.attach_protocol(FileProtocol::new).await.unwrap();
         node_c.run().await.unwrap();
 
         // Give Kademlia time to bootstrap and propagate entries between
@@ -362,10 +338,7 @@ fn swarm_peer_removal() {
         let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         let swarm_a = Swarm::new(node_a, ex.clone());
 
-        let chat_key = swarm_a
-            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
+        let chat_key = swarm_a.join(ChatProtocol::new).await.unwrap();
 
         swarm_a.run().await.unwrap();
 
@@ -378,10 +351,7 @@ fn swarm_peer_removal() {
         );
 
         let swarm_b = Swarm::new(node_b, ex.clone());
-        swarm_b
-            .join::<ChatProtocol>(|peer| Ok(ChatProtocol::new(peer)))
-            .await
-            .unwrap();
+        swarm_b.join(ChatProtocol::new).await.unwrap();
         swarm_b.run().await.unwrap();
 
         // Wait for peer added.

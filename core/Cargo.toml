@@ -1,6 +1,6 @@
 [package]
 name = "karyon_core"
-description = "Essential utilities and core functionality for the Karyon library."
+description = "Runtime-agnostic async utilities (smol/tokio) for the karyon crates: executors, task groups, queues, timeouts, and optional Ed25519 crypto."
 version = "1.0.0-alpha.9"
 edition.workspace = true
 homepage.workspace = true

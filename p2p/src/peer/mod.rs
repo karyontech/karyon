@@ -128,13 +128,7 @@ impl Peer {
             trace!("peer {} run protocol {proto_id}", self.id);
 
             let peer_conn = PeerConn::new(self.clone(), proto_id.clone());
-            let protocol = match constructor(peer_conn) {
-                Ok(p) => p,
-                Err(err) => {
-                    error!("Failed to build protocol {proto_id}: {err}");
-                    continue;
-                }
-            };
+            let protocol = constructor(peer_conn);
 
             let on_failure = {
                 let this = self.clone();

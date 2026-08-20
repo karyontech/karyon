@@ -9,6 +9,12 @@ an instance name (e.g. `("ChatProto", "general")`). Peers with different
 protocol sets can coexist; peers are automatically assigned to the
 swarms they support based on their negotiated protocols.
 
+## Install
+
+```bash
+$ cargo add karyon_swarm
+```
+
 ## Feature Flags
 
 | Feature | Description |
@@ -36,9 +42,9 @@ async {
     // Join a swarm. SwarmKey defaults to hash(ProtocolID); call multiple
     // times with different protocols (or instances) to manage many swarms
     // from the same Swarm instance.
-    // let chat_key = swarm.join::<ChatProtocol>(ChatProtocol::new).await?;
+    // let chat_key = swarm.join(ChatProtocol::new).await?;
     // For sub-grouping inside a protocol (rooms, topics):
-    // let room_key = swarm.join_with_instance::<ChatProtocol>("general", ChatProtocol::new).await?;
+    // let room_key = swarm.join_with_instance("general", ChatProtocol::new).await?;
 
     swarm.run().await.expect("run swarm");
 

@@ -63,8 +63,8 @@ pub struct ProtocolMeta {
 /// }
 ///
 /// impl NewProtocol {
-///     fn new(peer: PeerConn) -> Arc<dyn Protocol> {
-///         Arc::new(Self { peer })
+///     fn new(peer: PeerConn) -> Self {
+///         Self { peer }
 ///     }
 /// }
 ///
@@ -89,7 +89,7 @@ pub struct ProtocolMeta {
 /// async {
 ///     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 ///     let node = Node::new(&key_pair, Config::default(), global_executor());
-///     node.attach_protocol::<NewProtocol>(|peer| Ok(NewProtocol::new(peer))).await.unwrap();
+///     node.attach_protocol(NewProtocol::new).await.unwrap();
 /// };
 /// ```
 #[async_trait]
@@ -118,8 +118,8 @@ pub trait Protocol: Send + Sync {
     }
 }
 
-/// User-supplied constructor handed to `Node::attach_protocol`.
+/// Boxed protocol constructor stored in the peer pool. Built by
+/// `Node::attach_protocol` from the user's `Fn(PeerConn) -> P` closure.
 /// karyon calls it once per connected peer with a typed `PeerConn`
-/// scoped to this protocol. Capture whatever shared state the
-/// protocol needs in the closure.
-pub type ProtocolConstructor = dyn Fn(PeerConn) -> Result<Arc<dyn Protocol>> + Send + Sync;
+/// scoped to this protocol.
+pub type ProtocolConstructor = dyn Fn(PeerConn) -> Arc<dyn Protocol> + Send + Sync;

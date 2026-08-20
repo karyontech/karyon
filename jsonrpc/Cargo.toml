@@ -1,6 +1,6 @@
 [package]
 name = "karyon_jsonrpc"
-description = "A fast and lightweight async JSONRPC2.0 implementation."
+description = "A fast and lightweight async JSON-RPC 2.0 implementation over TCP, TLS, WebSocket, QUIC, HTTP, and Unix sockets, with pub/sub."
 version = "1.0.0-alpha.9"
 edition.workspace = true
 homepage.workspace = true
