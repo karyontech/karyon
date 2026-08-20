@@ -36,7 +36,7 @@ pub use discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery};
 pub use message::{PeerAddr, Protocol};
 pub use node::Node;
 pub use peer::{ConnDirection, Peer, PeerID};
-pub use peer_pool::{PeerEvent, PeerPool};
+pub use peer_pool::{PeerEvent, PeerEventListener, PeerPool};
 pub use version::Version;
 
 pub mod endpoint {

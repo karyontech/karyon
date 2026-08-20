@@ -16,7 +16,7 @@ use karyon_core::{
 
 use karyon_p2p::{
     protocol::{PeerConn, Protocol, ProtocolID},
-    DiscoveredPeer, Node, PeerEvent, PeerID, Result,
+    DiscoveredPeer, Node, PeerEvent, PeerEventListener, PeerID, Result,
 };
 
 pub use swarm_key::{compute_swarm_key, swarm_key_from_protocol, SwarmKey};
@@ -67,11 +67,14 @@ impl Swarm {
 
     /// Run the node and start tracking peer events for swarm membership.
     pub async fn run(self: &Arc<Self>) -> Result<()> {
+        // Register before the node starts, so a peer connecting right
+        // away cannot emit an event while no listener exists yet.
+        let listener = self.node.register_peer_events();
         self.node.run().await?;
 
         let this = self.clone();
         self.task_group.spawn_then(
-            async move { this.monitor_peers().await },
+            async move { this.monitor_peers(listener).await },
             |res: TaskResult<Result<()>>| async move {
                 debug!("Swarm monitor_peers task ended: {res}");
             },
@@ -197,8 +200,7 @@ impl Swarm {
     }
 
     /// Forward Node peer events into per-swarm membership.
-    async fn monitor_peers(self: Arc<Self>) -> Result<()> {
-        let listener = self.node.register_peer_events();
+    async fn monitor_peers(self: Arc<Self>, listener: PeerEventListener) -> Result<()> {
         loop {
             let event = match listener.recv().await {
                 Ok(e) => e,
