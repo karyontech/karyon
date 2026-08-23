@@ -1,4 +1,15 @@
-use std::{future::Future, panic::catch_unwind, sync::Arc, thread};
+use std::{future::Future, sync::Arc};
+
+#[cfg(feature = "smol")]
+use std::{
+    future::pending,
+    num::NonZeroUsize,
+    panic::{catch_unwind, AssertUnwindSafe},
+    thread,
+};
+
+#[cfg(feature = "smol")]
+use log::error;
 
 use once_cell::sync::OnceCell;
 
@@ -63,41 +74,43 @@ impl Executor {
 
 static GLOBAL_EXECUTOR: OnceCell<Executor> = OnceCell::new();
 
-/// Returns the process-wide global executor, driven on its own thread.
-/// Single-threaded on `smol`, multi-threaded on `tokio`.
+/// Returns the process-wide global executor. Multi-threaded on both
+/// runtimes: `smol` runs one worker thread per core, `tokio` uses its
+/// own worker threads.
+///
+/// Note: this is the convenience path. Resource-conscious users should
+/// create and drive their own executor and pass it to karyon APIs; no
+/// worker threads are spawned until the first call to this function.
 pub fn global_executor() -> Executor {
     #[cfg(feature = "smol")]
     fn init_executor() -> Executor {
-        let ex = smol::Executor::new();
-        thread::Builder::new()
-            .name("smol-executor".to_string())
-            .spawn(|| loop {
-                catch_unwind(|| {
-                    smol::block_on(global_executor().inner.run(std::future::pending::<()>()))
+        let ex = Arc::new(smol::Executor::new());
+        let num_threads = thread::available_parallelism()
+            .map(NonZeroUsize::get)
+            .unwrap_or(1);
+        for i in 0..num_threads {
+            let ex = ex.clone();
+            thread::Builder::new()
+                .name(format!("smol-executor-{i}"))
+                .spawn(move || loop {
+                    // A panicking task unwinds out of block_on; log it
+                    // and keep the worker alive.
+                    let run = AssertUnwindSafe(|| smol::block_on(ex.run(pending::<()>())));
+                    if catch_unwind(run).is_err() {
+                        error!("global executor worker recovered from a task panic");
+                    }
                 })
-                .ok();
-            })
-            .expect("cannot spawn executor thread");
-        // Prevent spawning another thread by running the process driver on this
-        // thread. see https://github.com/smol-rs/smol/blob/master/src/spawn.rs
-        ex.spawn(async_process::driver()).detach();
-        Executor {
-            inner: Arc::new(ex),
+                .expect("cannot spawn executor thread");
         }
+        // Prevent spawning another thread by running the process driver on this
+        // executor. see https://github.com/smol-rs/smol/blob/master/src/spawn.rs
+        ex.spawn(async_process::driver()).detach();
+        Executor { inner: ex }
     }
 
     #[cfg(feature = "tokio")]
     fn init_executor() -> Executor {
         let ex = Arc::new(tokio::runtime::Runtime::new().expect("cannot build tokio runtime"));
-        thread::Builder::new()
-            .name("tokio-executor".to_string())
-            .spawn({
-                let ex = ex.clone();
-                move || {
-                    catch_unwind(|| ex.block_on(std::future::pending::<()>())).ok();
-                }
-            })
-            .expect("cannot spawn tokio runtime thread");
         Executor { inner: ex }
     }
 

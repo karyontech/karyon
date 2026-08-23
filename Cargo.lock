@@ -1521,6 +1521,7 @@ dependencies = [
  "easy-parallel",
  "ed25519-dalek",
  "env_logger",
+ "log",
  "once_cell",
  "parking_lot",
  "pin-project-lite",
