@@ -124,11 +124,14 @@ impl PeerPool {
 
     /// Shuts down
     pub async fn shutdown(&self) {
+        // Cancel the task group first. This waits for the run loop to
+        // actually stop, so no new peer can be admitted while we close
+        // the ones already in the map.
+        self.task_group.cancel().await;
+
         for peer in self.peers.read().await.values() {
             let _ = peer.shutdown().await;
         }
-
-        self.task_group.cancel().await;
     }
 
     /// Register a protocol's user-supplied constructor and metadata.
