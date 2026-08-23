@@ -59,7 +59,8 @@ impl Inner {
 impl TaskGroup {
     /// Creates a new TaskGroup without providing an executor
     ///
-    /// This will spawn a task onto a global executor (single-threaded by default).
+    /// This will spawn tasks onto the process-wide multi-threaded
+    /// global executor.
     pub fn new() -> Self {
         Self::with_inner(global_executor())
     }

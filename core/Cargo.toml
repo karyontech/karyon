@@ -15,10 +15,11 @@ default = ["smol"]
 crypto = ["ed25519-dalek"]
 testing = ["easy-parallel", "async-channel", "env_logger"]
 tokio = ["dep:tokio"]
-smol = ["dep:smol", "async-process"]
+smol = ["dep:smol", "async-process", "dep:log"]
 
 [dependencies]
 thiserror = { workspace = true }
+log = { workspace = true, optional = true }
 rand = { workspace = true }
 parking_lot = { workspace = true }
 once_cell = { workspace = true }

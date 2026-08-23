@@ -62,6 +62,47 @@ pub struct Peer {
 }
 
 impl Peer {
+    pub(crate) async fn new(
+        peer_pool: Arc<PeerPool>,
+        queued: QueuedConn,
+        id: PeerID,
+        negotiated_protocols: HashSet<ProtocolID>,
+        protocol_ids: impl IntoIterator<Item = ProtocolID> + Clone,
+    ) -> Result<Arc<Self>> {
+        let config = peer_pool.config.clone();
+        let executor = peer_pool.executor.clone();
+        let task_group = TaskGroup::with_executor(executor.clone());
+        let stop_chan = async_channel::bounded::<Result<()>>(1);
+
+        let remote_endpoint = queued.remote_endpoint.clone();
+        let direction = queued.direction.clone();
+        let disconnect_signal = queued.disconnect_signal.clone();
+
+        let connection = connection::from_queued(
+            queued,
+            &negotiated_protocols,
+            protocol_ids,
+            &task_group,
+            stop_chan.0.clone(),
+        )
+        .await?;
+
+        let peer_pool_weak = Arc::downgrade(&peer_pool);
+        Ok(Arc::new(Peer {
+            id,
+            peer_pool: peer_pool_weak,
+            direction,
+            remote_endpoint,
+            connection,
+            disconnect_signal,
+            negotiated_protocols,
+            stop_chan,
+            config,
+            executor,
+            task_group,
+        }))
+    }
+
     pub async fn send(&self, proto_id: ProtocolID, msg: Vec<u8>) -> Result<()> {
         self.connection.send(&proto_id, msg).await
     }
@@ -149,48 +190,5 @@ impl Peer {
 
     fn peer_pool(&self) -> Arc<PeerPool> {
         self.peer_pool.upgrade().unwrap()
-    }
-}
-
-impl Peer {
-    pub(crate) async fn new(
-        peer_pool: Arc<PeerPool>,
-        queued: QueuedConn,
-        id: PeerID,
-        negotiated_protocols: HashSet<ProtocolID>,
-        protocol_ids: impl IntoIterator<Item = ProtocolID> + Clone,
-    ) -> Result<Arc<Self>> {
-        let config = peer_pool.config.clone();
-        let executor = peer_pool.executor.clone();
-        let task_group = TaskGroup::with_executor(executor.clone());
-        let stop_chan = async_channel::bounded::<Result<()>>(1);
-
-        let remote_endpoint = queued.remote_endpoint.clone();
-        let direction = queued.direction.clone();
-        let disconnect_signal = queued.disconnect_signal.clone();
-
-        let connection = connection::from_queued(
-            queued,
-            &negotiated_protocols,
-            protocol_ids,
-            &task_group,
-            stop_chan.0.clone(),
-        )
-        .await?;
-
-        let peer_pool_weak = Arc::downgrade(&peer_pool);
-        Ok(Arc::new(Peer {
-            id,
-            peer_pool: peer_pool_weak,
-            direction,
-            remote_endpoint,
-            connection,
-            disconnect_signal,
-            negotiated_protocols,
-            stop_chan,
-            config,
-            executor,
-            task_group,
-        }))
     }
 }
