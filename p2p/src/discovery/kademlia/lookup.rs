@@ -10,9 +10,9 @@ use karyon_net::Endpoint;
 
 use crate::{
     access_control::{Action, Subject},
-    bloom::BloomRef,
     connector::Connector,
     discovery::kademlia::{
+        bloom::BloomRef,
         messages::{
             FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
         },
@@ -468,7 +468,7 @@ impl LookupService {
             peer_id: self.id.clone(),
             addrs,
             discovery_addrs,
-            protocols: *self.bloom.read(),
+            protocols: self.bloom.snapshot().advertised,
         };
         conn.send_msg(KadNetMsg::new(KadNetCmd::Peer, &peer_msg)?)
             .await?;

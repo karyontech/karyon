@@ -152,8 +152,12 @@ A built-in `Ping` keep-alive runs on every connection; everything else
 is a custom protocol. For TCP/TLS, protocols share a single framed
 connection. For QUIC, each protocol gets its own bidirectional stream.
 
-`Protocol::kind()` defaults to `Optional`. Override to `Mandatory` for
-protocols every peer must speak.
+`Protocol::flags()` defaults to `ProtocolFlags::PREFERRED`. Override to
+`ProtocolFlags::REQUIRED` for protocols every peer must speak, or
+`ProtocolFlags::empty()` for protocols that should not be advertised.
+Flags combine with `|`. Bits from `ProtocolFlags::USER` up are free for
+user meaning: Kademlia advertises such items without letting them affect
+peer selection; custom `Discovery` implementations may interpret them.
 
 ### Monitor
 

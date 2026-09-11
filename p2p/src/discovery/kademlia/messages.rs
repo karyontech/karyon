@@ -13,7 +13,7 @@ use karyon_net::{
 };
 
 use crate::{
-    bloom::Bloom,
+    discovery::kademlia::bloom::Bloom,
     message::PeerAddr,
     util::{decode, encode},
     version::VersionInt,

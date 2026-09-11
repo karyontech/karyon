@@ -15,7 +15,7 @@ use karyon_core::{
 };
 
 use karyon_p2p::{
-    protocol::{PeerConn, Protocol, ProtocolID},
+    protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
     DiscoveredPeer, Node, PeerEvent, PeerEventListener, PeerID, Result,
 };
 
@@ -31,7 +31,7 @@ struct SwarmInfo {
 }
 
 /// Swarm layer on top of Node. Manages protocol-aware peer groups
-/// and advertises swarm membership in the Node's bloom filter.
+/// and advertises swarm membership through discovery.
 ///
 /// Each call to `join` registers a new swarm; a single `Swarm` instance
 /// can manage many concurrent swarms across different protocols (and
@@ -40,8 +40,8 @@ struct SwarmInfo {
 /// [`Swarm::join_with_instance`] for sub-grouping inside a single
 /// protocol (e.g. chat rooms, pub/sub topics).
 ///
-/// Joining a swarm also adds the swarm key to the Node's optional
-/// bloom, so other peers can discover this node via
+/// Joining a swarm also advertises the swarm key as a preferred item
+/// through discovery, so other peers can discover this node via
 /// [`Node::find_peers_with`] / [`Swarm::find_peers`] without paying
 /// the cost of a full handshake first.
 pub struct Swarm {
@@ -108,7 +108,7 @@ impl Swarm {
     }
 
     /// Shared join logic: register the protocol, advertise the swarm
-    /// key in the optional bloom, and start tracking connected peers.
+    /// key as preferred, and start tracking connected peers.
     async fn join_inner<P: Protocol + 'static>(
         self: &Arc<Self>,
         proto_id: ProtocolID,
@@ -117,10 +117,10 @@ impl Swarm {
     ) -> Result<SwarmKey> {
         // Protocol attach is idempotent in spirit but the underlying
         // peer_pool stores the latest constructor; calling join twice
-        // for the same protocol just updates the constructor. Bloom
-        // adds are also idempotent (bits already set).
+        // for the same protocol just updates the constructor.
+        // Advertising twice is also idempotent.
         self.node.attach_protocol(c).await?;
-        self.node.bloom_add_optional(key);
+        self.node.advertise(key, ProtocolFlags::PREFERRED);
 
         let info = SwarmInfo {
             protocol_id: proto_id.clone(),
@@ -137,7 +137,7 @@ impl Swarm {
 
     /// Leave a swarm. Removes local membership tracking. The protocol
     /// stays registered on the node (protocols are permanent), and
-    /// the bloom bit stays set (blooms can't unset bits without rebuilding).
+    /// the swarm key stays advertised (discovery cannot unadvertise).
     pub async fn leave(&self, key: &SwarmKey) {
         self.swarms.write().await.remove(key);
 

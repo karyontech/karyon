@@ -143,7 +143,7 @@ impl PeerPool {
             id,
             ProtocolMeta {
                 version: P::version()?,
-                kind: P::kind(),
+                flags: P::flags(),
             },
         );
         Ok(())

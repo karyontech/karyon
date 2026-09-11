@@ -9,7 +9,7 @@ use rand::seq::IndexedRandom;
 
 use karyon_net::Addr;
 
-use crate::bloom::Bloom;
+use crate::discovery::kademlia::bloom::LocalBloom;
 
 pub use bucket::{
     Bucket, BucketEntry, EntryStatusFlag, CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY,
@@ -161,17 +161,16 @@ impl RoutingTable {
 
     /// Returns a list of the closest entries to the given target key, limited by max_entries.
     pub fn closest_entries(&self, target_key: &Key, max_entries: usize) -> Vec<Entry> {
-        self.closest_entries_filtered(target_key, max_entries, &Bloom::empty())
+        self.closest_entries_filtered(target_key, max_entries, &LocalBloom::default())
     }
 
     /// Same as `closest_entries`, but skips entries whose bloom does
-    /// not satisfy `mine`. The peer's bloom must cover `mine.mandatory`
-    /// and (when non-empty) intersect `mine.optional`.
+    /// not satisfy `local` (see `LocalBloom::matches`).
     pub fn closest_entries_filtered(
         &self,
         target_key: &Key,
         max_entries: usize,
-        mine: &Bloom,
+        local: &LocalBloom,
     ) -> Vec<Entry> {
         let buckets = self.buckets.read();
         let mut entries: Vec<Entry> = vec![];
@@ -182,7 +181,7 @@ impl RoutingTable {
                 if bucket_entry.is_unreachable() || bucket_entry.is_unstable() {
                     continue;
                 }
-                if !matches_local(&bucket_entry.entry.protocols, mine) {
+                if !local.matches(&bucket_entry.entry.protocols) {
                     continue;
                 }
 
@@ -269,15 +268,15 @@ impl RoutingTable {
 
     /// Returns a random entry from the routing table.
     pub fn random_entry(&self, entry_flag: EntryStatusFlag) -> Option<Entry> {
-        self.random_entry_filtered(entry_flag, &Bloom::empty())
+        self.random_entry_filtered(entry_flag, &LocalBloom::default())
     }
 
     /// Same as `random_entry`, but only returns entries whose bloom
-    /// satisfies `mine` (covers mandatory, intersects optional when set).
+    /// satisfies `local` (see `LocalBloom::matches`).
     pub fn random_entry_filtered(
         &self,
         entry_flag: EntryStatusFlag,
-        mine: &Bloom,
+        local: &LocalBloom,
     ) -> Option<Entry> {
         let buckets = self.buckets.read();
         for bucket in buckets.choose_multiple(&mut rand::rng(), buckets.len()) {
@@ -285,7 +284,7 @@ impl RoutingTable {
                 if entry.status & entry_flag == 0 {
                     continue;
                 }
-                if !matches_local(&entry.entry.protocols, mine) {
+                if !local.matches(&entry.entry.protocols) {
                     continue;
                 }
                 return Some(entry.entry.clone());
@@ -310,23 +309,6 @@ impl RoutingTable {
         }
         None
     }
-}
-
-/// True if `peer`'s advertised bloom is acceptable to a local node
-/// whose bloom is `mine`. Peer must cover every mandatory bit and,
-/// when optional is non-empty, share at least one optional bit.
-/// An empty `mine` matches everything.
-fn matches_local(peer: &Bloom, mine: &Bloom) -> bool {
-    if mine.is_empty() {
-        return true;
-    }
-    if !peer.covers_mandatory(mine) {
-        return false;
-    }
-    if mine.optional == 0 {
-        return true;
-    }
-    peer.intersects_optional(mine)
 }
 
 /// Iterate the buckets and count entries in the same subnet as `entry`.
@@ -400,7 +382,7 @@ mod tests {
     use karyon_net::Addr;
 
     use crate::{
-        bloom::Bloom,
+        discovery::kademlia::bloom::Bloom,
         message::{PeerAddr, Protocol},
     };
 
@@ -432,7 +414,7 @@ mod tests {
                     priority: 1,
                 },
             ],
-            protocols: Bloom::empty(),
+            protocols: Bloom::default(),
         }
     }
 

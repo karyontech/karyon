@@ -1,6 +1,9 @@
 mod peer_conn;
 
-use std::sync::Arc;
+use std::{
+    ops::{BitOr, BitOrAssign},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 
@@ -23,23 +26,66 @@ pub enum ProtocolEvent {
     Shutdown,
 }
 
-/// Whether a protocol is required for handshake / discovery to consider
-/// a peer compatible.
+/// Bit flags describing how a protocol takes part in handshake and
+/// discovery. Combine with `|`. `empty()` means the protocol is
+/// negotiated but neither required nor advertised.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProtocolKind {
-    /// Peers must speak this protocol. Handshake fails if absent.
-    /// Discovery filters out peers whose bloom doesn't cover it.
-    Mandatory,
-    /// Nice-to-have. Discovery prefers peers with overlap but accepts
-    /// peers without it. The default for app protocols.
-    Optional,
+pub struct ProtocolFlags(u32);
+
+impl ProtocolFlags {
+    /// Peers must speak this protocol. Handshake fails if absent and
+    /// discovery filters out peers that do not advertise it.
+    pub const REQUIRED: Self = Self(1 << 0);
+    /// Advertised so discovery prefers peers that also have it, but
+    /// peers without it are still accepted. The default.
+    pub const PREFERRED: Self = Self(1 << 1);
+    /// First bit free for user-defined meaning. Bits below are
+    /// reserved by karyon. Kademlia advertises items carrying only
+    /// user bits without letting them affect peer selection; custom
+    /// `Discovery` impls may give them any meaning.
+    pub const USER: Self = Self(1 << 16);
+
+    /// No flags set.
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    /// Raw bit pattern.
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// True if every bit in `other` is set in `self`.
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl From<u32> for ProtocolFlags {
+    fn from(bits: u32) -> Self {
+        Self(bits)
+    }
+}
+
+impl BitOr for ProtocolFlags {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for ProtocolFlags {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
 }
 
 /// Per-protocol metadata stored in the peer pool.
 #[derive(Clone, Debug)]
 pub struct ProtocolMeta {
     pub version: Version,
-    pub kind: ProtocolKind,
+    pub flags: ProtocolFlags,
 }
 
 /// The Protocol trait defines the interface for core protocols
@@ -107,14 +153,14 @@ pub trait Protocol: Send + Sync {
     where
         Self: Sized;
 
-    /// Whether peers must speak this protocol or it's optional.
-    /// Defaults to `Optional` -- override for protocols required for
-    /// any meaningful interaction (e.g. PING).
-    fn kind() -> ProtocolKind
+    /// How this protocol takes part in handshake and discovery.
+    /// Defaults to `PREFERRED` -- override with `REQUIRED` for
+    /// protocols needed for any meaningful interaction (e.g. PING).
+    fn flags() -> ProtocolFlags
     where
         Self: Sized,
     {
-        ProtocolKind::Optional
+        ProtocolFlags::PREFERRED
     }
 }
 
