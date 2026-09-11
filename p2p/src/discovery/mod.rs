@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{message::PeerAddr, PeerID, Result};
+use crate::{message::PeerAddr, protocol::ProtocolFlags, PeerID, Result};
 
 /// Represents a discovered peer that the discovery protocol wants the
 /// Node to connect to.
@@ -46,6 +46,12 @@ pub trait Discovery: Send + Sync {
 
     /// Receive a peer connection event from the Node.
     fn on_event(&self, event: PeerConnectionEvent);
+
+    /// Advertise an item (protocol id, swarm key, ...) to other peers.
+    /// `REQUIRED` items are required from peers, `PREFERRED` ones are
+    /// preferred but not required. Other bits are implementation
+    /// defined.
+    fn advertise(&self, item: &[u8], flags: ProtocolFlags);
 
     /// Return peers in the routing table whose advertised bloom may
     /// contain `item`. Used by application layers (e.g. Swarm) to find

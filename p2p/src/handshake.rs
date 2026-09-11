@@ -10,7 +10,7 @@ use karyon_net::FramedReader;
 use crate::{
     codec::PeerNetMsgCodec,
     message::{PeerNetCmd, PeerNetMsg},
-    protocol::{ProtocolID, ProtocolKind, ProtocolMeta},
+    protocol::{ProtocolFlags, ProtocolID, ProtocolMeta},
     util::decode,
     version::{version_match, VersionInt},
     Error, PeerID, Result, Version,
@@ -162,10 +162,10 @@ async fn validate_version_msg(
         return Err(Error::IncompatiblePeer);
     }
 
-    // Every protocol the local node marked `Mandatory` must be in the
+    // Every protocol the local node marked `REQUIRED` must be in the
     // negotiated intersection. Otherwise reject the handshake.
     for (id, meta) in protocols.iter() {
-        if matches!(meta.kind, ProtocolKind::Mandatory) && !shared.iter().any(|p| p == id) {
+        if meta.flags.contains(ProtocolFlags::REQUIRED) && !shared.iter().any(|p| p == id) {
             return Err(Error::IncompatiblePeer);
         }
     }

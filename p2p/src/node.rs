@@ -4,7 +4,6 @@ use std::{
 };
 
 use log::{debug, info};
-use parking_lot::RwLock as SyncRwLock;
 
 use karyon_core::{
     async_runtime::Executor,
@@ -16,7 +15,6 @@ use karyon_net::Endpoint;
 
 use crate::{
     access_control::{Action, Subject},
-    bloom::{Bloom, BloomRef},
     codec::PeerNetMsgCodec,
     config::Config,
     conn_queue::ConnQueue,
@@ -27,7 +25,7 @@ use crate::{
     monitor::{Monitor, PoolEvent},
     peer::ConnDirection,
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
-    protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolID, ProtocolKind},
+    protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID},
     protocols::PingProtocol,
     slots::ConnectionSlots,
     PeerID, Result,
@@ -84,12 +82,6 @@ pub struct Node {
 
     /// Managing spawned tasks.
     task_group: TaskGroup,
-
-    /// Local bloom advertising what items (protocols, swarm keys, ...)
-    /// this node supports. The mandatory side is filtered with `covers`,
-    /// the optional side with `intersects`. Updated by `attach_protocol`
-    /// (via `Protocol::kind()`) and by application layers like Swarm.
-    bloom: BloomRef,
 }
 
 impl Node {
@@ -110,14 +102,11 @@ impl Node {
             ex.clone(),
         );
 
-        let bloom: BloomRef = Arc::new(SyncRwLock::new(Bloom::empty()));
-
         let discovery: Arc<dyn Discovery> = KademliaDiscovery::new(
             key_pair,
             &peer_id,
             config.clone(),
             monitor.clone(),
-            bloom.clone(),
             ex.clone(),
         );
 
@@ -154,14 +143,10 @@ impl Node {
             connector,
             listener,
             task_group,
-            bloom,
         })
     }
 
     /// Creates a new Node with a custom discovery implementation.
-    /// The caller is responsible for wiring its own bloom_provider into
-    /// the discovery; Node's `bloom_add_*` methods will not affect
-    /// it unless the discovery reads from the same source.
     pub fn with_discovery(
         key_pair: &KeyPair,
         config: Config,
@@ -183,8 +168,6 @@ impl Node {
             ex.clone(),
         );
 
-        let bloom: BloomRef = Arc::new(SyncRwLock::new(Bloom::empty()));
-
         let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));
         let connector = Connector::new_with_queue(
             key_pair,
@@ -218,7 +201,6 @@ impl Node {
             connector,
             listener,
             task_group,
-            bloom,
         })
     }
 
@@ -321,8 +303,8 @@ impl Node {
     /// Attach a custom protocol. karyon runs the constructor closure
     /// once per connected peer with a typed `PeerConn` scoped to this
     /// protocol. The protocol type is inferred from the closure's
-    /// return value. Bloom advertises the protocol id according to
-    /// `P::kind()`.
+    /// return value. The protocol id is advertised through discovery
+    /// according to `P::flags()`.
     ///
     /// ```ignore
     /// node.attach_protocol(MyProtocol::new).await?;
@@ -333,11 +315,7 @@ impl Node {
     ) -> Result<()> {
         let c = move |conn| Arc::new(c(conn)) as Arc<dyn ProtocolTrait>;
         self.peer_pool.attach_protocol::<P>(Box::new(c)).await?;
-        let id = P::id();
-        match P::kind() {
-            ProtocolKind::Mandatory => self.bloom_add_mandatory(&id),
-            ProtocolKind::Optional => self.bloom_add_optional(&id),
-        }
+        self.advertise(P::id().as_bytes(), P::flags());
         Ok(())
     }
 
@@ -346,27 +324,16 @@ impl Node {
         self.attach_protocol(PingProtocol::new).await
     }
 
-    /// Add an item the local node REQUIRES peers to also support.
-    /// Reflected in the next bloom snapshot advertised in PeerMsg.
-    pub fn bloom_add_mandatory(&self, item: impl AsRef<[u8]>) {
-        self.bloom.write().add_mandatory(item);
+    /// Advertise an item (protocol id, swarm key, ...) through
+    /// discovery. See [`ProtocolFlags`]. Used by Swarm and other
+    /// layers.
+    pub fn advertise(&self, item: impl AsRef<[u8]>, flags: ProtocolFlags) {
+        self.discovery.advertise(item.as_ref(), flags);
     }
 
-    /// Add an item the local node would LIKE peers to also support but
-    /// doesn't require. Used by Swarm and other layers for fuzzy
-    /// protocol-aware discovery without rejecting non-matches.
-    pub fn bloom_add_optional(&self, item: impl AsRef<[u8]>) {
-        self.bloom.write().add_optional(item);
-    }
-
-    /// Snapshot of the local bloom (mandatory + optional sides).
-    pub fn bloom_snapshot(&self) -> Bloom {
-        *self.bloom.read()
-    }
-
-    /// Find peers in the routing table whose advertised bloom may
-    /// contain `item`. Useful for swarm-targeted lookups (e.g.
-    /// "peers in this room") without changing handshake semantics.
+    /// Find peers in the routing table that may support `item`.
+    /// Useful for swarm-targeted lookups (e.g. "peers in this room")
+    /// without changing handshake semantics.
     pub fn find_peers_with(&self, item: impl AsRef<[u8]>) -> Vec<DiscoveredPeer> {
         self.discovery.find_peers_with(item.as_ref())
     }

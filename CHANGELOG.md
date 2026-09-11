@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 karyon_p2p, karyon_swarm
+
+### Breaking changes
+
+- **`ProtocolKind` replaced by `ProtocolFlags`** (`karyon_p2p`):
+  `Protocol::kind()` is now `Protocol::flags()` and returns bit flags.
+  `Mandatory` maps to `ProtocolFlags::REQUIRED`, `Optional` to
+  `ProtocolFlags::PREFERRED` (the default). Flags combine with `|`;
+  `ProtocolFlags::empty()` attaches a protocol without advertising it, and
+  bits from `ProtocolFlags::USER` up are free for custom discovery
+  implementations. `ProtocolMeta.kind` is renamed to `flags`.
+- **`Discovery::advertise`** (`karyon_p2p`): new required trait method.
+  Discovery now owns what the node advertises; `Node` no longer holds a
+  bloom. `Node::bloom_add_mandatory`, `Node::bloom_add_optional` and
+  `Node::bloom_snapshot` are removed in favor of `Node::advertise(item,
+  flags)`. `KademliaDiscovery::new` no longer takes a `BloomRef`. `Bloom` and
+  `BloomRef` are no longer exported; they are internal to Kademlia.
+- **Kademlia wire format** (`karyon_p2p`): `PeerMsg` now carries a single
+  128-bit bloom of advertised items instead of separate mandatory/optional
+  filters. The required/preferred split is local filtering policy and never
+  leaves the node. Items advertised with only user flags are visible to
+  `find_peers_with` but do not affect peer selection. Nodes on 1.1.0 cannot
+  exchange discovery messages with 1.0.x nodes.
+
 ## 1.0.1
 
 ### Fixes

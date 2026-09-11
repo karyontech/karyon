@@ -1,6 +1,10 @@
 use bincode::{Decode, Encode};
 
-use crate::{bloom::Bloom, discovery::kademlia::messages::PeerMsg, message::PeerAddr, PeerID};
+use crate::{
+    discovery::kademlia::{bloom::Bloom, messages::PeerMsg},
+    message::PeerAddr,
+    PeerID,
+};
 
 /// Specifies the size of the key, in bytes.
 pub const KEY_SIZE: usize = 32;

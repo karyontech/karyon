@@ -1,3 +1,4 @@
+mod bloom;
 mod lookup;
 mod messages;
 mod refresh;
@@ -18,14 +19,15 @@ use karyon_core::{
 use karyon_net::Endpoint;
 
 use crate::{
-    bloom::BloomRef,
     config::Config,
     discovery::{DiscoveredPeer, Discovery, PeerConnectionEvent},
     message::{pick_endpoint, PeerAddr, Protocol},
     monitor::Monitor,
+    protocol::ProtocolFlags,
     PeerID, Result,
 };
 
+use bloom::BloomRef;
 use lookup::{LookupEndpoints, LookupService};
 use refresh::RefreshService;
 use routing_table::{
@@ -64,9 +66,10 @@ pub struct KademliaDiscovery {
     /// Holds the configuration for the P2P network.
     config: Arc<Config>,
 
-    /// Shared local bloom. Snapshotted on every connect-loop iteration
-    /// to filter routing-table entries (and stamped on outgoing PeerMsgs
-    /// via the lookup service).
+    /// Local bloom of advertised items. Written by `advertise`,
+    /// snapshotted on every connect-loop iteration to filter
+    /// routing-table entries, and stamped on outgoing PeerMsgs via
+    /// the lookup service.
     bloom: BloomRef,
 }
 
@@ -77,10 +80,10 @@ impl KademliaDiscovery {
         peer_id: &PeerID,
         config: Arc<Config>,
         monitor: Arc<Monitor>,
-        bloom: BloomRef,
         ex: Executor,
     ) -> Arc<Self> {
         let table = Arc::new(RoutingTable::new(peer_id.0));
+        let bloom = BloomRef::new();
 
         // Pick the lookup endpoint (tcp/tls/quic) and the refresh
         // endpoint (udp) from `discovery_endpoints` (any order).
@@ -139,8 +142,8 @@ impl KademliaDiscovery {
     async fn connect_loop(self: Arc<Self>) -> Result<()> {
         let backoff = Backoff::new(500, self.config.seeding_interval * 1000);
         loop {
-            let required = *self.bloom.read();
-            match self.table.random_entry_filtered(PENDING_ENTRY, &required) {
+            let local = self.bloom.snapshot();
+            match self.table.random_entry_filtered(PENDING_ENTRY, &local) {
                 Some(entry) => {
                     backoff.reset();
                     let key = entry.key;
@@ -256,6 +259,10 @@ impl Discovery for KademliaDiscovery {
             }
             PeerConnectionEvent::ConnectFailed(None) => {}
         }
+    }
+
+    fn advertise(&self, item: &[u8], flags: ProtocolFlags) {
+        self.bloom.add(item, flags);
     }
 
     fn find_peers_with(&self, item: &[u8]) -> Vec<DiscoveredPeer> {

@@ -11,7 +11,7 @@ use rand::{rngs::OsRng, TryRngCore};
 use karyon_core::async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult};
 
 use crate::{
-    protocol::{PeerConn, Protocol, ProtocolID, ProtocolKind},
+    protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
     util::{decode, encode},
     version::Version,
     Error, Result,
@@ -165,7 +165,7 @@ impl Protocol for PingProtocol {
         PING_PROTO_ID.into()
     }
 
-    fn kind() -> ProtocolKind {
-        ProtocolKind::Mandatory
+    fn flags() -> ProtocolFlags {
+        ProtocolFlags::REQUIRED
     }
 }

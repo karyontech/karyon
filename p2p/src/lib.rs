@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 
 mod access_control;
-mod bloom;
 mod codec;
 mod config;
 mod conn_queue;
@@ -30,7 +29,6 @@ pub mod monitor;
 pub mod protocol;
 
 pub use access_control::{AccessControl, Action, AllowAll, PeerCandidate, Subject};
-pub use bloom::{Bloom, BloomRef};
 pub use config::Config;
 pub use discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery};
 pub use message::{PeerAddr, Protocol};
