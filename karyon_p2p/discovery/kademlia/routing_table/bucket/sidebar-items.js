@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BUCKET_SIZE","CONNECTED_ENTRY","DISCONNECTED_ENTRY","INCOMPATIBLE_ENTRY","PENDING_ENTRY","UNREACHABLE_ENTRY","UNSTABLE_ENTRY"],"struct":["Bucket","BucketEntry"],"type":["EntryStatusFlag"]};
