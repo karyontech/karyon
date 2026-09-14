@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["OUTBOUND_BUFFER_SIZE"],"enum":["NewMsg"],"fn":["background_loop","build_backend_state","build_byte_backend","build_ws_backend","connect_byte","connect_ws","handle_mux_msg","run_io_loop","send_request","start_io_loop"]};

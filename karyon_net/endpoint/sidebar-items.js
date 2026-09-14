@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Addr","Endpoint"],"fn":["resolve","url_to_addr"],"trait":["ToEndpoint"],"type":["Port"]};

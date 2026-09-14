@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["HttpTransport"],"fn":["build_backend","parse_response"],"mod":["h1","h3"],"struct":["HttpClientBackend"]};
