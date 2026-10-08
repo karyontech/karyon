@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 karyon_jsonrpc
+
+### Added
+
+- **`Channel::peer_endpoint()`** (`karyon_jsonrpc`): returns the remote
+  endpoint of the connection, or `None` when the transport does not report one.
+
 ## 1.1.0 karyon_p2p, karyon_swarm
 
 ### Breaking changes

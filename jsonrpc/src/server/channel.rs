@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Weak};
 
 use karyon_core::{async_runtime::lock::RwLock, util::random_32};
+use karyon_net::Endpoint;
 
 use crate::{
     error::{Error, Result},
@@ -73,15 +74,25 @@ impl Subscription {
 pub struct Channel {
     chan: async_channel::Sender<NewNotification>,
     subs: RwLock<HashSet<SubscriptionID>>,
+    peer: Option<Endpoint>,
 }
 
 impl Channel {
     /// Creates a new [`Channel`]
-    pub(crate) fn new(chan: async_channel::Sender<NewNotification>) -> Arc<Channel> {
+    pub(crate) fn new(
+        chan: async_channel::Sender<NewNotification>,
+        peer: Option<Endpoint>,
+    ) -> Arc<Channel> {
         Arc::new(Self {
             chan,
             subs: RwLock::new(HashSet::new()),
+            peer,
         })
+    }
+
+    /// Returns the remote endpoint of the connection, if known.
+    pub fn peer_endpoint(&self) -> Option<Endpoint> {
+        self.peer.clone()
     }
 
     /// Creates a new [`Subscription`]

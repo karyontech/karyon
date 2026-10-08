@@ -28,7 +28,7 @@ karyon_core = { path = "core", version = "=1.0.1", default-features = false }
 karyon_net = { path = "net", version = "=1.0.1", default-features = false }
 karyon_async_rustls = { path = "net/async_rustls", version = "=1.0.1", default-features = false }
 
-karyon_jsonrpc = { path = "jsonrpc", version = "=1.0.1", default-features = false }
+karyon_jsonrpc = { path = "jsonrpc", version = "=1.0.2", default-features = false }
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "=1.0.1", default-features = false }
 
 karyon_p2p = { path = "p2p", version = "=1.1.0", default-features = false }

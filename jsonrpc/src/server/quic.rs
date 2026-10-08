@@ -10,7 +10,7 @@ use karyon_core::async_util::{select, Either, TaskResult};
 use karyon_net::{
     framed,
     quic::{QuicConn, QuicIncoming},
-    FramedConn, StreamMux,
+    Endpoint, FramedConn, StreamMux,
 };
 
 use crate::{
@@ -59,17 +59,22 @@ impl Server {
 
 async fn quic_accept_streams_task(server: Arc<Server>, quic_conn: Arc<QuicConn>) -> Result<()> {
     let codec = JsonCodec::default();
+    let peer = quic_conn.peer_endpoint().ok();
     loop {
         let stream = quic_conn.accept_stream().await?;
         let conn = framed(stream, codec.clone());
         server
             .task_group
-            .spawn(quic_handle_stream_task(server.clone(), conn));
+            .spawn(quic_handle_stream_task(server.clone(), conn, peer.clone()));
     }
 }
 
-async fn quic_handle_stream_task(server: Arc<Server>, conn: FramedConn<JsonCodec>) -> Result<()> {
-    if let Err(err) = handle_quic_stream(server, conn).await {
+async fn quic_handle_stream_task(
+    server: Arc<Server>,
+    conn: FramedConn<JsonCodec>,
+    peer: Option<Endpoint>,
+) -> Result<()> {
+    if let Err(err) = handle_quic_stream(server, conn, peer).await {
         error!("Handle QUIC stream: {err}");
     }
     Ok(())
@@ -77,7 +82,11 @@ async fn quic_handle_stream_task(server: Arc<Server>, conn: FramedConn<JsonCodec
 
 /// Handle a single QUIC stream: one request, one response.
 /// Upgrades to pubsub notification streaming if the method matches.
-async fn handle_quic_stream(server: Arc<Server>, mut conn: FramedConn<JsonCodec>) -> Result<()> {
+async fn handle_quic_stream(
+    server: Arc<Server>,
+    mut conn: FramedConn<JsonCodec>,
+    peer: Option<Endpoint>,
+) -> Result<()> {
     let msg = conn.recv_msg().await?;
 
     let req = match sanity_check(msg) {
@@ -97,7 +106,7 @@ async fn handle_quic_stream(server: Arc<Server>, mut conn: FramedConn<JsonCodec>
     );
 
     if is_pubsub {
-        return handle_quic_subscription(server, conn, req).await;
+        return handle_quic_subscription(server, conn, req, peer).await;
     }
 
     let msg = serde_json::to_value(&req.msg).expect("serializable request");
@@ -113,9 +122,10 @@ async fn handle_quic_subscription(
     server: Arc<Server>,
     conn: FramedConn<JsonCodec>,
     req: NewRequest,
+    peer: Option<Endpoint>,
 ) -> Result<()> {
     let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
-    let channel = Channel::new(ch_tx);
+    let channel = Channel::new(ch_tx, peer);
 
     let method = match server.resolve_handler(&req.srvc_name, &req.method_name, true) {
         Handler::Pubsub(m) => m,
