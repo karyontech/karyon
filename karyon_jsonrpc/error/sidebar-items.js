@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","RPCError"],"type":["RPCResult","Result"]};

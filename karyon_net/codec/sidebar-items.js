@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["bytes_codec","length_codec"],"struct":["BytesCodec","LengthCodec"],"trait":["Codec"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_READ_CHUNK_SIZE"],"fn":["framed"],"struct":["FramedConn","FramedReader","FramedWriter"]};
