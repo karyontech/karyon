@@ -9,7 +9,10 @@ use log::{debug, error};
 
 use karyon_core::async_runtime::lock::RwLock;
 
-use karyon_net::quic::{QuicConn, QuicEndpoint, QuicIncoming};
+use karyon_net::{
+    quic::{QuicConn, QuicEndpoint, QuicIncoming},
+    Endpoint,
+};
 
 use crate::{
     error::{Error, Result},
@@ -80,7 +83,7 @@ async fn serve_conn(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
 
     // Per-connection channel feeds all pubsub output.
     let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
-    let channel = Channel::new(ch_tx);
+    let channel = Channel::new(ch_tx, quic_conn.peer_endpoint().ok());
 
     let sub_senders: SubSenders = Arc::new(RwLock::new(HashMap::new()));
 
@@ -208,7 +211,8 @@ async fn handle_h3_request(
         .unwrap_or(false);
 
     if is_subscribe {
-        return handle_h3_subscribe(server, sub_senders, msg, stream).await;
+        let peer = channel.peer_endpoint();
+        return handle_h3_subscribe(server, sub_senders, peer, msg, stream).await;
     }
 
     let response = server.handle_request(Some(channel.clone()), msg).await;
@@ -239,11 +243,12 @@ async fn handle_h3_request(
 async fn handle_h3_subscribe(
     server: Arc<Server>,
     sub_senders: SubSenders,
+    peer: Option<Endpoint>,
     msg: serde_json::Value,
     mut stream: H3Stream,
 ) -> Result<()> {
     let (sub_tx, sub_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
-    let sub_channel = Channel::new(sub_tx.clone());
+    let sub_channel = Channel::new(sub_tx.clone(), peer);
 
     let response = server.handle_request(Some(sub_channel.clone()), msg).await;
 

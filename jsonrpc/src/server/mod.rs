@@ -175,7 +175,7 @@ impl Server {
         debug!("Handle connection {peer:?}");
 
         let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
-        let channel = Channel::new(ch_tx);
+        let channel = Channel::new(ch_tx, peer.clone());
         let queue = AsyncQueue::new(RESPONSE_QUEUE_SIZE);
 
         let writer_chan = channel.clone();
