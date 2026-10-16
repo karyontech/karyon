@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TaskResult"],"struct":["Inner","TaskGroup","TaskHandler"],"type":["TaskID"]};

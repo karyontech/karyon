@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ERR_BODY_TOO_LARGE","ERR_METHOD_NOT_ALLOWED","ERR_READ_BODY","MAX_HTTP_BODY_SIZE"],"fn":["accept_loop","json_response","json_response_bytes"],"mod":["h1h2","h3"],"struct":["HttpServer"]};

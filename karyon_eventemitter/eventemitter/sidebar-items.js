@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_CHANNEL_BUFFER_SIZE"],"fn":["random_id"],"struct":["Event","EventEmitter","EventListener"],"trait":["AsEventValue","EventTopic"],"type":["EventListenerID","Listeners"]};
