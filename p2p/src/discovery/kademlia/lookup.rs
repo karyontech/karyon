@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
@@ -6,7 +6,7 @@ use rand::{rngs::OsRng, seq::IndexedRandom, TryRngCore};
 
 use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair};
 
-use karyon_net::Endpoint;
+use karyon_net::{Addr, Endpoint};
 
 use crate::{
     access_control::{Action, Subject},
@@ -315,6 +315,7 @@ impl LookupService {
                     for p in &mut peers {
                         validate_peer_msg(p)?;
                     }
+                    peers.retain(is_reachable);
                     break;
                 }
                 c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
@@ -384,6 +385,10 @@ impl LookupService {
                 KadNetCmd::Peer => {
                     let (mut peer, _) = decode::<PeerMsg>(&msg.payload)?;
                     validate_peer_msg(&mut peer)?;
+                    if !is_reachable(&peer) {
+                        trace!("Ignore Peer msg without addresses");
+                        continue;
+                    }
                     let result = self.table.add_entry(peer.into());
                     trace!("Add entry result: {result:?}");
                 }
@@ -442,27 +447,22 @@ impl LookupService {
     /// Sends a Peer msg advertising our listen and discovery addresses.
     /// `addrs` carries every data-plane listen endpoint; `discovery_addrs`
     /// carries the lookup endpoint and (when set) the udp refresh endpoint.
+    /// Not sent when both are empty.
     async fn send_peer_msg(&self, conn: &mut KadConnRef) -> Result<()> {
         trace!("Send Peer msg");
 
-        let mut addrs = Vec::new();
-        for ep in &self.endpoints.listen {
-            if let Some(pa) = PeerAddr::from_endpoint(ep, 0) {
-                addrs.push(pa);
-            }
-        }
-
-        let mut discovery_addrs = Vec::new();
-        if let Some(ep) = self.endpoints.lookup.as_ref() {
-            if let Some(pa) = PeerAddr::from_endpoint(ep, 0) {
-                discovery_addrs.push(pa);
-            }
-        }
-        if let Some(ep) = self.endpoints.refresh.as_ref() {
-            if let Some(pa) = PeerAddr::from_endpoint(ep, 0) {
-                discovery_addrs.push(pa);
-            }
-        }
+        let public_ip = self.config.public_ip;
+        let addrs = self
+            .endpoints
+            .listen
+            .iter()
+            .filter_map(|ep| advertised_addr(ep, public_ip))
+            .collect();
+        let discovery_addrs = [&self.endpoints.lookup, &self.endpoints.refresh]
+            .into_iter()
+            .flatten()
+            .filter_map(|ep| advertised_addr(ep, public_ip))
+            .collect();
 
         let peer_msg = PeerMsg {
             peer_id: self.id.clone(),
@@ -470,6 +470,10 @@ impl LookupService {
             discovery_addrs,
             protocols: self.bloom.snapshot().advertised,
         };
+        // Nothing to dial us on: stay out of other routing tables.
+        if !is_reachable(&peer_msg) {
+            return Ok(());
+        }
         conn.send_msg(KadNetMsg::new(KadNetCmd::Peer, &peer_msg)?)
             .await?;
         Ok(())
@@ -482,6 +486,24 @@ impl LookupService {
             .await?;
         Ok(())
     }
+}
+
+/// The PeerAddr to advertise for `ep`, with its IP replaced by
+/// `public_ip` when both are the same family.
+fn advertised_addr(ep: &Endpoint, public_ip: Option<IpAddr>) -> Option<PeerAddr> {
+    let mut pa = PeerAddr::from_endpoint(ep, 0)?;
+    if let (Some(public), Addr::Ip(ip)) = (public_ip, &pa.addr) {
+        if public.is_ipv4() == ip.is_ipv4() {
+            pa.addr = Addr::Ip(public);
+        }
+    }
+    Some(pa)
+}
+
+/// True if the peer advertises at least one address to reach it on.
+/// Peers with only discovery addresses (e.g. bootstrap nodes) count.
+fn is_reachable(p: &PeerMsg) -> bool {
+    !p.addrs.is_empty() || !p.discovery_addrs.is_empty()
 }
 
 /// Reject PeerMsgs that advertise more addresses than a legitimate
@@ -502,4 +524,47 @@ fn validate_peer_msg(p: &mut PeerMsg) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reachable_needs_some_address() {
+        let addr = PeerAddr::from_endpoint(&"tcp://10.0.0.1:8000".parse().unwrap(), 0).unwrap();
+        let mut peer = PeerMsg {
+            peer_id: PeerID::from([1u8; 32]),
+            addrs: vec![],
+            discovery_addrs: vec![],
+            protocols: Default::default(),
+        };
+        assert!(!is_reachable(&peer));
+
+        // A discovery-only peer (e.g. a bootstrap node) is reachable.
+        peer.discovery_addrs = vec![addr.clone()];
+        assert!(is_reachable(&peer));
+
+        peer.discovery_addrs = vec![];
+        peer.addrs = vec![addr];
+        assert!(is_reachable(&peer));
+    }
+
+    #[test]
+    fn advertised_addr_replaces_same_family_ip() {
+        let public: IpAddr = "203.0.113.9".parse().unwrap();
+
+        let ep: Endpoint = "tcp://0.0.0.0:8000".parse().unwrap();
+        let pa = advertised_addr(&ep, Some(public)).unwrap();
+        assert_eq!(pa.to_endpoint(), "tcp://203.0.113.9:8000".parse().unwrap());
+
+        // Other family and no public IP keep the configured address.
+        let ep: Endpoint = "quic://[::]:9000".parse().unwrap();
+        assert_eq!(
+            advertised_addr(&ep, Some(public)).unwrap().to_endpoint(),
+            ep
+        );
+        let ep: Endpoint = "udp://10.0.0.1:7000".parse().unwrap();
+        assert_eq!(advertised_addr(&ep, None).unwrap().to_endpoint(), ep);
+    }
 }

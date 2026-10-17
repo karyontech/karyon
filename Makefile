@@ -1,7 +1,7 @@
-CRATES = core net jsonrpc p2p swarm utils/eventemitter
+CRATES = core net jsonrpc p2p swarm stun utils/eventemitter
 
 .PHONY: all check fmt clippy unit-test integration-test test \
-	test-core test-net test-jsonrpc test-p2p test-swarm test-eventemitter
+	test-core test-net test-jsonrpc test-p2p test-swarm test-stun test-eventemitter
 
 all: check fmt clippy
 
@@ -34,6 +34,9 @@ test-p2p:
 
 test-swarm:
 	$(MAKE) -C swarm test
+
+test-stun:
+	$(MAKE) -C stun test
 
 test-eventemitter:
 	$(MAKE) -C utils/eventemitter test

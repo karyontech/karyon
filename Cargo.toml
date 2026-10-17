@@ -10,6 +10,7 @@ members = [
     "jsonrpc/impl",
     "p2p",
     "swarm",
+    "stun",
     "utils/eventemitter",
     "utils/eventemitter/derive",
 ]
@@ -31,8 +32,9 @@ karyon_async_rustls = { path = "net/async_rustls", version = "=1.0.1", default-f
 karyon_jsonrpc = { path = "jsonrpc", version = "=1.0.1", default-features = false }
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "=1.0.1", default-features = false }
 
-karyon_p2p = { path = "p2p", version = "=1.1.0", default-features = false }
-karyon_swarm = { path = "swarm", version = "=1.1.0", default-features = false }
+karyon_p2p = { path = "p2p", version = "=1.1.1", default-features = false }
+karyon_swarm = { path = "swarm", version = "=1.1.1", default-features = false }
+karyon_stun = { path = "stun", version = "=0.1.0", default-features = false }
 
 karyon_eventemitter = { path = "./utils/eventemitter", version = "=1.0.1", default-features = false }
 karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "=1.0.1", default-features = false }
