@@ -66,6 +66,7 @@ pub struct StunConfig {
     #[cfg(feature = "tls")]
     pub tls_endpoint: Option<(Endpoint, ServerTlsConfig)>,
     /// QUIC listen endpoint and config, e.g. `quic://0.0.0.0:5349`.
+    /// Non-standard: STUN over QUIC is a karyon extension, not RFC 5389.
     #[cfg(feature = "quic")]
     pub quic_endpoint: Option<(Endpoint, ServerQuicConfig)>,
     /// Max concurrent TCP, TLS and QUIC connections. Extra connections

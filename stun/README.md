@@ -1,10 +1,9 @@
 # karyon stun
 
-A minimal async STUN ([RFC 5389](https://www.rfc-editor.org/rfc/rfc5389))
-server and client over UDP, TCP, TLS and QUIC, built on
-[karyon_net](https://crates.io/crates/karyon_net).
-Binding requests and responses only - no TURN, no ICE, no authentication.
-Useful for peers to discover their public address behind NAT.
+A minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) server and
+client, built on [karyon_net](https://crates.io/crates/karyon_net). Lets
+peers behind NAT discover their public address. Runs over UDP, TCP and
+TLS, plus QUIC as a non-standard karyon extension.
 
 ## Install
 
@@ -13,20 +12,6 @@ $ cargo add karyon_stun
 ```
 
 ## Example
-
-### Client
-
-```rust,no_run
-use karyon_net::Endpoint;
-use karyon_stun::StunClient;
-
-async {
-    let server: Endpoint = "udp://198.51.100.7:3478".parse().unwrap();
-    let client = StunClient::new(server);
-    let public_addr = client.discover().await.expect("discover public address");
-    println!("public address: {public_addr}");
-};
-```
 
 ### Server
 
@@ -50,20 +35,45 @@ async {
 };
 ```
 
-## Feature Flags
+### Client
 
-| Feature | Description |
-|---------|-------------|
-| `udp` | UDP transport, the primary STUN transport (default) |
-| `tcp` | TCP transport (default) |
-| `tls` | TLS over TCP transport (default) |
-| `quic` | QUIC transport, one bidirectional stream per query (default) |
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+```rust,no_run
+use karyon_net::Endpoint;
+use karyon_stun::StunClient;
+
+async {
+    let server: Endpoint = "udp://198.51.100.7:3478".parse().unwrap();
+    let client = StunClient::new(server);
+    let public_addr = client.discover().await.expect("discover public address");
+    println!("public address: {public_addr}");
+};
+```
 
 TLS and QUIC take a karyon_net config on both sides: set
 `StunConfig::tls_endpoint` / `quic_endpoint` on the server, and call
 `StunClient::with_tls` / `with_quic` on the client.
+
+## Feature Flags
+
+| Feature | Description |
+|---------|-------------|
+| `udp` | UDP, the primary STUN transport (default) |
+| `tcp` | TCP (default) |
+| `tls` | TLS over TCP (implies `tcp`, default) |
+| `quic` | **Non-standard** QUIC, karyon only (default) |
+| `smol` | Use smol async runtime (default) |
+| `tokio` | Use tokio async runtime |
+
+```toml
+# Default (smol + UDP/TCP/TLS/QUIC)
+karyon_stun = "0.1"
+
+# UDP only
+karyon_stun = { version = "0.1", default-features = false, features = ["smol", "udp"] }
+
+# With tokio
+karyon_stun = { version = "0.1", default-features = false, features = ["tokio", "udp", "tcp", "tls"] }
+```
 
 ## Scope
 
@@ -76,7 +86,3 @@ Implements the useful subset of RFC 5389:
   or QUIC stream
 - Stream connections are capped (`StunConfig::max_connections`, default
   1024) and closed after 10s without a request
-
-Out of scope: TURN relaying, ICE, hole punching, authentication
-(MESSAGE-INTEGRITY), DNS SRV discovery. The server is stateless: it
-answers every Binding Request with the source address it saw.

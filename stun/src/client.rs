@@ -81,7 +81,8 @@ impl StunClient {
         self
     }
 
-    /// Set the QUIC config used for `quic://` servers.
+    /// Set the QUIC config used for `quic://` servers. Non-standard:
+    /// only karyon STUN servers speak STUN over QUIC.
     #[cfg(feature = "quic")]
     pub fn with_quic(mut self, config: ClientQuicConfig) -> Self {
         self.quic = Some(config);
