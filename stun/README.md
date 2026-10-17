@@ -2,8 +2,9 @@
 
 A minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) server and
 client, built on [karyon_net](https://crates.io/crates/karyon_net). Lets
-peers behind NAT discover their public address. Runs over UDP, TCP and
-TLS, plus QUIC as a non-standard karyon extension.
+peers behind NAT discover their public address. Runs over UDP, TCP, TLS
+and QUIC: the first three per RFC 5389, QUIC as a karyon extension (see
+[STUN over QUIC](#stun-over-quic)).
 
 ## Install
 
@@ -53,6 +54,35 @@ TLS and QUIC take a karyon_net config on both sides: set
 `StunConfig::tls_endpoint` / `quic_endpoint` on the server, and call
 `StunClient::with_tls` / `with_quic` on the client.
 
+## STUN over QUIC
+
+karyon_stun can also serve and query STUN over QUIC.
+
+QUIC is not part of RFC 5389/8489: it is a karyon extension (STUN
+messages on one QUIC bidirectional stream). It works between karyon
+servers and clients; standard STUN servers and clients do not speak it.
+
+```rust,no_run
+# use karyon_core::async_runtime::global_executor;
+# use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
+# use karyon_net::Endpoint;
+# use karyon_stun::{StunClient, StunConfig, StunServer};
+# async fn _ex(server_config: ServerQuicConfig, client_config: ClientQuicConfig) {
+let endpoint: Endpoint = "quic://0.0.0.0:5349".parse().unwrap();
+let config = StunConfig {
+    quic_endpoint: Some((endpoint, server_config)),
+    ..Default::default()
+};
+let server = StunServer::new(config, global_executor());
+server.run().await.expect("run stun server");
+
+let client = StunClient::new("quic://198.51.100.7:5349".parse().unwrap())
+    .with_quic(client_config);
+let public_addr = client.discover().await.expect("discover public address");
+println!("public address: {public_addr}");
+# }
+```
+
 ## Feature Flags
 
 | Feature | Description |
@@ -60,7 +90,7 @@ TLS and QUIC take a karyon_net config on both sides: set
 | `udp` | UDP, the primary STUN transport (default) |
 | `tcp` | TCP (default) |
 | `tls` | TLS over TCP (implies `tcp`, default) |
-| `quic` | **Non-standard** QUIC, karyon only (default) |
+| `quic` | QUIC, karyon extension (default) |
 | `smol` | Use smol async runtime (default) |
 | `tokio` | Use tokio async runtime |
 
