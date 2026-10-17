@@ -16,12 +16,15 @@ Local network discovery via an mDNS implementation of the `Discovery` trait.
 
 ## Additional crates
 
-### `karyon_stun`
+### `karyon_stun` (done)
 
 Minimal STUN server and client. Multi-transport (UDP primary, plus
 TCP, TLS, QUIC) built on `karyon_net`.
 
 Useful for peers to discover their public address behind NAT.
+
+Implemented in `stun/` (UDP, TCP, TLS, QUIC). The discovered IP can be
+passed to `karyon_p2p` via `Config::public_ip`, which discovery advertises.
 
 ### `karyon_pow`
 

@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1649,8 +1649,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "karyon_stun"
+version = "0.1.0"
+dependencies = [
+ "karyon_core",
+ "karyon_net",
+ "log",
+ "rand 0.9.5",
+ "rcgen",
+ "rustls-pki-types",
+ "thiserror",
+]
+
+[[package]]
 name = "karyon_swarm"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "async-trait",
  "bincode",

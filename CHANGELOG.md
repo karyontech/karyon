@@ -1,5 +1,29 @@
 # Changelog
 
+## karyon_stun 0.1.0
+
+- New crate: minimal async STUN (RFC 5389) server and client over UDP,
+  TCP, TLS and QUIC, built on karyon_net. Binding requests only; supports
+  XOR-MAPPED-ADDRESS, MAPPED-ADDRESS, ERROR-CODE, and SOFTWARE.
+
+## 1.1.1 karyon_p2p, karyon_swarm
+
+### Breaking changes
+
+- **`Config::public_ip`** (`karyon_p2p`): when set, discovery advertises
+  this IP in place of the IP of each listen and discovery endpoint of the
+  same family, keeping the configured ports. Use `karyon_stun` (or any
+  other source) to learn it. `None` by default (no change). Code building
+  `Config` with a struct literal and no `..Default::default()` must add the
+  field.
+
+### Fixes
+
+- **Unreachable peers in routing tables** (`karyon_p2p`): a node with no
+  listen and no discovery endpoints no longer sends a `PeerMsg` after a
+  lookup, and received `PeerMsg`s with no addresses are ignored instead of
+  added to the routing table.
+
 ## 1.1.0 karyon_p2p, karyon_swarm
 
 ### Breaking changes

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
 use karyon_net::Endpoint;
 
@@ -93,6 +93,14 @@ pub struct Config {
     /// A list of endpoints representing peers that the `Discovery` will
     /// manually connect to.
     pub dial_peers: Vec<Endpoint>,
+    /// This node's public IP, if known (e.g. learned with karyon_stun).
+    ///
+    /// When set, discovery advertises it in place of the IP of every listen
+    /// and discovery endpoint of the same family. Ports are kept as
+    /// configured, so they must be reachable from outside (port
+    /// forwarding). `None` (the default) advertises endpoints as
+    /// configured.
+    pub public_ip: Option<IpAddr>,
     /// The number of available inbound slots for incoming connections.
     pub inbound_slots: usize,
     /// The number of available outbound slots for outgoing connections.
@@ -149,6 +157,7 @@ impl Default for Config {
             listen_endpoints: vec![],
             discovery_endpoints: vec![],
             dial_peers: vec![],
+            public_ip: None,
             inbound_slots: 12,
             outbound_slots: 12,
             max_connect_retries: 3,
