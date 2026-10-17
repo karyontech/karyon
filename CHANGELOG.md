@@ -3,8 +3,10 @@
 ## karyon_stun 0.1.0
 
 - New crate: minimal async STUN (RFC 5389) server and client over UDP,
-  TCP, TLS and QUIC, built on karyon_net. Binding requests only; supports
+  TCP and TLS, built on karyon_net. Binding requests only; supports
   XOR-MAPPED-ADDRESS, MAPPED-ADDRESS, ERROR-CODE, and SOFTWARE.
+- Optional QUIC transport (`quic` feature). Not part of RFC 5389:
+  a karyon extension that only works between karyon nodes.
 
 ## 1.1.1 karyon_p2p, karyon_swarm
 
