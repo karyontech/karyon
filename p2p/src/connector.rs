@@ -3,7 +3,10 @@ use std::{marker::PhantomData, sync::Arc};
 use log::{error, trace, warn};
 
 use karyon_core::{
-    async_runtime::Executor,
+    async_runtime::{
+        lock::{Semaphore, SemaphoreGuard},
+        Executor,
+    },
     async_util::{Backoff, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
@@ -14,7 +17,6 @@ use crate::{
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
     peer::ConnDirection,
-    slots::ConnectionSlots,
     tls_config::{peer_id_from_certs, tls_client_config},
     Error, PeerID, Result,
 };
@@ -44,7 +46,7 @@ enum DialResult<C: Codec<ByteBuffer> + Default + Clone> {
 pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     key_pair: KeyPair,
     task_group: TaskGroup,
-    connection_slots: Arc<ConnectionSlots>,
+    connection_slots: Semaphore,
     max_retries: usize,
     conn_queue: Option<Arc<ConnQueue>>,
     monitor: Arc<Monitor>,
@@ -60,7 +62,7 @@ where
     pub fn new(
         key_pair: &KeyPair,
         max_retries: usize,
-        connection_slots: Arc<ConnectionSlots>,
+        slots: usize,
         monitor: Arc<Monitor>,
         ex: Executor,
     ) -> Arc<Self> {
@@ -69,7 +71,7 @@ where
             max_retries,
             task_group: TaskGroup::with_executor(ex),
             monitor,
-            connection_slots,
+            connection_slots: Semaphore::new(slots),
             conn_queue: None,
             _codec: PhantomData,
         })
@@ -79,17 +81,18 @@ where
         self.task_group.cancel().await;
     }
 
-    /// Connect and return the framed connection.
+    /// Connect and return the framed connection. The slot is held until
+    /// the returned guard is dropped.
     pub async fn connect(
         &self,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
-    ) -> Result<FramedConn<C>> {
-        let result = self.connect_internal(endpoint, peer_id).await?;
+    ) -> Result<(FramedConn<C>, SemaphoreGuard)> {
+        let (result, slot) = self.connect_internal(endpoint, peer_id).await?;
         match result {
-            DialResult::Channel(conn, _) => Ok(conn),
+            DialResult::Channel(conn, _) => Ok((conn, slot)),
             #[cfg(feature = "quic")]
-            DialResult::Quic(conn, _, _) => Ok(conn),
+            DialResult::Quic(conn, _, _) => Ok((conn, slot)),
         }
     }
 
@@ -98,9 +101,8 @@ where
         &self,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
-    ) -> Result<DialResult<C>> {
-        self.connection_slots.wait_for_slot().await;
-        self.connection_slots.add();
+    ) -> Result<(DialResult<C>, SemaphoreGuard)> {
+        let slot = self.connection_slots.acquire().await?;
 
         let mut retry = 0;
         let backoff = Backoff::new(500, 2000);
@@ -110,7 +112,7 @@ where
                     self.monitor
                         .notify(ConnectionKind::Connected(endpoint.clone()))
                         .await;
-                    return Ok(result);
+                    return Ok((result, slot));
                 }
                 Err(err) => {
                     error!("Failed to connect to {endpoint}: {err}");
@@ -130,7 +132,6 @@ where
             .notify(ConnectionKind::ConnectFailed(endpoint.clone()))
             .await;
 
-        self.connection_slots.remove().await;
         Err(Error::Timeout)
     }
 
@@ -187,7 +188,7 @@ impl Connector<PeerNetMsgCodec> {
     pub fn new_with_queue(
         key_pair: &KeyPair,
         max_retries: usize,
-        connection_slots: Arc<ConnectionSlots>,
+        slots: usize,
         conn_queue: Arc<ConnQueue>,
         monitor: Arc<Monitor>,
         ex: Executor,
@@ -197,7 +198,7 @@ impl Connector<PeerNetMsgCodec> {
             max_retries,
             task_group: TaskGroup::with_executor(ex),
             monitor,
-            connection_slots,
+            connection_slots: Semaphore::new(slots),
             conn_queue: Some(conn_queue),
             _codec: PhantomData,
         })
@@ -211,7 +212,7 @@ impl Connector<PeerNetMsgCodec> {
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
     ) -> Result<()> {
-        let dial_result = self.connect_internal(endpoint, peer_id).await?;
+        let (dial_result, slot) = self.connect_internal(endpoint, peer_id).await?;
 
         let endpoint = endpoint.clone();
         let on_disconnect = {
@@ -223,7 +224,7 @@ impl Connector<PeerNetMsgCodec> {
                 this.monitor
                     .notify(ConnectionKind::Disconnected(endpoint.clone()))
                     .await;
-                this.connection_slots.remove().await;
+                drop(slot);
             }
         };
 

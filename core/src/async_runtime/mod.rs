@@ -4,7 +4,6 @@ pub mod lock;
 pub mod net;
 mod spawn;
 mod task;
-mod timer;
 
 pub use executor::{global_executor, Executor};
 pub use spawn::spawn;

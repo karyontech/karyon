@@ -14,7 +14,6 @@ mod node;
 mod peer;
 mod peer_pool;
 mod protocols;
-mod slots;
 mod tls_config;
 mod version;
 

@@ -20,4 +20,8 @@ pub enum Error {
     #[cfg(feature = "tokio")]
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
+
+    #[cfg(feature = "tokio")]
+    #[error(transparent)]
+    TokioAcquireError(#[from] tokio::sync::AcquireError),
 }
