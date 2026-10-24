@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.3 karyon_p2p, karyon_swarm
+
+### Fixes
+
+- **QUIC transport** (`karyon_p2p`): nodes can now listen on and dial
+  `quic://` endpoints. Before, `Node::run` failed with
+  `no initial cipher suite found`, because QUIC needs TLS13_AES_128_GCM_SHA256
+  for its initial packets. Plain TLS still offers only ChaCha20-Poly1305.
+- **Lost first message on QUIC streams** (`karyon_p2p`): the protocol header
+  at the start of each QUIC stream is now length-prefixed, so a message sent
+  right after it is no longer dropped. This changes the QUIC wire format.
+
 ## 1.0.2 karyon_core
 
 ### Added
