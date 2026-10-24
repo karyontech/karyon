@@ -262,7 +262,7 @@ impl PeerPool {
                         .peer_emitter
                         .emit(&PeerEvent::HandshakeFailed(pid))
                         .await;
-                    let _ = queued.disconnect_signal.send(Err(err)).await;
+                    let _ = queued.conn_closed_tx.send(Err(err)).await;
                     continue;
                 }
             };
@@ -288,10 +288,7 @@ impl PeerPool {
                     .peer_emitter
                     .emit(&PeerEvent::HandshakeFailed(Some(pid)))
                     .await;
-                let _ = queued
-                    .disconnect_signal
-                    .send(Err(Error::AccessDenied))
-                    .await;
+                let _ = queued.conn_closed_tx.send(Err(Error::AccessDenied)).await;
                 continue;
             }
 
@@ -313,7 +310,7 @@ impl PeerPool {
                 .notify(PoolEvent::PeerAlreadyConnected(pid.clone()))
                 .await;
             let _ = queued
-                .disconnect_signal
+                .conn_closed_tx
                 .send(Err(Error::PeerAlreadyConnected))
                 .await;
             return Err(Error::PeerAlreadyConnected);

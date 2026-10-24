@@ -21,7 +21,7 @@ pub struct QueuedConn {
     pub writer: FramedWriter<PeerNetMsgCodec>,
     pub direction: ConnDirection,
     pub remote_endpoint: Endpoint,
-    pub disconnect_signal: Sender<crate::Result<()>>,
+    pub conn_closed_tx: Sender<crate::Result<()>>,
     /// PeerID derived from the secure transport (TLS cert).
     /// `None` for unauthenticated transports (TCP, Unix).
     /// The application handshake asserts `vermsg.peer_id == this` when
@@ -58,13 +58,13 @@ impl ConnQueue {
             .ok_or(Error::InvalidEndpoint("missing peer endpoint".into()))?;
         let (reader, writer) = conn.split();
 
-        let (disconnect_tx, disconnect_rx) = async_channel::bounded(1);
+        let (conn_closed_tx, conn_closed_rx) = async_channel::bounded(1);
         let queued = QueuedConn {
             reader,
             writer,
             direction,
             remote_endpoint: endpoint,
-            disconnect_signal: disconnect_tx,
+            conn_closed_tx,
             verified_peer_id,
             #[cfg(feature = "quic")]
             quic_conn: None,
@@ -73,7 +73,7 @@ impl ConnQueue {
         self.queue.lock().await.push_back(queued);
         self.conn_available.signal();
 
-        if let Ok(result) = disconnect_rx.recv().await {
+        if let Ok(result) = conn_closed_rx.recv().await {
             return result;
         }
 
@@ -95,13 +95,13 @@ impl ConnQueue {
             .ok_or(Error::InvalidEndpoint("missing peer endpoint".into()))?;
         let (reader, writer) = conn.split();
 
-        let (disconnect_tx, disconnect_rx) = async_channel::bounded(1);
+        let (conn_closed_tx, conn_closed_rx) = async_channel::bounded(1);
         let queued = QueuedConn {
             reader,
             writer,
             direction,
             remote_endpoint: endpoint,
-            disconnect_signal: disconnect_tx,
+            conn_closed_tx,
             verified_peer_id,
             quic_conn: Some(quic_conn),
         };
@@ -109,7 +109,7 @@ impl ConnQueue {
         self.queue.lock().await.push_back(queued);
         self.conn_available.signal();
 
-        if let Ok(result) = disconnect_rx.recv().await {
+        if let Ok(result) = conn_closed_rx.recv().await {
             return result;
         }
 
