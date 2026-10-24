@@ -3,7 +3,6 @@ mod peer_id;
 
 use std::{
     collections::HashSet,
-    fmt,
     sync::{Arc, Weak},
 };
 
@@ -16,6 +15,7 @@ use karyon_core::{
 };
 
 use crate::{
+    conn_direction::ConnDirection,
     conn_queue::QueuedConn,
     endpoint::Endpoint,
     peer_pool::PeerPool,
@@ -26,21 +26,6 @@ use crate::{
 pub use peer_id::PeerID;
 
 use connection::Wire;
-
-#[derive(Clone, Debug)]
-pub enum ConnDirection {
-    Inbound,
-    Outbound,
-}
-
-impl fmt::Display for ConnDirection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ConnDirection::Inbound => write!(f, "Inbound"),
-            ConnDirection::Outbound => write!(f, "Outbound"),
-        }
-    }
-}
 
 /// A connected peer. Holds a `Wire` that hides the wire shape
 /// (single framed pipe vs. per-protocol streams).

@@ -14,7 +14,7 @@ use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt};
 use karyon_net::{framed, quic::QuicConn, StreamMux};
 
 #[cfg(feature = "quic")]
-use crate::{message::StreamInit, peer::ConnDirection, util::encode};
+use crate::{conn_direction::ConnDirection, message::StreamInit, util::encode};
 
 use crate::{
     codec::PeerNetMsgCodec,

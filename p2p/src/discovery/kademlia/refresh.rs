@@ -17,13 +17,13 @@ use karyon_net::{udp, Endpoint};
 
 use crate::{
     access_control::{Action, Subject},
+    conn_direction::ConnDirection,
     discovery::kademlia::{
         messages::RefreshMsg,
         routing_table::{BucketEntry, Entry, RoutingTable, PENDING_ENTRY, UNREACHABLE_ENTRY},
     },
     message::{pick_endpoint, Protocol},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
-    peer::ConnDirection,
     util::{decode, encode},
     Config, Error, Result,
 };

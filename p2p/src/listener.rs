@@ -18,9 +18,9 @@ use karyon_net::{
 use crate::{
     access_control::{AccessControl, Action, Subject},
     codec::PeerNetMsgCodec,
+    conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
-    peer::ConnDirection,
     tls_config::{peer_id_from_certs, tls_server_config},
     Error, PeerID, Result,
 };

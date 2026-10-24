@@ -17,10 +17,11 @@ use karyon_net::Endpoint;
 use crate::{
     access_control::{Action, PeerCandidate, Subject},
     config::Config,
+    conn_direction::ConnDirection,
     conn_queue::{ConnQueue, QueuedConn},
     handshake::{handshake, HandshakeParams},
     monitor::{Monitor, PoolEvent},
-    peer::{ConnDirection, Peer},
+    peer::Peer,
     protocol::{Protocol, ProtocolConstructor, ProtocolID, ProtocolMeta},
     Error, PeerID, Result,
 };

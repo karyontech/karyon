@@ -10,6 +10,7 @@ use karyon_net::{Addr, Endpoint};
 
 use crate::{
     access_control::{Action, Subject},
+    conn_direction::ConnDirection,
     connector::Connector,
     discovery::kademlia::{
         bloom::BloomRef,
@@ -22,7 +23,6 @@ use crate::{
     listener::Listener,
     message::{pick_endpoint, PeerAddr, Protocol, ShutdownMsg},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
-    peer::ConnDirection,
     util::decode,
     version::version_match,
     Config, Error, PeerID, Result,
