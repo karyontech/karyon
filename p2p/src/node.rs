@@ -27,7 +27,6 @@ use crate::{
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
     protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID},
     protocols::PingProtocol,
-    slots::ConnectionSlots,
     PeerID, Result,
 };
 
@@ -110,20 +109,18 @@ impl Node {
             ex.clone(),
         );
 
-        let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));
         let connector = Connector::new_with_queue(
             key_pair,
             config.max_connect_retries,
-            outbound_slots,
+            config.outbound_slots,
             conn_queue.clone(),
             monitor.clone(),
             ex.clone(),
         );
 
-        let inbound_slots = Arc::new(ConnectionSlots::new(config.inbound_slots));
         let listener = Listener::new_with_queue(
             key_pair,
-            inbound_slots,
+            config.inbound_slots,
             conn_queue,
             monitor.clone(),
             config.handshake_timeout,
@@ -168,20 +165,18 @@ impl Node {
             ex.clone(),
         );
 
-        let outbound_slots = Arc::new(ConnectionSlots::new(config.outbound_slots));
         let connector = Connector::new_with_queue(
             key_pair,
             config.max_connect_retries,
-            outbound_slots,
+            config.outbound_slots,
             conn_queue.clone(),
             monitor.clone(),
             ex.clone(),
         );
 
-        let inbound_slots = Arc::new(ConnectionSlots::new(config.inbound_slots));
         let listener = Listener::new_with_queue(
             key_pair,
-            inbound_slots,
+            config.inbound_slots,
             conn_queue,
             monitor.clone(),
             config.handshake_timeout,

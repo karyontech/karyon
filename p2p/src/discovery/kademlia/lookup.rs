@@ -23,7 +23,6 @@ use crate::{
     message::{pick_endpoint, PeerAddr, Protocol, ShutdownMsg},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
     peer::ConnDirection,
-    slots::ConnectionSlots,
     util::decode,
     version::version_match,
     Config, Error, PeerID, Result,
@@ -65,9 +64,6 @@ pub struct LookupService {
     /// Connector
     connector: Arc<Connector<KadNetMsgCodec>>,
 
-    /// Outbound slots.
-    outbound_slots: Arc<ConnectionSlots>,
-
     /// Endpoints this service advertises and binds to.
     endpoints: LookupEndpoints,
 
@@ -92,12 +88,9 @@ impl LookupService {
         endpoints: LookupEndpoints,
         ex: Executor,
     ) -> Self {
-        let inbound_slots = Arc::new(ConnectionSlots::new(config.lookup_inbound_slots));
-        let outbound_slots = Arc::new(ConnectionSlots::new(config.lookup_outbound_slots));
-
         let listener = Listener::new(
             key_pair,
-            inbound_slots.clone(),
+            config.lookup_inbound_slots,
             monitor.clone(),
             config.handshake_timeout,
             config.access_control.clone(),
@@ -107,7 +100,7 @@ impl LookupService {
         let connector = Connector::new(
             key_pair,
             config.lookup_connect_retries,
-            outbound_slots.clone(),
+            config.lookup_outbound_slots,
             monitor.clone(),
             ex,
         );
@@ -121,7 +114,6 @@ impl LookupService {
             table,
             listener,
             connector,
-            outbound_slots,
             endpoints,
             config,
             monitor,
@@ -271,13 +263,13 @@ impl LookupService {
             return Err(Error::AccessDenied);
         }
 
-        let conn = self.connector.connect(&endpoint, &peer_id).await?;
+        // The slot is released when `_slot` drops at the end.
+        let (conn, _slot) = self.connector.connect(&endpoint, &peer_id).await?;
         let result = self.handle_outbound(conn, target_peer_id).await;
 
         self.monitor
             .notify(ConnectionKind::Disconnected(endpoint))
             .await;
-        self.outbound_slots.remove().await;
 
         result
     }
