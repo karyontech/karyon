@@ -345,6 +345,11 @@ async fn setup_quic_streams(
                     protocol_id: proto_id.clone(),
                 };
                 let encoded = encode(&init)?;
+                // Length-prefix the header so the reader takes exactly these
+                // bytes and leaves the protocol messages after it untouched.
+                let len = u16::try_from(encoded.len())
+                    .map_err(|_| Error::InvalidMsg("StreamInit too large".into()))?;
+                stream.write_all(&encode(&len)?).await?;
                 stream.write_all(&encoded).await?;
                 stream.flush().await?;
 
@@ -367,13 +372,13 @@ async fn setup_quic_streams(
             while received < expected {
                 let mut stream = quic_conn.accept_stream().await?;
 
-                let mut header_buf = vec![0u8; 256];
-                let n = stream.read(&mut header_buf).await?;
-                if n == 0 {
-                    continue;
-                }
+                let mut len_buf = [0u8; 2];
+                stream.read_exact(&mut len_buf).await?;
+                let (len, _): (u16, _) = decode(&len_buf)?;
+                let mut header_buf = vec![0u8; usize::from(len)];
+                stream.read_exact(&mut header_buf).await?;
 
-                let (init, _): (StreamInit, _) = decode(&header_buf[..n])?;
+                let (init, _): (StreamInit, _) = decode(&header_buf)?;
 
                 if !negotiated.contains(&init.protocol_id) {
                     error!("Unsupported protocol: {}", init.protocol_id);

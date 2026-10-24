@@ -28,10 +28,18 @@ use karyon_core::crypto::{KeyPair, KeyPairType, PublicKey};
 
 use crate::{PeerID, Result};
 
+#[cfg(feature = "quic")]
+use rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_128_GCM_SHA256;
+
 // NOTE: This code needs a comprehensive audit.
 
 static PROTOCOL_VERSIONS: &[&SupportedProtocolVersion] = &[&rustls::version::TLS13];
 static CIPHER_SUITES: &[SupportedCipherSuite] = &[TLS13_CHACHA20_POLY1305_SHA256];
+/// QUIC also needs AES-128-GCM: quinn uses it to protect the initial packets.
+/// ChaCha20 stays first so it is still preferred for the session.
+#[cfg(feature = "quic")]
+static QUIC_CIPHER_SUITES: &[SupportedCipherSuite] =
+    &[TLS13_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256];
 static KX_GROUPS: &[&dyn SupportedKxGroup] = &[kx_group::X25519];
 static SIGNATURE_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
@@ -47,13 +55,41 @@ pub fn tls_client_config(
     key_pair: &KeyPair,
     peer_id: Option<PeerID>,
 ) -> Result<rustls::ClientConfig> {
+    client_config(key_pair, peer_id, CIPHER_SUITES)
+}
+
+/// Returns a TLS client configuration for QUIC.
+#[cfg(feature = "quic")]
+pub fn quic_client_config(
+    key_pair: &KeyPair,
+    peer_id: Option<PeerID>,
+) -> Result<rustls::ClientConfig> {
+    client_config(key_pair, peer_id, QUIC_CIPHER_SUITES)
+}
+
+/// Returns a TLS server configuration.
+pub fn tls_server_config(key_pair: &KeyPair) -> Result<rustls::ServerConfig> {
+    server_config(key_pair, CIPHER_SUITES)
+}
+
+/// Returns a TLS server configuration for QUIC.
+#[cfg(feature = "quic")]
+pub fn quic_server_config(key_pair: &KeyPair) -> Result<rustls::ServerConfig> {
+    server_config(key_pair, QUIC_CIPHER_SUITES)
+}
+
+fn client_config(
+    key_pair: &KeyPair,
+    peer_id: Option<PeerID>,
+    cipher_suites: &[SupportedCipherSuite],
+) -> Result<rustls::ClientConfig> {
     let (cert, private_key) = generate_cert(key_pair)?;
     let server_verifier = SrvrCertVerifier { peer_id };
 
     let client_config = rustls::ClientConfig::builder_with_provider(
         CryptoProvider {
             kx_groups: KX_GROUPS.to_vec(),
-            cipher_suites: CIPHER_SUITES.to_vec(),
+            cipher_suites: cipher_suites.to_vec(),
             ..aws_lc_rs::default_provider()
         }
         .into(),
@@ -66,14 +102,16 @@ pub fn tls_client_config(
     Ok(client_config)
 }
 
-/// Returns a TLS server configuration.
-pub fn tls_server_config(key_pair: &KeyPair) -> Result<rustls::ServerConfig> {
+fn server_config(
+    key_pair: &KeyPair,
+    cipher_suites: &[SupportedCipherSuite],
+) -> Result<rustls::ServerConfig> {
     let (cert, private_key) = generate_cert(key_pair)?;
     let client_verifier = CliCertVerifier {};
     let server_config = rustls::ServerConfig::builder_with_provider(
         CryptoProvider {
             kx_groups: KX_GROUPS.to_vec(),
-            cipher_suites: CIPHER_SUITES.to_vec(),
+            cipher_suites: cipher_suites.to_vec(),
             ..aws_lc_rs::default_provider()
         }
         .into(),

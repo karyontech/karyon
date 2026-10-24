@@ -73,6 +73,9 @@ impl StreamListener {
 #[cfg(feature = "quic")]
 use karyon_net::{quic, StreamMux};
 
+#[cfg(feature = "quic")]
+use crate::tls_config::quic_server_config;
+
 /// Creates inbound connections with other peers. Generic over the
 /// codec applied to the framed accepted streams so the same accept
 /// machinery serves the peer data-plane (`PeerNetMsgCodec`) and the
@@ -412,7 +415,7 @@ impl Listener<PeerNetMsgCodec> {
     /// QUIC listener.
     #[cfg(feature = "quic")]
     async fn start_quic(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
-        let rustls_config = tls_server_config(&self.key_pair)?;
+        let rustls_config = quic_server_config(&self.key_pair)?;
         let server_config = quic::ServerQuicConfig::from_rustls(rustls_config);
 
         let quic_endpoint = match quic::QuicEndpoint::listen(&endpoint, server_config).await {
