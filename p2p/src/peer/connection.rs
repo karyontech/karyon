@@ -49,7 +49,7 @@ pub(crate) async fn from_queued(
     negotiated: &HashSet<ProtocolID>,
     proto_ids: impl IntoIterator<Item = ProtocolID> + Clone,
     task_group: &TaskGroup,
-    stop_chan: Sender<Result<()>>,
+    stop_reason_tx: Sender<Result<()>>,
 ) -> Result<Arc<dyn Wire>> {
     #[cfg(feature = "quic")]
     if queued.quic_conn.is_some() {
@@ -58,7 +58,7 @@ pub(crate) async fn from_queued(
     }
 
     let _ = negotiated;
-    let conn = SingleConnection::from_queued(queued, proto_ids, task_group, stop_chan);
+    let conn = SingleConnection::from_queued(queued, proto_ids, task_group, stop_reason_tx);
     Ok(Arc::new(conn))
 }
 
@@ -75,13 +75,18 @@ impl SingleConnection {
         queued: QueuedConn,
         proto_ids: impl IntoIterator<Item = ProtocolID>,
         task_group: &TaskGroup,
-        stop_chan: Sender<Result<()>>,
+        stop_reason_tx: Sender<Result<()>>,
     ) -> Self {
         let send_queue = AsyncQueue::new(SEND_QUEUE_SIZE);
         let recv_queues = build_recv_queues(proto_ids);
 
         spawn_writer_task(task_group, queued.writer, send_queue.clone());
-        spawn_demux_reader(task_group, queued.reader, recv_queues.clone(), stop_chan);
+        spawn_demux_reader(
+            task_group,
+            queued.reader,
+            recv_queues.clone(),
+            stop_reason_tx,
+        );
 
         Self {
             send_queue,
@@ -230,12 +235,12 @@ fn spawn_writer_task(
 
 /// Spawn the single-pipe reader task. Reads `PeerNetMsg`s, routes
 /// `Protocol` payloads into the matching recv queue, signals the peer
-/// via `stop_chan` on Shutdown / error.
+/// via `stop_reason_tx` on Shutdown / error.
 fn spawn_demux_reader(
     task_group: &TaskGroup,
     mut reader: FramedReader<PeerNetMsgCodec>,
     recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
-    stop_chan: Sender<Result<()>>,
+    stop_reason_tx: Sender<Result<()>>,
 ) {
     task_group.spawn_then(
         async move {
@@ -243,7 +248,7 @@ fn spawn_demux_reader(
                 let msg = match reader.recv_msg().await {
                     Ok(m) => m,
                     Err(e) => {
-                        let _ = stop_chan.try_send(Err(e.into()));
+                        let _ = stop_reason_tx.try_send(Err(e.into()));
                         break;
                     }
                 };
@@ -252,7 +257,7 @@ fn spawn_demux_reader(
                         let proto_msg: ProtocolMsg = match decode(&msg.payload) {
                             Ok((m, _)) => m,
                             Err(e) => {
-                                let _ = stop_chan.try_send(Err(e));
+                                let _ = stop_reason_tx.try_send(Err(e));
                                 break;
                             }
                         };
@@ -266,11 +271,11 @@ fn spawn_demux_reader(
                         }
                     }
                     PeerNetCmd::Shutdown => {
-                        let _ = stop_chan.try_send(Err(Error::PeerShutdown));
+                        let _ = stop_reason_tx.try_send(Err(Error::PeerShutdown));
                         break;
                     }
                     command => {
-                        let _ = stop_chan.try_send(Err(Error::InvalidMsg(format!(
+                        let _ = stop_reason_tx.try_send(Err(Error::InvalidMsg(format!(
                             "Unexpected msg {command:?}"
                         ))));
                         break;

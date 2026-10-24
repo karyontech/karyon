@@ -37,10 +37,15 @@ pub struct Peer {
     remote_endpoint: Endpoint,
 
     connection: Arc<dyn Wire>,
-    disconnect_signal: Sender<Result<()>>,
+    /// Wakes the `ConnQueue::handle` call that queued this connection, so
+    /// the listener/connector task waiting on it can end.
+    conn_closed_tx: Sender<Result<()>>,
 
     negotiated_protocols: HashSet<ProtocolID>,
-    stop_chan: (Sender<Result<()>>, Receiver<Result<()>>),
+    /// Peer tasks send the reason the peer must stop. `run` waits on
+    /// `stop_reason_rx` and returns it.
+    stop_reason_tx: Sender<Result<()>>,
+    stop_reason_rx: Receiver<Result<()>>,
     config: Arc<Config>,
     executor: Executor,
     task_group: TaskGroup,
@@ -57,18 +62,18 @@ impl Peer {
         let config = peer_pool.config.clone();
         let executor = peer_pool.executor.clone();
         let task_group = TaskGroup::with_executor(executor.clone());
-        let stop_chan = async_channel::bounded::<Result<()>>(1);
+        let (stop_reason_tx, stop_reason_rx) = async_channel::bounded::<Result<()>>(1);
 
         let remote_endpoint = queued.remote_endpoint.clone();
         let direction = queued.direction.clone();
-        let disconnect_signal = queued.disconnect_signal.clone();
+        let conn_closed_tx = queued.conn_closed_tx.clone();
 
         let connection = connection::from_queued(
             queued,
             &negotiated_protocols,
             protocol_ids,
             &task_group,
-            stop_chan.0.clone(),
+            stop_reason_tx.clone(),
         )
         .await?;
 
@@ -79,9 +84,10 @@ impl Peer {
             direction,
             remote_endpoint,
             connection,
-            disconnect_signal,
+            conn_closed_tx,
             negotiated_protocols,
-            stop_chan,
+            stop_reason_tx,
+            stop_reason_rx,
             config,
             executor,
             task_group,
@@ -130,17 +136,17 @@ impl Peer {
 
     pub(crate) async fn run(self: Arc<Self>) -> Result<()> {
         self.run_connect_protocols().await;
-        let stop_signal = self.stop_chan.1.recv().await?;
-        stop_signal
+        let stop_reason = self.stop_reason_rx.recv().await?;
+        stop_reason
     }
 
     pub(crate) async fn shutdown(self: &Arc<Self>) -> Result<()> {
         trace!("peer {} shutting down", self.id);
 
         let _ = self.connection.shutdown().await;
-        let _ = self.stop_chan.0.try_send(Ok(()));
+        let _ = self.stop_reason_tx.try_send(Ok(()));
 
-        let _ = self.disconnect_signal.send(Ok(())).await;
+        let _ = self.conn_closed_tx.send(Ok(())).await;
         self.task_group.cancel().await;
         Ok(())
     }
@@ -164,7 +170,7 @@ impl Peer {
                         if res.is_err() {
                             error!("protocol {proto_id} stopped");
                         }
-                        let _ = this.stop_chan.0.try_send(res);
+                        let _ = this.stop_reason_tx.try_send(res);
                     }
                 }
             };
