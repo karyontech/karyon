@@ -1509,7 +1509,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_core"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "async-channel 2.5.0",
  "async-process",
@@ -1555,7 +1555,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_jsonrpc"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "async-tungstenite",
  "bincode",
@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1650,7 +1650,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_stun"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "karyon_core",
  "karyon_net",
@@ -1663,7 +1663,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_swarm"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "async-trait",
  "bincode",

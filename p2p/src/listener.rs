@@ -3,7 +3,7 @@ use std::{future::Future, marker::PhantomData, sync::Arc, time::Duration};
 use log::{debug, error, info};
 
 use karyon_core::{
-    async_runtime::Executor,
+    async_runtime::{lock::Semaphore, Executor},
     async_util::{timeout, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
@@ -21,7 +21,6 @@ use crate::{
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
     peer::ConnDirection,
-    slots::ConnectionSlots,
     tls_config::{peer_id_from_certs, tls_server_config},
     Error, PeerID, Result,
 };
@@ -81,7 +80,7 @@ use karyon_net::{quic, StreamMux};
 pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     key_pair: KeyPair,
     task_group: TaskGroup,
-    connection_slots: Arc<ConnectionSlots>,
+    connection_slots: Semaphore,
     conn_queue: Option<Arc<ConnQueue>>,
     monitor: Arc<Monitor>,
     handshake_timeout: Duration,
@@ -97,7 +96,7 @@ where
     /// `handshake_timeout` is in seconds.
     pub fn new(
         key_pair: &KeyPair,
-        connection_slots: Arc<ConnectionSlots>,
+        slots: usize,
         monitor: Arc<Monitor>,
         handshake_timeout: u64,
         access_control: Arc<dyn AccessControl>,
@@ -105,7 +104,7 @@ where
     ) -> Arc<Self> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
-            connection_slots,
+            connection_slots: Semaphore::new(slots),
             conn_queue: None,
             task_group: TaskGroup::with_executor(ex),
             monitor,
@@ -187,7 +186,14 @@ where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
         loop {
-            self.connection_slots.wait_for_slot().await;
+            // Released on `continue` or when the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             let stream = match listener.accept().await {
                 Ok(s) => s,
@@ -219,9 +225,6 @@ where
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
-            // Counted here so `wait_for_slot` keeps throttling. The task
-            // releases it again, including when the handshake fails.
-            self.connection_slots.add();
 
             let on_disconnect = {
                 let this = self.clone();
@@ -232,7 +235,7 @@ where
                     this.monitor
                         .notify(ConnectionKind::Disconnected(endpoint))
                         .await;
-                    this.connection_slots.remove().await;
+                    drop(slot);
                 }
             };
 
@@ -279,7 +282,7 @@ impl Listener<PeerNetMsgCodec> {
     /// `handshake_timeout` is in seconds.
     pub fn new_with_queue(
         key_pair: &KeyPair,
-        connection_slots: Arc<ConnectionSlots>,
+        slots: usize,
         conn_queue: Arc<ConnQueue>,
         monitor: Arc<Monitor>,
         handshake_timeout: u64,
@@ -288,7 +291,7 @@ impl Listener<PeerNetMsgCodec> {
     ) -> Arc<Self> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
-            connection_slots,
+            connection_slots: Semaphore::new(slots),
             conn_queue: Some(conn_queue),
             task_group: TaskGroup::with_executor(ex),
             monitor,
@@ -340,7 +343,14 @@ impl Listener<PeerNetMsgCodec> {
             .clone();
 
         loop {
-            self.connection_slots.wait_for_slot().await;
+            // Released on `continue` or when the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             let stream = match listener.accept().await {
                 Ok(s) => s,
@@ -372,8 +382,6 @@ impl Listener<PeerNetMsgCodec> {
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
 
-            self.connection_slots.add();
-
             let on_disconnect = {
                 let this = self.clone();
                 |res: TaskResult<Result<()>>| async move {
@@ -383,7 +391,7 @@ impl Listener<PeerNetMsgCodec> {
                     this.monitor
                         .notify(ConnectionKind::Disconnected(endpoint))
                         .await;
-                    this.connection_slots.remove().await;
+                    drop(slot);
                 }
             };
 
@@ -443,7 +451,14 @@ impl Listener<PeerNetMsgCodec> {
     #[cfg(feature = "quic")]
     async fn listen_loop_quic(self: Arc<Self>, quic_endpoint: quic::QuicEndpoint) {
         loop {
-            self.connection_slots.wait_for_slot().await;
+            // Released on `continue` or when the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             // Only the accept runs here. The handshake and the wait for
             // the peer's first stream both happen in the spawned task,
@@ -471,8 +486,6 @@ impl Listener<PeerNetMsgCodec> {
                 .notify(ConnectionKind::Accepted(peer_ep.clone()))
                 .await;
 
-            self.connection_slots.add();
-
             let on_disconnect = {
                 let this = self.clone();
                 |res: TaskResult<Result<()>>| async move {
@@ -482,7 +495,7 @@ impl Listener<PeerNetMsgCodec> {
                     this.monitor
                         .notify(ConnectionKind::Disconnected(peer_ep))
                         .await;
-                    this.connection_slots.remove().await;
+                    drop(slot);
                 }
             };
 

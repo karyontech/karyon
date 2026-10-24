@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.2 karyon_core
+
+### Added
+
+- **`Semaphore`** (`karyon_core::async_runtime::lock`): async counting
+  semaphore for both smol and tokio. `acquire()` returns a `SemaphoreGuard`
+  that releases the permit on drop and can be moved into other tasks.
+- **`Error::TokioAcquireError`** (`karyon_core`, tokio only): returned by
+  `Semaphore::acquire` if the underlying tokio semaphore is closed.
+
+## 1.1.2 karyon_p2p, karyon_swarm
+
+### Fixes
+
+- **Connection slot limits** (`karyon_p2p`): `inbound_slots`,
+  `outbound_slots`, `lookup_inbound_slots` and `lookup_outbound_slots` are
+  now strictly enforced. Concurrent dials or accepts could exceed them before.
+
 ## 1.0.2 karyon_jsonrpc
 
 ### Added
