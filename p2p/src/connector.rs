@@ -14,9 +14,9 @@ use karyon_net::{codec::Codec, framed, tcp, ByteBuffer, ClientLayer, Endpoint, F
 
 use crate::{
     codec::PeerNetMsgCodec,
+    conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
-    peer::ConnDirection,
     tls_config::{peer_id_from_certs, tls_client_config},
     Error, PeerID, Result,
 };

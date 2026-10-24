@@ -3,6 +3,7 @@
 mod access_control;
 mod codec;
 mod config;
+mod conn_direction;
 mod conn_queue;
 mod connector;
 mod discovery;
@@ -29,10 +30,11 @@ pub mod protocol;
 
 pub use access_control::{AccessControl, Action, AllowAll, PeerCandidate, Subject};
 pub use config::Config;
+pub use conn_direction::ConnDirection;
 pub use discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery};
 pub use message::{PeerAddr, Protocol};
 pub use node::Node;
-pub use peer::{ConnDirection, Peer, PeerID};
+pub use peer::{Peer, PeerID};
 pub use peer_pool::{PeerEvent, PeerEventListener, PeerPool};
 pub use version::Version;
 
