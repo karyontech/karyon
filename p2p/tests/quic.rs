@@ -2,17 +2,26 @@
 
 mod shared;
 
-use std::time::Duration;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
+use async_channel::Sender;
+use async_trait::async_trait;
+
+use karyon_core::async_runtime::Executor;
 use karyon_core::async_util::sleep;
-use karyon_core::testing::run_test;
+use karyon_core::testing::{run_test, run_test_with_executor};
 use karyon_net::{
     quic::{self, ClientQuicConfig, ServerQuicConfig},
     Endpoint,
 };
+use karyon_p2p::{
+    monitor::PeerPoolEvent,
+    protocol::{PeerConn, Protocol, ProtocolID},
+    Config, Error, Node, Version,
+};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-use shared::generate_test_certs;
+use shared::{create_node, fast_config, free_port, generate_test_certs};
 
 fn test_quic_configs() -> (ServerQuicConfig, ClientQuicConfig) {
     let (cert_chain, private_key): (Vec<CertificateDer>, std::sync::Arc<PrivateKeyDer>) =
@@ -236,5 +245,263 @@ fn aggressive_load() {
         }
 
         let _ = server.await;
+    });
+}
+
+// -- Node over QUIC ----------------------------------------------------------
+
+fn quic_ep(port: u16) -> Endpoint {
+    format!("quic://127.0.0.1:{port}").parse().unwrap()
+}
+
+/// Node listening on QUIC at `port`, with TCP/UDP discovery on a free port.
+fn quic_listener(port: u16, ex: Executor) -> Arc<Node> {
+    let discovery_port = free_port();
+    create_node(
+        Config {
+            listen_endpoints: vec![quic_ep(port)],
+            discovery_endpoints: vec![
+                format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
+                format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
+            ],
+            ..fast_config()
+        },
+        ex,
+    )
+}
+
+/// Node that only dials `port` over QUIC.
+fn quic_dialer(port: u16, ex: Executor) -> Arc<Node> {
+    create_node(
+        Config {
+            dial_peers: vec![quic_ep(port)],
+            ..fast_config()
+        },
+        ex,
+    )
+}
+
+/// Received messages, tagged with the protocol they arrived on.
+type Inbox = Sender<(ProtocolID, Vec<u8>)>;
+
+/// Sends the protocol id as a greeting, then reports every message it
+/// receives to `inbox` until the peer shuts down.
+async fn greet_and_report(peer: &PeerConn, id: ProtocolID, inbox: &Inbox) -> Result<(), Error> {
+    peer.send(id.as_bytes().to_vec()).await?;
+    loop {
+        match peer.recv().await {
+            Ok(msg) => {
+                let _ = inbox.send((id.clone(), msg)).await;
+            }
+            Err(Error::PeerShutdown) => return Ok(()),
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+struct AlphaProtocol {
+    peer: PeerConn,
+    inbox: Inbox,
+}
+
+#[async_trait]
+impl Protocol for AlphaProtocol {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        greet_and_report(&self.peer, Self::id(), &self.inbox).await
+    }
+
+    fn version() -> Result<Version, Error> {
+        "0.1.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        "Alpha".into()
+    }
+}
+
+struct BetaProtocol {
+    peer: PeerConn,
+    inbox: Inbox,
+}
+
+#[async_trait]
+impl Protocol for BetaProtocol {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        greet_and_report(&self.peer, Self::id(), &self.inbox).await
+    }
+
+    fn version() -> Result<Version, Error> {
+        "0.1.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        "Beta".into()
+    }
+}
+
+/// Attach both test protocols to `node`, reporting into `inbox`.
+async fn attach_test_protocols(node: &Node, inbox: Inbox) {
+    let tx = inbox.clone();
+    node.attach_protocol(move |peer| AlphaProtocol {
+        peer,
+        inbox: tx.clone(),
+    })
+    .await
+    .unwrap();
+    node.attach_protocol(move |peer| BetaProtocol {
+        peer,
+        inbox: inbox.clone(),
+    })
+    .await
+    .unwrap();
+}
+
+#[test]
+fn node_two_nodes_direct_connect() {
+    run_test_with_executor(30, |ex| async move {
+        let listen_port = free_port();
+
+        let node_a = quic_listener(listen_port, ex.clone());
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        let node_b = quic_dialer(listen_port, ex.clone());
+        let pool_b = node_b.monitor().register::<PeerPoolEvent>();
+        node_b.run().await.expect("node_b run");
+
+        let ev_a = pool_a.recv().await.unwrap();
+        assert_eq!(ev_a.event, "NewPeer");
+
+        let ev_b = pool_b.recv().await.unwrap();
+        assert_eq!(ev_b.event, "NewPeer");
+
+        assert_eq!(node_a.peers().await, 1);
+        assert_eq!(node_b.peers().await, 1);
+        assert_eq!(node_a.inbound_peers().await.len(), 1);
+        assert_eq!(node_b.outbound_peers().await.len(), 1);
+
+        node_b.shutdown().await;
+        node_a.shutdown().await;
+    });
+}
+
+#[test]
+fn node_protocol_messages() {
+    run_test_with_executor(30, |ex| async move {
+        let listen_port = free_port();
+
+        let node_a = quic_listener(listen_port, ex.clone());
+        let (inbox_a, received_a) = async_channel::unbounded();
+        attach_test_protocols(&node_a, inbox_a).await;
+        node_a.run().await.expect("node_a run");
+
+        let node_b = quic_dialer(listen_port, ex.clone());
+        let (inbox_b, received_b) = async_channel::unbounded();
+        attach_test_protocols(&node_b, inbox_b).await;
+        node_b.run().await.expect("node_b run");
+
+        // Each side gets the other's greeting on each protocol's own stream.
+        let expected: HashSet<(ProtocolID, Vec<u8>)> = [
+            ("Alpha".to_string(), b"Alpha".to_vec()),
+            ("Beta".to_string(), b"Beta".to_vec()),
+        ]
+        .into();
+        for received in [received_a, received_b] {
+            let mut got = HashSet::new();
+            while got.len() < expected.len() {
+                got.insert(received.recv().await.unwrap());
+            }
+            assert_eq!(got, expected);
+        }
+
+        node_b.shutdown().await;
+        node_a.shutdown().await;
+    });
+}
+
+#[test]
+fn node_peer_disconnect_detection() {
+    run_test_with_executor(30, |ex| async move {
+        let listen_port = free_port();
+
+        let node_a = quic_listener(listen_port, ex.clone());
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        let node_b = quic_dialer(listen_port, ex.clone());
+        node_b.run().await.expect("node_b run");
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+        assert_eq!(node_a.peers().await, 1);
+
+        node_b.shutdown().await;
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "RemovePeer" {
+                break;
+            }
+        }
+
+        assert_eq!(node_a.peers().await, 0);
+        node_a.shutdown().await;
+    });
+}
+
+#[test]
+fn node_multiple_peers_connect() {
+    run_test_with_executor(60, |ex| async move {
+        let listen_port = free_port();
+
+        let server = quic_listener(listen_port, ex.clone());
+        let pool_server = server.monitor().register::<PeerPoolEvent>();
+        server.run().await.expect("server run");
+
+        let mut clients = Vec::new();
+        for i in 0..3 {
+            let client = quic_dialer(listen_port, ex.clone());
+            let pool_client = client.monitor().register::<PeerPoolEvent>();
+            client.run().await.expect("client run");
+
+            loop {
+                let ev = pool_client.recv().await.unwrap();
+                if ev.event == "NewPeer" {
+                    break;
+                }
+            }
+            assert_eq!(client.peers().await, 1, "client {i} should have 1 peer");
+            clients.push(client);
+        }
+
+        let mut new_peers = 0;
+        while new_peers < 3 {
+            let ev = pool_server.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                new_peers += 1;
+            }
+        }
+
+        assert_eq!(server.peers().await, 3);
+        assert_eq!(server.inbound_peers().await.len(), 3);
+
+        for client in &clients {
+            client.shutdown().await;
+        }
+
+        let mut removed = 0;
+        while removed < 3 {
+            let ev = pool_server.recv().await.unwrap();
+            if ev.event == "RemovePeer" {
+                removed += 1;
+            }
+        }
+
+        assert_eq!(server.peers().await, 0);
+        server.shutdown().await;
     });
 }

@@ -24,6 +24,9 @@ use crate::{
 #[cfg(feature = "quic")]
 use karyon_net::{quic, StreamMux};
 
+#[cfg(feature = "quic")]
+use crate::tls_config::quic_client_config;
+
 static DNS_NAME: &str = "karyontech.net";
 
 /// Internal dial result. Generic over the codec used to frame the
@@ -161,7 +164,7 @@ where
             }
             #[cfg(feature = "quic")]
             Endpoint::Quic(..) => {
-                let rustls_config = tls_client_config(&self.key_pair, peer_id.clone())?;
+                let rustls_config = quic_client_config(&self.key_pair, peer_id.clone())?;
                 let client_config = quic::ClientQuicConfig::from_rustls(rustls_config, DNS_NAME);
                 let quic_conn = quic::QuicEndpoint::dial(endpoint, client_config).await?;
 
