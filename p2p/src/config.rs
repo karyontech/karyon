@@ -144,7 +144,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: "0.1.0".parse().unwrap(),
+            version: "0.2.0".parse().unwrap(),
 
             enable_monitor: false,
             access_control: Arc::new(AllowAll),
