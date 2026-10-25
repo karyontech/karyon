@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_channel::Sender;
 use async_trait::async_trait;
-use log::{debug, error};
+use log::debug;
 
 use karyon_core::async_util::{AsyncQueue, TaskGroup, TaskResult};
 use karyon_net::{FramedReader, FramedWriter};
@@ -44,21 +44,22 @@ pub(crate) trait Wire: Send + Sync {
 
 /// Build the right `Wire` for the post-handshake `QueuedConn`.
 /// Picks `MuxConnection` when QUIC is in use, `SingleConnection` otherwise.
+/// Only negotiated protocols get a recv queue, so a message for any other
+/// protocol is a protocol violation.
 pub(crate) async fn from_queued(
     queued: QueuedConn,
     negotiated: &HashSet<ProtocolID>,
-    proto_ids: impl IntoIterator<Item = ProtocolID> + Clone,
     task_group: &TaskGroup,
     stop_reason_tx: Sender<Result<()>>,
 ) -> Result<Arc<dyn Wire>> {
     #[cfg(feature = "quic")]
     if queued.quic_conn.is_some() {
-        let conn = MuxConnection::from_queued(queued, negotiated, proto_ids, task_group).await?;
+        let conn =
+            MuxConnection::from_queued(queued, negotiated, task_group, stop_reason_tx).await?;
         return Ok(Arc::new(conn) as Arc<dyn Wire>);
     }
 
-    let _ = negotiated;
-    let conn = SingleConnection::from_queued(queued, proto_ids, task_group, stop_reason_tx);
+    let conn = SingleConnection::from_queued(queued, negotiated, task_group, stop_reason_tx);
     Ok(Arc::new(conn))
 }
 
@@ -73,12 +74,12 @@ impl SingleConnection {
     /// Spawn the writer + demux reader and return the connection.
     pub(crate) fn from_queued(
         queued: QueuedConn,
-        proto_ids: impl IntoIterator<Item = ProtocolID>,
+        negotiated: &HashSet<ProtocolID>,
         task_group: &TaskGroup,
         stop_reason_tx: Sender<Result<()>>,
     ) -> Self {
         let send_queue = AsyncQueue::new(SEND_QUEUE_SIZE);
-        let recv_queues = build_recv_queues(proto_ids);
+        let recv_queues = build_recv_queues(negotiated);
 
         spawn_writer_task(task_group, queued.writer, send_queue.clone());
         spawn_demux_reader(
@@ -138,14 +139,14 @@ impl MuxConnection {
     pub(crate) async fn from_queued(
         queued: QueuedConn,
         negotiated: &HashSet<ProtocolID>,
-        proto_ids: impl IntoIterator<Item = ProtocolID>,
         task_group: &TaskGroup,
+        stop_reason_tx: Sender<Result<()>>,
     ) -> Result<Self> {
         let quic_conn = queued
             .quic_conn
             .ok_or_else(|| Error::InvalidMsg("MuxConnection requires a QUIC conn".into()))?;
 
-        let recv_queues = build_recv_queues(proto_ids);
+        let recv_queues = build_recv_queues(negotiated);
         let (send_queues, streams) =
             setup_quic_streams(&quic_conn, &queued.direction, negotiated).await?;
 
@@ -159,7 +160,7 @@ impl MuxConnection {
                 .expect("recv queue installed in build_recv_queues")
                 .clone();
             spawn_writer_task(task_group, stream.writer, q_send);
-            spawn_quic_reader(task_group, stream.proto_id, stream.reader, q_recv);
+            spawn_quic_reader(task_group, stream.reader, q_recv, stop_reason_tx.clone());
         }
 
         Ok(Self {
@@ -266,7 +267,11 @@ fn spawn_demux_reader(
                                 q.push(ProtocolEvent::Message(proto_msg.payload)).await;
                             }
                             None => {
-                                error!("No recv queue for protocol {}", proto_msg.protocol_id);
+                                // Not negotiated with this peer.
+                                let id = proto_msg.protocol_id;
+                                let _ =
+                                    stop_reason_tx.try_send(Err(Error::UnsupportedProtocol(id)));
+                                break;
                             }
                         }
                     }
@@ -291,31 +296,47 @@ fn spawn_demux_reader(
 }
 
 /// Spawn a per-stream QUIC reader task. The stream is already keyed
-/// by protocol id, so messages go straight into `recv_queue`.
+/// by protocol id, so messages go straight into `recv_queue`. Signals
+/// the peer via `stop_reason_tx` on Shutdown / error, like the TCP reader.
 #[cfg(feature = "quic")]
 fn spawn_quic_reader(
     task_group: &TaskGroup,
-    proto_id: ProtocolID,
     mut reader: FramedReader<PeerNetMsgCodec>,
     recv_queue: Arc<AsyncQueue<ProtocolEvent>>,
+    stop_reason_tx: Sender<Result<()>>,
 ) {
     task_group.spawn_then(
         async move {
             loop {
                 let msg = match reader.recv_msg().await {
                     Ok(m) => m,
-                    Err(_) => break,
+                    Err(e) => {
+                        let _ = stop_reason_tx.try_send(Err(e.into()));
+                        break;
+                    }
                 };
                 match msg.header.command {
                     PeerNetCmd::Protocol => {
-                        let proto_msg: ProtocolMsg = decode(&msg.payload)?.0;
+                        let proto_msg: ProtocolMsg = match decode(&msg.payload) {
+                            Ok((m, _)) => m,
+                            Err(e) => {
+                                let _ = stop_reason_tx.try_send(Err(e));
+                                break;
+                            }
+                        };
                         recv_queue
                             .push(ProtocolEvent::Message(proto_msg.payload))
                             .await;
                     }
-                    PeerNetCmd::Shutdown => break,
-                    cmd => {
-                        error!("Unexpected msg on QUIC stream {proto_id}: {cmd:?}");
+                    PeerNetCmd::Shutdown => {
+                        let _ = stop_reason_tx.try_send(Err(Error::PeerShutdown));
+                        break;
+                    }
+                    command => {
+                        let _ = stop_reason_tx.try_send(Err(Error::InvalidMsg(format!(
+                            "Unexpected msg {command:?}"
+                        ))));
+                        break;
                     }
                 }
             }
@@ -385,9 +406,9 @@ async fn setup_quic_streams(
 
                 let (init, _): (StreamInit, _) = decode(&header_buf)?;
 
+                // Both sides negotiated the same set, so this is a violation.
                 if !negotiated.contains(&init.protocol_id) {
-                    error!("Unsupported protocol: {}", init.protocol_id);
-                    continue;
+                    return Err(Error::UnsupportedProtocol(init.protocol_id));
                 }
 
                 let conn = framed(stream, PeerNetMsgCodec::new());
@@ -411,11 +432,11 @@ async fn setup_quic_streams(
 
 /// One bounded recv queue per protocol id.
 fn build_recv_queues(
-    proto_ids: impl IntoIterator<Item = ProtocolID>,
+    proto_ids: &HashSet<ProtocolID>,
 ) -> HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>> {
     proto_ids
-        .into_iter()
-        .map(|id| (id, AsyncQueue::new(RECV_QUEUE_SIZE)))
+        .iter()
+        .map(|id| (id.clone(), AsyncQueue::new(RECV_QUEUE_SIZE)))
         .collect()
 }
 

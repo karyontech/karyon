@@ -17,7 +17,6 @@ use karyon_net::Endpoint;
 use crate::{
     access_control::{Action, PeerCandidate, Subject},
     config::Config,
-    conn_direction::ConnDirection,
     conn_queue::{ConnQueue, QueuedConn},
     handshake::{handshake, HandshakeParams},
     monitor::{Monitor, PoolEvent},
@@ -244,7 +243,6 @@ impl PeerPool {
 
             let params = HandshakeParams {
                 own_id: &self.id,
-                is_inbound: matches!(queued.direction, ConnDirection::Inbound),
                 config_version: &self.config.version,
                 protocols: &meta,
                 timeout_secs: self.config.handshake_timeout,
@@ -293,8 +291,12 @@ impl PeerPool {
                 continue;
             }
 
+            // Wake the task waiting in `ConnQueue::handle`, or it keeps
+            // its connection slot forever.
+            let conn_closed_tx = queued.conn_closed_tx.clone();
             if let Err(err) = self.new_peer(queued, pid, negotiated).await {
                 error!("new_peer failed: {err}");
+                let _ = conn_closed_tx.send(Err(err)).await;
             }
         }
     }
@@ -310,17 +312,12 @@ impl PeerPool {
             self.monitor
                 .notify(PoolEvent::PeerAlreadyConnected(pid.clone()))
                 .await;
-            let _ = queued
-                .conn_closed_tx
-                .send(Err(Error::PeerAlreadyConnected))
-                .await;
             return Err(Error::PeerAlreadyConnected);
         }
 
-        let protocol_ids: Vec<ProtocolID> = self.protocols.read().await.keys().cloned().collect();
         let negotiated: HashSet<ProtocolID> = negotiated.into_iter().collect();
 
-        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated, protocol_ids).await?;
+        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated).await?;
 
         self.peers.write().await.insert(pid.clone(), peer.clone());
 
