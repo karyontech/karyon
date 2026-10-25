@@ -255,7 +255,7 @@ fn quic_ep(port: u16) -> Endpoint {
 }
 
 /// Node listening on QUIC at `port`, with TCP/UDP discovery on a free port.
-fn quic_listener(port: u16, ex: Executor) -> Arc<Node> {
+fn quic_listener(port: u16, config: Config, ex: Executor) -> Arc<Node> {
     let discovery_port = free_port();
     create_node(
         Config {
@@ -264,21 +264,29 @@ fn quic_listener(port: u16, ex: Executor) -> Arc<Node> {
                 format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
                 format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
             ],
-            ..fast_config()
+            ..config
         },
         ex,
     )
 }
 
 /// Node that only dials `port` over QUIC.
-fn quic_dialer(port: u16, ex: Executor) -> Arc<Node> {
+fn quic_dialer(port: u16, config: Config, ex: Executor) -> Arc<Node> {
     create_node(
         Config {
             dial_peers: vec![quic_ep(port)],
-            ..fast_config()
+            ..config
         },
         ex,
     )
+}
+
+/// Config with ping too slow to detect anything during a test.
+fn no_ping_config() -> Config {
+    Config {
+        ping_interval: 600,
+        ..fast_config()
+    }
 }
 
 /// Received messages, tagged with the protocol they arrived on.
@@ -361,11 +369,11 @@ fn node_two_nodes_direct_connect() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
 
-        let node_a = quic_listener(listen_port, ex.clone());
+        let node_a = quic_listener(listen_port, fast_config(), ex.clone());
         let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         node_a.run().await.expect("node_a run");
 
-        let node_b = quic_dialer(listen_port, ex.clone());
+        let node_b = quic_dialer(listen_port, fast_config(), ex.clone());
         let pool_b = node_b.monitor().register::<PeerPoolEvent>();
         node_b.run().await.expect("node_b run");
 
@@ -390,12 +398,12 @@ fn node_protocol_messages() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
 
-        let node_a = quic_listener(listen_port, ex.clone());
+        let node_a = quic_listener(listen_port, fast_config(), ex.clone());
         let (inbox_a, received_a) = async_channel::unbounded();
         attach_test_protocols(&node_a, inbox_a).await;
         node_a.run().await.expect("node_a run");
 
-        let node_b = quic_dialer(listen_port, ex.clone());
+        let node_b = quic_dialer(listen_port, fast_config(), ex.clone());
         let (inbox_b, received_b) = async_channel::unbounded();
         attach_test_protocols(&node_b, inbox_b).await;
         node_b.run().await.expect("node_b run");
@@ -424,11 +432,11 @@ fn node_peer_disconnect_detection() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
 
-        let node_a = quic_listener(listen_port, ex.clone());
+        let node_a = quic_listener(listen_port, fast_config(), ex.clone());
         let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         node_a.run().await.expect("node_a run");
 
-        let node_b = quic_dialer(listen_port, ex.clone());
+        let node_b = quic_dialer(listen_port, fast_config(), ex.clone());
         node_b.run().await.expect("node_b run");
 
         loop {
@@ -458,13 +466,13 @@ fn node_multiple_peers_connect() {
     run_test_with_executor(60, |ex| async move {
         let listen_port = free_port();
 
-        let server = quic_listener(listen_port, ex.clone());
+        let server = quic_listener(listen_port, fast_config(), ex.clone());
         let pool_server = server.monitor().register::<PeerPoolEvent>();
         server.run().await.expect("server run");
 
         let mut clients = Vec::new();
         for i in 0..3 {
-            let client = quic_dialer(listen_port, ex.clone());
+            let client = quic_dialer(listen_port, fast_config(), ex.clone());
             let pool_client = client.monitor().register::<PeerPoolEvent>();
             client.run().await.expect("client run");
 
@@ -503,5 +511,195 @@ fn node_multiple_peers_connect() {
 
         assert_eq!(server.peers().await, 0);
         server.shutdown().await;
+    });
+}
+
+/// Waits for messages until the peer shuts down.
+async fn idle(peer: &PeerConn) -> Result<(), Error> {
+    loop {
+        match peer.recv().await {
+            Ok(_) => {}
+            Err(Error::PeerShutdown) => return Ok(()),
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// "Stall" protocol at version 1.0.0, accepting only ^1.0.0. Reports on
+/// `started` when it runs.
+struct StallV1 {
+    peer: PeerConn,
+    started: Sender<()>,
+}
+
+#[async_trait]
+impl Protocol for StallV1 {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        let _ = self.started.send(()).await;
+        idle(&self.peer).await
+    }
+
+    fn version() -> Result<Version, Error> {
+        "1.0.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        "Stall".into()
+    }
+}
+
+/// "Stall" protocol at version 2.0.0, accepting >=1.0.0. It accepts
+/// StallV1 but StallV1 does not accept it, so it must not be shared.
+struct StallV2 {
+    peer: PeerConn,
+    started: Sender<()>,
+}
+
+#[async_trait]
+impl Protocol for StallV2 {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        let _ = self.started.send(()).await;
+        idle(&self.peer).await
+    }
+
+    fn version() -> Result<Version, Error> {
+        "2.0.0, >=1.0.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        "Stall".into()
+    }
+}
+
+#[test]
+fn node_disconnect_detected_without_ping() {
+    run_test_with_executor(15, |ex| async move {
+        let listen_port = free_port();
+
+        let node_a = quic_listener(listen_port, no_ping_config(), ex.clone());
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        let node_b = quic_dialer(listen_port, no_ping_config(), ex.clone());
+        node_b.run().await.expect("node_b run");
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+
+        // Ping is off, so only the closed QUIC streams can tell A.
+        node_b.shutdown().await;
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "RemovePeer" {
+                break;
+            }
+        }
+
+        assert_eq!(node_a.peers().await, 0);
+        node_a.shutdown().await;
+    });
+}
+
+#[test]
+fn node_dialer_extra_protocol_not_run() {
+    run_test_with_executor(15, |ex| async move {
+        let listen_port = free_port();
+        let (started, started_rx) = async_channel::unbounded();
+
+        let node_a = quic_listener(listen_port, no_ping_config(), ex.clone());
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        // Only B has "Stall", so B must not open a stream for it.
+        let node_b = quic_dialer(listen_port, no_ping_config(), ex.clone());
+        node_b
+            .attach_protocol(move |peer| StallV1 {
+                peer,
+                started: started.clone(),
+            })
+            .await
+            .unwrap();
+        let pool_b = node_b.monitor().register::<PeerPoolEvent>();
+        node_b.run().await.expect("node_b run");
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+        loop {
+            let ev = pool_b.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+
+        sleep(Duration::from_secs(2)).await;
+        assert!(started_rx.is_empty());
+        assert_eq!(node_a.peers().await, 1);
+        assert_eq!(node_b.peers().await, 1);
+
+        node_b.shutdown().await;
+        node_a.shutdown().await;
+    });
+}
+
+#[test]
+fn node_one_way_version_match_not_shared() {
+    run_test_with_executor(15, |ex| async move {
+        let listen_port = free_port();
+        let (started, started_rx) = async_channel::unbounded();
+
+        // A accepts B's "Stall" version but B does not accept A's, so
+        // neither side may run it.
+        let node_a = quic_listener(listen_port, no_ping_config(), ex.clone());
+        let started_a = started.clone();
+        node_a
+            .attach_protocol(move |peer| StallV2 {
+                peer,
+                started: started_a.clone(),
+            })
+            .await
+            .unwrap();
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        let node_b = quic_dialer(listen_port, no_ping_config(), ex.clone());
+        node_b
+            .attach_protocol(move |peer| StallV1 {
+                peer,
+                started: started.clone(),
+            })
+            .await
+            .unwrap();
+        let pool_b = node_b.monitor().register::<PeerPoolEvent>();
+        node_b.run().await.expect("node_b run");
+
+        loop {
+            let ev = pool_a.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+        loop {
+            let ev = pool_b.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
+
+        sleep(Duration::from_secs(2)).await;
+        assert!(started_rx.is_empty());
+        assert_eq!(node_a.peers().await, 1);
+        assert_eq!(node_b.peers().await, 1);
+
+        node_b.shutdown().await;
+        node_a.shutdown().await;
     });
 }

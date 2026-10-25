@@ -4,6 +4,7 @@ mod peer_id;
 use std::{
     collections::HashSet,
     sync::{Arc, Weak},
+    time::Duration,
 };
 
 use async_channel::{Receiver, Sender};
@@ -11,7 +12,7 @@ use log::{error, trace};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{TaskGroup, TaskResult},
+    async_util::{timeout, TaskGroup, TaskResult},
 };
 
 use crate::{
@@ -57,7 +58,6 @@ impl Peer {
         queued: QueuedConn,
         id: PeerID,
         negotiated_protocols: HashSet<ProtocolID>,
-        protocol_ids: impl IntoIterator<Item = ProtocolID> + Clone,
     ) -> Result<Arc<Self>> {
         let config = peer_pool.config.clone();
         let executor = peer_pool.executor.clone();
@@ -68,14 +68,19 @@ impl Peer {
         let direction = queued.direction.clone();
         let conn_closed_tx = queued.conn_closed_tx.clone();
 
-        let connection = connection::from_queued(
-            queued,
-            &negotiated_protocols,
-            protocol_ids,
-            &task_group,
-            stop_reason_tx.clone(),
+        // QUIC waits here for the remote to open its protocol streams.
+        // Bound it so a peer that never does can not stall the pool.
+        let setup_timeout = Duration::from_secs(config.handshake_timeout);
+        let connection = timeout(
+            setup_timeout,
+            connection::from_queued(
+                queued,
+                &negotiated_protocols,
+                &task_group,
+                stop_reason_tx.clone(),
+            ),
         )
-        .await?;
+        .await??;
 
         let peer_pool_weak = Arc::downgrade(&peer_pool);
         Ok(Arc::new(Peer {
