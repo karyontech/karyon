@@ -15,20 +15,22 @@ use karyon_net::Endpoint;
 
 use crate::{
     client::http::parse_response,
+    codec::{encode_msg, JsonRpcCodec},
     error::{Error, Result},
     message,
 };
 
-pub(super) async fn send(
+pub(super) async fn send<C: JsonRpcCodec>(
     client: &HyperClient<HttpConnector, Full<Bytes>>,
     endpoint: &Endpoint,
     msg: serde_json::Value,
+    codec: &C,
 ) -> Result<message::Response> {
-    let body = serde_json::to_vec(&msg)?;
+    let body = encode_msg(codec, &msg)?;
 
     let req = Request::post(endpoint.to_string())
         .header("Content-Type", "application/json")
-        .body(Full::new(Bytes::from(body)))
+        .body(Full::new(body))
         .map_err(|e| Error::HttpError(e.to_string()))?;
 
     let response = client
@@ -36,5 +38,5 @@ pub(super) async fn send(
         .await
         .map_err(|e| Error::HttpError(e.to_string()))?;
 
-    parse_response(response).await
+    parse_response(response, codec).await
 }

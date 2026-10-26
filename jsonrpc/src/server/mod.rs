@@ -41,6 +41,8 @@ use crate::{
     },
 };
 
+#[cfg(feature = "http")]
+use crate::server::http::{HttpAcceptor, HttpServer};
 #[cfg(feature = "ws")]
 use crate::{codec::JsonRpcWsCodec, server::acceptor::WsAcceptor};
 
@@ -87,7 +89,7 @@ enum ServerBackend {
     #[cfg(feature = "quic")]
     QuicEndpoint(karyon_net::quic::QuicEndpoint),
     #[cfg(feature = "http")]
-    Http(http::HttpServer),
+    Http(Arc<dyn HttpAcceptor>),
 }
 
 /// A JSON-RPC 2.0 server.
@@ -140,7 +142,7 @@ impl Server {
             },
             #[cfg(feature = "http")]
             ServerBackend::Http(http_server) => {
-                http::accept_loop(self.clone(), http_server).await?;
+                http_server.accept_loop(self.clone()).await?;
                 Ok(())
             }
         }
@@ -279,12 +281,12 @@ where
         Endpoint::Http(..) => {
             #[cfg(feature = "http3")]
             let http_server = match config.quic_config.clone() {
-                Some(quic_cfg) => http::HttpServer::new_h3(&endpoint, quic_cfg).await?,
-                None => http::HttpServer::new(&endpoint).await?,
+                Some(quic_cfg) => HttpServer::new_h3(&endpoint, quic_cfg, byte_codec).await?,
+                None => HttpServer::new(&endpoint, byte_codec).await?,
             };
             #[cfg(not(feature = "http3"))]
-            let http_server = http::HttpServer::new(&endpoint).await?;
-            Ok(ServerBackend::Http(http_server))
+            let http_server = HttpServer::new(&endpoint, byte_codec).await?;
+            Ok(ServerBackend::Http(Arc::new(http_server)))
         }
         #[cfg(feature = "quic")]
         Endpoint::Quic(..) => match &config.quic_config {

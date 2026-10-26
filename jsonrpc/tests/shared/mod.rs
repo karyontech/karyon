@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
-use karyon_core::{async_util::sleep, util::random_32};
+use karyon_core::{async_runtime::spawn, async_util::sleep, util::random_32};
 
 use karyon_jsonrpc::{
     error::RPCError, message::SubscriptionID, rpc_impl, rpc_pubsub_impl, server::channel::Channel,
@@ -59,6 +59,31 @@ impl MathService {
         .detach();
 
         Ok(serde_json::json!(sub_id))
+    }
+
+    /// Sends 5 notifications of 64 KB each, back to back.
+    async fn blob_subscribe(
+        &self,
+        chan: Arc<Channel>,
+        method: String,
+        _params: Value,
+    ) -> Result<Value, RPCError> {
+        let sub = chan
+            .new_subscription(&method, Some(random_32()))
+            .await
+            .map_err(|_| RPCError::InvalidRequest("Duplicated subscription".into()))?;
+        let sub_id = sub.id();
+        spawn(async move {
+            for i in 0..5 {
+                let data = "x".repeat(64 * 1024);
+                if sub.notify(json!({"i": i, "data": data})).await.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+
+        Ok(json!(sub_id))
     }
 
     async fn counter_unsubscribe(

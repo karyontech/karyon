@@ -13,16 +13,18 @@ use smol_hyper::rt::FuturesIo;
 
 use crate::{
     client::http::parse_response,
+    codec::{encode_msg, JsonRpcCodec},
     error::{Error, Result},
     message,
 };
 
-pub(super) async fn send(
+pub(super) async fn send<C: JsonRpcCodec>(
     endpoint: &Endpoint,
     msg: serde_json::Value,
     task_group: &TaskGroup,
+    codec: &C,
 ) -> Result<message::Response> {
-    let body = serde_json::to_vec(&msg)?;
+    let body = encode_msg(codec, &msg)?;
 
     // Resolve the endpoint to a SocketAddr (handles both literal IPs
     // and domain names via the system DNS).
@@ -43,7 +45,7 @@ pub(super) async fn send(
 
     let req = Request::post(endpoint.to_string())
         .header("Content-Type", "application/json")
-        .body(Full::new(Bytes::from(body)))
+        .body(Full::new(body))
         .map_err(|e| Error::HttpError(e.to_string()))?;
 
     let response = sender
@@ -51,7 +53,7 @@ pub(super) async fn send(
         .await
         .map_err(|e| Error::HttpError(e.to_string()))?;
 
-    parse_response(response).await
+    parse_response(response, codec).await
 }
 
 async fn driver_task<T>(conn: hyper::client::conn::http1::Connection<T, Full<Bytes>>)

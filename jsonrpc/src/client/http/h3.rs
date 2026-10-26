@@ -3,15 +3,17 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use hyper::{Request, StatusCode};
 use log::debug;
+use serde_json::Value;
 
 use karyon_core::async_util::TaskGroup;
-use karyon_net::Endpoint;
+use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
     client::subscriptions::Subscription,
+    codec::{encode_msg, extend_buf, JsonRpcCodec},
     error::{Error, Result},
     message,
 };
@@ -48,11 +50,50 @@ async fn driver_task(mut driver: h3::client::Connection<h3_quinn::Connection, By
     debug!("H3 client driver closed: {closed}");
 }
 
-pub(super) async fn send(
+/// Reads codec frames from the recv half of an HTTP/3 request stream.
+/// One read may hold part of a frame or several frames.
+pub(crate) struct H3Reader<C> {
+    recv: H3RecvStream,
+    buf: ByteBuffer,
+    codec: C,
+}
+
+impl<C: JsonRpcCodec> H3Reader<C> {
+    /// Next message, or `None` when the stream ends.
+    async fn next(&mut self) -> Result<Option<Value>> {
+        loop {
+            if let Some((n, msg)) = self.codec.decode(&mut self.buf)? {
+                self.buf.advance(n);
+                return Ok(Some(msg));
+            }
+            let chunk = self
+                .recv
+                .recv_data()
+                .await
+                .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?;
+            match chunk {
+                Some(chunk) => extend_buf(&mut self.buf, chunk),
+                None => return Ok(None),
+            }
+        }
+    }
+
+    /// Next message as a JSON-RPC response.
+    async fn next_response(&mut self) -> Result<message::Response> {
+        match self.next().await? {
+            Some(msg) => Ok(serde_json::from_value(msg)?),
+            None => Err(Error::HttpError("H3 stream closed before response".into())),
+        }
+    }
+}
+
+/// Send one request and return a reader for the reply stream.
+async fn request<C: JsonRpcCodec>(
     mut send_request: H3SendRequest,
     msg: serde_json::Value,
-) -> Result<message::Response> {
-    let body = serde_json::to_vec(&msg)?;
+    codec: &C,
+) -> Result<H3Reader<C>> {
+    let body = encode_msg(codec, &msg)?;
 
     // The QUIC connection is already established, so the URI's scheme
     // and authority are only filled in to satisfy `Request::post`'s
@@ -68,7 +109,7 @@ pub(super) async fn send(
         .map_err(|e| Error::HttpError(format!("H3 send: {e}")))?;
 
     stream
-        .send_data(Bytes::from(body))
+        .send_data(body)
         .await
         .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?;
 
@@ -86,81 +127,49 @@ pub(super) async fn send(
         return Err(Error::HttpError(format!("HTTP/3 error: {}", resp.status())));
     }
 
-    let mut resp_body = Vec::new();
-    while let Some(chunk) = stream
-        .recv_data()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?
-    {
-        resp_body.extend_from_slice(Buf::chunk(&chunk));
-    }
+    Ok(H3Reader {
+        recv: stream.split().1,
+        buf: ByteBuffer::new(),
+        codec: codec.clone(),
+    })
+}
 
-    let rpc_response: message::Response = serde_json::from_slice(&resp_body)?;
-    Ok(rpc_response)
+pub(super) async fn send<C: JsonRpcCodec>(
+    send_request: H3SendRequest,
+    msg: serde_json::Value,
+    codec: &C,
+) -> Result<message::Response> {
+    request(send_request, msg, codec)
+        .await?
+        .next_response()
+        .await
 }
 
 /// Subscribe over HTTP/3: send the request, read the initial response,
-/// and return the recv half for streaming notifications.
-pub(super) async fn subscribe(
-    mut send_request: H3SendRequest,
+/// and return the reader for streaming notifications.
+pub(super) async fn subscribe<C: JsonRpcCodec>(
+    send_request: H3SendRequest,
     msg: serde_json::Value,
-) -> Result<(message::Response, H3RecvStream)> {
-    let body = serde_json::to_vec(&msg)?;
-
-    let req = Request::post("https://localhost/")
-        .header("Content-Type", "application/json")
-        .body(())
-        .map_err(|e| Error::HttpError(e.to_string()))?;
-
-    let mut stream = send_request
-        .send_request(req)
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 send: {e}")))?;
-
-    stream
-        .send_data(Bytes::from(body))
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?;
-
-    stream
-        .finish()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 finish: {e}")))?;
-
-    let resp = stream
-        .recv_response()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 recv: {e}")))?;
-
-    if resp.status() != StatusCode::OK {
-        return Err(Error::HttpError(format!("HTTP/3 error: {}", resp.status())));
-    }
-
-    let first = stream
-        .recv_data()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?
-        .ok_or_else(|| Error::HttpError("H3 stream closed before response".into()))?;
-
-    let rpc_response: message::Response = serde_json::from_slice(Buf::chunk(&first))?;
-    let recv_stream = stream.split().1;
-    Ok((rpc_response, recv_stream))
+    codec: &C,
+) -> Result<(message::Response, H3Reader<C>)> {
+    let mut reader = request(send_request, msg, codec).await?;
+    let rpc_response = reader.next_response().await?;
+    Ok((rpc_response, reader))
 }
 
-pub(super) async fn notification_reader_task(
-    recv: H3RecvStream,
+pub(super) async fn notification_reader_task<C: JsonRpcCodec>(
+    reader: H3Reader<C>,
     sub: Arc<Subscription>,
 ) -> Result<()> {
-    read_notifications(recv, &sub).await
+    read_notifications(reader, &sub).await
 }
 
-async fn read_notifications(mut recv: H3RecvStream, sub: &Subscription) -> Result<()> {
-    while let Some(chunk) = recv
-        .recv_data()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 notification: {e}")))?
-    {
-        let nt: message::Notification = match serde_json::from_slice(Buf::chunk(&chunk)) {
+async fn read_notifications<C: JsonRpcCodec>(
+    mut reader: H3Reader<C>,
+    sub: &Subscription,
+) -> Result<()> {
+    while let Some(msg) = reader.next().await? {
+        let nt: message::Notification = match serde_json::from_value(msg) {
             Ok(v) => v,
             Err(_) => continue,
         };

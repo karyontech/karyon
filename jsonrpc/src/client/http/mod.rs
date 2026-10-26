@@ -38,7 +38,7 @@ use karyon_net::Endpoint;
 
 use crate::{
     client::{Client, ClientBackend, ClientConfig, RequestID, WsCodec},
-    codec::JsonRpcCodec,
+    codec::{decode_body, JsonRpcCodec},
     error::{Error, Result},
     message::{self, SubscriptionID},
 };
@@ -106,35 +106,47 @@ impl HttpClientBackend {
     }
 
     /// Send a JSON-RPC request and return the response.
-    pub(crate) async fn send_request(&self, msg: serde_json::Value) -> Result<message::Response> {
+    pub(crate) async fn send_request<C: JsonRpcCodec>(
+        &self,
+        msg: serde_json::Value,
+        codec: &C,
+    ) -> Result<message::Response> {
         let _ = &self.task_group;
         match &self.inner {
             #[cfg(feature = "smol")]
-            HttpTransport::Smol { endpoint } => h1::send(endpoint, msg, &self.task_group).await,
+            HttpTransport::Smol { endpoint } => {
+                h1::send(endpoint, msg, &self.task_group, codec).await
+            }
             #[cfg(feature = "tokio")]
-            HttpTransport::Tokio { endpoint, client } => h2::send(client, endpoint, msg).await,
+            HttpTransport::Tokio { endpoint, client } => {
+                h2::send(client, endpoint, msg, codec).await
+            }
             #[cfg(feature = "http3")]
-            HttpTransport::H3 { send_request } => h3::send(send_request.clone(), msg).await,
+            HttpTransport::H3 { send_request } => h3::send(send_request.clone(), msg, codec).await,
         }
     }
 
     /// Subscribe over HTTP/3. Returns the initial response + recv stream.
     #[cfg(feature = "http3")]
-    pub(crate) async fn subscribe_h3(
+    pub(crate) async fn subscribe_h3<C: JsonRpcCodec>(
         &self,
         msg: serde_json::Value,
-    ) -> Result<(message::Response, h3::H3RecvStream)> {
+        codec: &C,
+    ) -> Result<(message::Response, h3::H3Reader<C>)> {
         let HttpTransport::H3 { send_request } = &self.inner else {
             return Err(Error::UnsupportedProtocol(
                 "subscribe_h3 requires HTTP/3".into(),
             ));
         };
-        h3::subscribe(send_request.clone(), msg).await
+        h3::subscribe(send_request.clone(), msg, codec).await
     }
 }
 
 /// Shared HTTP response parser (used by h1 and h2).
-pub(super) async fn parse_response<B>(response: hyper::Response<B>) -> Result<message::Response>
+pub(super) async fn parse_response<B, C: JsonRpcCodec>(
+    response: hyper::Response<B>,
+    codec: &C,
+) -> Result<message::Response>
 where
     B: hyper::body::Body,
     B::Error: std::fmt::Display,
@@ -152,7 +164,7 @@ where
         .map_err(|e| Error::HttpError(e.to_string()))?
         .to_bytes();
 
-    let rpc_response: message::Response = serde_json::from_slice(&body)?;
+    let rpc_response: message::Response = serde_json::from_value(decode_body(codec, &body)?)?;
     Ok(rpc_response)
 }
 
@@ -201,8 +213,14 @@ where
         let msg = serde_json::to_value(request)?;
 
         let response = match self.config.timeout {
-            Some(t) => timeout(Duration::from_millis(t), http_backend.send_request(msg)).await?,
-            None => http_backend.send_request(msg).await,
+            Some(t) => {
+                timeout(
+                    Duration::from_millis(t),
+                    http_backend.send_request(msg, &self.codec),
+                )
+                .await?
+            }
+            None => http_backend.send_request(msg, &self.codec).await,
         }?;
 
         Ok(response)
@@ -229,7 +247,7 @@ where
         };
         let msg = serde_json::to_value(request)?;
 
-        let (response, recv_stream) = http_backend.subscribe_h3(msg).await?;
+        let (response, reader) = http_backend.subscribe_h3(msg, &self.codec).await?;
 
         if let Some(error) = response.error {
             return Err(Error::SubscribeError(error.code, error.message));
@@ -243,7 +261,7 @@ where
         let sub = subscriptions.subscribe(sub_id).await;
 
         self.task_group.spawn_then(
-            h3::notification_reader_task(recv_stream, sub.clone()),
+            h3::notification_reader_task(reader, sub.clone()),
             |res: TaskResult<Result<()>>| async move {
                 log::debug!("H3 notification reader task ended: {res}");
             },

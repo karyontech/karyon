@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use h3_quinn::Connection;
 use hyper::{Method, Request, Response, StatusCode};
 use log::{debug, error};
@@ -11,16 +11,20 @@ use karyon_core::async_runtime::lock::RwLock;
 
 use karyon_net::{
     quic::{QuicConn, QuicEndpoint, QuicIncoming},
-    Endpoint,
+    ByteBuffer, Endpoint,
 };
 
 use crate::{
+    codec::{decode_body, encode_msg, extend_buf, JsonRpcCodec},
     error::{Error, Result},
     message::{self, SubscriptionID},
     server::{
         channel::{Channel, NewNotification},
-        http::{ERR_BODY_TOO_LARGE, ERR_METHOD_NOT_ALLOWED, MAX_HTTP_BODY_SIZE},
-        Server, CHANNEL_SUBSCRIPTION_BUFFER_SIZE, FAILED_TO_PARSE_ERROR_MSG,
+        http::{
+            encode_response, parse_error_response, ERR_BODY_TOO_LARGE, ERR_METHOD_NOT_ALLOWED,
+            MAX_HTTP_BODY_SIZE,
+        },
+        Server, CHANNEL_SUBSCRIPTION_BUFFER_SIZE,
     },
 };
 
@@ -37,7 +41,11 @@ type H3Stream = h3::server::RequestStream<h3_quinn::BidiStream<Bytes>, Bytes>;
 /// rarely.
 type SubSenders = Arc<RwLock<HashMap<SubscriptionID, async_channel::Sender<NewNotification>>>>;
 
-pub(super) async fn accept_h3(server: &Arc<Server>, quic_ep: &QuicEndpoint) {
+pub(super) async fn accept_h3<C: JsonRpcCodec>(
+    server: &Arc<Server>,
+    quic_ep: &QuicEndpoint,
+    codec: &C,
+) {
     // Only the accept runs here; the handshake runs in the spawned task.
     let incoming = match quic_ep.accept_incoming().await {
         Ok(incoming) => incoming,
@@ -49,13 +57,17 @@ pub(super) async fn accept_h3(server: &Arc<Server>, quic_ep: &QuicEndpoint) {
 
     server
         .task_group
-        .spawn(serve_incoming_task(server.clone(), incoming));
+        .spawn(serve_incoming_task(server.clone(), incoming, codec.clone()));
 }
 
-async fn serve_incoming_task(server: Arc<Server>, incoming: QuicIncoming) -> Result<()> {
+async fn serve_incoming_task<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    incoming: QuicIncoming,
+    codec: C,
+) -> Result<()> {
     let peer = incoming.peer_endpoint();
     match incoming.handshake().await {
-        Ok(quic_conn) => serve_conn_task(server, quic_conn).await,
+        Ok(quic_conn) => serve_conn_task(server, quic_conn, codec).await,
         Err(err) => {
             debug!("QUIC handshake with {peer} failed: {err}");
             Ok(())
@@ -63,18 +75,26 @@ async fn serve_incoming_task(server: Arc<Server>, incoming: QuicIncoming) -> Res
     }
 }
 
-async fn serve_conn_task(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
+async fn serve_conn_task<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    quic_conn: QuicConn,
+    codec: C,
+) -> Result<()> {
     let peer = quic_conn
         .peer_endpoint()
         .map(|e| e.to_string())
         .unwrap_or_default();
-    if let Err(err) = serve_conn(server, quic_conn).await {
+    if let Err(err) = serve_conn(server, quic_conn, codec).await {
         debug!("HTTP/3 from {peer} closed: {err}");
     }
     Ok(())
 }
 
-async fn serve_conn(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
+async fn serve_conn<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    quic_conn: QuicConn,
+    codec: C,
+) -> Result<()> {
     let h3_conn = Connection::new(quic_conn.inner().clone());
     let mut h3_server: h3::server::Connection<Connection, Bytes> =
         h3::server::Connection::new(h3_conn)
@@ -109,6 +129,7 @@ async fn serve_conn(server: Arc<Server>, quic_conn: QuicConn) -> Result<()> {
                     sub_senders.clone(),
                     req,
                     stream,
+                    codec.clone(),
                 ));
             }
             Ok(None) => break,
@@ -139,25 +160,27 @@ async fn dispatch_subs_task(
     Ok(())
 }
 
-async fn handle_request_task(
+async fn handle_request_task<C: JsonRpcCodec>(
     server: Arc<Server>,
     channel: Arc<Channel>,
     sub_senders: SubSenders,
     req: Request<()>,
     stream: H3Stream,
+    codec: C,
 ) -> Result<()> {
-    if let Err(err) = handle_h3_request(server, channel, sub_senders, req, stream).await {
+    if let Err(err) = handle_h3_request(server, channel, sub_senders, req, stream, codec).await {
         error!("Handle HTTP/3 request: {err}");
     }
     Ok(())
 }
 
-async fn handle_h3_request(
+async fn handle_h3_request<C: JsonRpcCodec>(
     server: Arc<Server>,
     channel: Arc<Channel>,
     sub_senders: SubSenders,
     req: Request<()>,
     mut stream: H3Stream,
+    codec: C,
 ) -> Result<()> {
     if req.method() != Method::POST {
         h3_send(
@@ -169,9 +192,9 @@ async fn handle_h3_request(
         return Ok(());
     }
 
-    let mut body = Vec::new();
+    let mut body = ByteBuffer::new();
     while let Some(chunk) = stream.recv_data().await.map_err(h3_err)? {
-        body.extend_from_slice(Buf::chunk(&chunk));
+        extend_buf(&mut body, chunk);
         if body.len() as u64 > MAX_HTTP_BODY_SIZE {
             h3_send(
                 &mut stream,
@@ -183,23 +206,11 @@ async fn handle_h3_request(
         }
     }
 
-    let msg: serde_json::Value = match serde_json::from_slice(&body) {
-        Ok(v) => v,
+    let msg = match decode_body(&codec, body.as_ref()) {
+        Ok(msg) => msg,
         Err(_) => {
-            let resp = message::Response {
-                error: Some(message::Error {
-                    code: message::PARSE_ERROR_CODE,
-                    message: FAILED_TO_PARSE_ERROR_MSG.to_string(),
-                    data: None,
-                }),
-                ..Default::default()
-            };
-            h3_send(
-                &mut stream,
-                StatusCode::OK,
-                &serde_json::to_vec(&resp).unwrap(),
-            )
-            .await?;
+            let body = encode_response(&codec, &parse_error_response())?;
+            h3_send(&mut stream, StatusCode::OK, &body).await?;
             return Ok(());
         }
     };
@@ -212,14 +223,16 @@ async fn handle_h3_request(
 
     if is_subscribe {
         let peer = channel.peer_endpoint();
-        return handle_h3_subscribe(server, sub_senders, peer, msg, stream).await;
+        return handle_h3_subscribe(server, sub_senders, peer, msg, stream, codec).await;
     }
 
-    let response = server.handle_request(Some(channel.clone()), msg).await;
+    let response = server
+        .handle_request(Some(channel.clone()), msg.clone())
+        .await;
     debug!("--> {response}");
 
     if response.error.is_none() {
-        if let Ok(rpc_req) = serde_json::from_slice::<message::Request>(&body) {
+        if let Ok(rpc_req) = serde_json::from_value::<message::Request>(msg) {
             if let Some(params) = &rpc_req.params {
                 if let Ok(sub_id) = serde_json::from_value::<SubscriptionID>(params.clone()) {
                     if let Some(sender) = sub_senders.write().await.remove(&sub_id) {
@@ -230,22 +243,19 @@ async fn handle_h3_request(
         }
     }
 
-    h3_send(
-        &mut stream,
-        StatusCode::OK,
-        &serde_json::to_vec(&response).unwrap(),
-    )
-    .await?;
+    let body = encode_response(&codec, &response)?;
+    h3_send(&mut stream, StatusCode::OK, &body).await?;
     Ok(())
 }
 
 /// Subscribe: respond, then stream notifications on the same stream.
-async fn handle_h3_subscribe(
+async fn handle_h3_subscribe<C: JsonRpcCodec>(
     server: Arc<Server>,
     sub_senders: SubSenders,
     peer: Option<Endpoint>,
     msg: serde_json::Value,
     mut stream: H3Stream,
+    codec: C,
 ) -> Result<()> {
     let (sub_tx, sub_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
     let sub_channel = Channel::new(sub_tx.clone(), peer);
@@ -253,12 +263,8 @@ async fn handle_h3_subscribe(
     let response = server.handle_request(Some(sub_channel.clone()), msg).await;
 
     if response.error.is_some() {
-        h3_send(
-            &mut stream,
-            StatusCode::OK,
-            &serde_json::to_vec(&response).unwrap(),
-        )
-        .await?;
+        let body = encode_response(&codec, &response)?;
+        h3_send(&mut stream, StatusCode::OK, &body).await?;
         return Ok(());
     }
 
@@ -278,16 +284,16 @@ async fn handle_h3_subscribe(
     stream.send_response(resp).await.map_err(h3_err)?;
 
     debug!("--> {response}");
-    let json = serde_json::to_vec(&response).unwrap();
-    stream.send_data(Bytes::from(json)).await.map_err(h3_err)?;
+    let body = encode_response(&codec, &response)?;
+    stream.send_data(body).await.map_err(h3_err)?;
 
     let encoder = server.config.notification_encoder;
 
     while let Ok(nt) = sub_rx.recv().await {
         let notification = encoder(nt);
         debug!("--> {notification}");
-        let json = serde_json::to_vec(&serde_json::json!(notification)).unwrap();
-        if stream.send_data(Bytes::from(json)).await.is_err() {
+        let body = encode_msg(&codec, &serde_json::json!(notification))?;
+        if stream.send_data(body).await.is_err() {
             break;
         }
     }

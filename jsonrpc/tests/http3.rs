@@ -2,17 +2,23 @@
 
 mod shared;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serde_json::Value;
 
-use karyon_core::testing::run_test;
+use karyon_core::{async_util::timeout, testing::run_test};
 
 use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
 use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use shared::{generate_test_certs, MathService};
+
+/// Must match `MathService::blob_subscribe`.
+const BLOB_COUNT: usize = 5;
+const BLOB_SIZE: usize = 64 * 1024;
+
+const RECV_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn test_quic_configs() -> (ServerQuicConfig, ClientQuicConfig) {
     let (cert_chain, private_key): (Vec<CertificateDer>, std::sync::Arc<PrivateKeyDer>) =
@@ -192,6 +198,52 @@ fn pubsub_subscription() {
             .unsubscribe("MathService.counter_unsubscribe", sub.id())
             .await
             .expect("Unsubscribe");
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+#[test]
+fn pubsub_large_notifications() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let (srv_cfg, cli_cfg) = test_quic_configs();
+
+        let server = ServerBuilder::new("http://127.0.0.1:0")
+            .expect("Create server builder")
+            .service(service.clone())
+            .pubsub_service(service)
+            .quic_config(srv_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build client");
+
+        let sub = client
+            .subscribe("MathService.blob_subscribe", ())
+            .await
+            .expect("Subscribe");
+
+        for i in 0..BLOB_COUNT {
+            let nt = timeout(RECV_TIMEOUT, sub.recv())
+                .await
+                .expect("Notification timed out")
+                .expect("Recv notification");
+            assert_eq!(nt["i"], i);
+            assert_eq!(nt["data"].as_str().map(|d| d.len()), Some(BLOB_SIZE));
+        }
 
         client.stop().await;
         server.shutdown().await;
