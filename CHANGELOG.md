@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.4 karyon_p2p, karyon_swarm
+
+### Breaking changes
+
+- **Network version 0.2.0** (`karyon_p2p`): `Config::default().version` is
+  now `0.2.0`, and the handshake wire format changed. 
+
+### Fixes
+
+- **Protocol negotiation** (`karyon_p2p`): both peers now send a version
+  message and compute the shared protocol set with the same rule, so both
+  sides run the same protocols. Before, the outbound side ran all of its own
+  protocols, even ones the remote did not support.
+
+## 1.0.4 karyon_jsonrpc
+
+### Fixes
+
+- **Custom codec over HTTP** (`karyon_jsonrpc`): HTTP/1.1, HTTP/2 and HTTP/3
+  clients and servers now use the codec set on the builder. Before, they
+  always used the default JSON codec and ignored custom codecs and
+  `JsonCodec::new(max_size)`.
+- **HTTP/3 pub/sub** (`karyon_jsonrpc`): the client now reads notifications
+  one codec frame at a time, so large or back-to-back notifications on a
+  subscription stream are decoded correctly.
+
 ## 1.1.3 karyon_p2p, karyon_swarm
 
 ### Fixes
