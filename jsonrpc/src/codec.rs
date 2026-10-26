@@ -5,11 +5,21 @@
 
 use std::io;
 
+#[cfg(feature = "http3")]
+use bytes::Buf;
+#[cfg(feature = "http")]
+use bytes::Bytes;
+#[cfg(feature = "http")]
+use serde_json::Value;
+
 pub use karyon_net::codec::Codec;
 pub use karyon_net::ByteBuffer;
 
 #[cfg(feature = "ws")]
 use karyon_net::layers::ws::Message as WsMessage;
+
+#[cfg(feature = "http")]
+use crate::error::{Error, Result};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
@@ -163,5 +173,34 @@ impl Codec<WsMessage> for JsonCodec {
             }
             _ => Ok(None),
         }
+    }
+}
+
+/// Encode one message with `codec`.
+#[cfg(feature = "http")]
+pub(crate) fn encode_msg<C: JsonRpcCodec>(codec: &C, msg: &Value) -> Result<Bytes> {
+    let mut buf = ByteBuffer::new();
+    codec.encode(msg, &mut buf)?;
+    Ok(Bytes::copy_from_slice(buf.as_ref()))
+}
+
+/// Decode one message from a complete HTTP body.
+#[cfg(feature = "http")]
+pub(crate) fn decode_body<C: JsonRpcCodec>(codec: &C, body: &[u8]) -> Result<Value> {
+    let mut buf = ByteBuffer::from_slice(body);
+    match codec.decode(&mut buf)? {
+        Some((_, msg)) => Ok(msg),
+        None => Err(Error::InvalidMsg("Incomplete message".into())),
+    }
+}
+
+/// Append all bytes of `data` to `buf`.
+#[cfg(feature = "http3")]
+pub(crate) fn extend_buf(buf: &mut ByteBuffer, mut data: impl Buf) {
+    while data.has_remaining() {
+        let chunk = data.chunk();
+        let n = chunk.len();
+        buf.extend_from_slice(chunk);
+        data.advance(n);
     }
 }

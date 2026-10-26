@@ -15,23 +15,29 @@ use log::{debug, error};
 use karyon_core::async_runtime::net::{TcpListener, TcpStream};
 
 use crate::{
+    codec::{decode_body, JsonRpcCodec},
     error::Result,
     message,
     server::{
         http::{
-            json_response, json_response_bytes, HyperExecutor, ERR_BODY_TOO_LARGE,
-            ERR_METHOD_NOT_ALLOWED, ERR_READ_BODY, MAX_HTTP_BODY_SIZE,
+            encode_response, json_response, json_response_bytes, parse_error_response,
+            HyperExecutor, ERR_BODY_TOO_LARGE, ERR_ENCODE_RESPONSE, ERR_METHOD_NOT_ALLOWED,
+            ERR_READ_BODY, MAX_HTTP_BODY_SIZE,
         },
-        Server, FAILED_TO_PARSE_ERROR_MSG,
+        Server,
     },
 };
 
-pub(super) async fn accept_tcp(server: &Arc<Server>, listener: &TcpListener) {
+pub(super) async fn accept_tcp<C: JsonRpcCodec>(
+    server: &Arc<Server>,
+    listener: &TcpListener,
+    codec: &C,
+) {
     match listener.accept().await {
         Ok((stream, peer_addr)) => {
             server
                 .task_group
-                .spawn(serve_task(server.clone(), stream, peer_addr));
+                .spawn(serve_task(server.clone(), stream, peer_addr, codec.clone()));
         }
         Err(err) => {
             error!("Accept TCP connection: {err}");
@@ -39,20 +45,31 @@ pub(super) async fn accept_tcp(server: &Arc<Server>, listener: &TcpListener) {
     }
 }
 
-async fn serve_task(server: Arc<Server>, stream: TcpStream, peer_addr: SocketAddr) -> Result<()> {
-    if let Err(err) = serve_conn(server, stream, peer_addr).await {
+async fn serve_task<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    stream: TcpStream,
+    peer_addr: SocketAddr,
+    codec: C,
+) -> Result<()> {
+    if let Err(err) = serve_conn(server, stream, peer_addr, codec).await {
         error!("HTTP/1-2 from {peer_addr}: {err}");
     }
     Ok(())
 }
 
-async fn serve_conn(server: Arc<Server>, stream: TcpStream, peer_addr: SocketAddr) -> Result<()> {
+async fn serve_conn<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    stream: TcpStream,
+    peer_addr: SocketAddr,
+    codec: C,
+) -> Result<()> {
     debug!("New HTTP/1-2 connection from {peer_addr}");
 
     let task_group = server.task_group.clone();
     let service = service_fn(move |req: Request<Incoming>| {
         let server = server.clone();
-        async move { handle_hyper_request(server, req).await }
+        let codec = codec.clone();
+        async move { handle_hyper_request(server, req, codec).await }
     });
 
     #[cfg(feature = "smol")]
@@ -70,9 +87,10 @@ async fn serve_conn(server: Arc<Server>, stream: TcpStream, peer_addr: SocketAdd
     Ok(())
 }
 
-async fn handle_hyper_request(
+async fn handle_hyper_request<C: JsonRpcCodec>(
     server: Arc<Server>,
     req: Request<Incoming>,
+    codec: C,
 ) -> std::result::Result<Response<Full<Bytes>>, hyper::Error> {
     if req.method() != Method::POST {
         return Ok(json_response(
@@ -106,25 +124,24 @@ async fn handle_hyper_request(
         }
     };
 
-    let msg: serde_json::Value = match serde_json::from_slice(&body) {
-        Ok(v) => v,
-        Err(_) => {
-            let resp = message::Response {
-                error: Some(message::Error {
-                    code: message::PARSE_ERROR_CODE,
-                    message: FAILED_TO_PARSE_ERROR_MSG.to_string(),
-                    data: None,
-                }),
-                ..Default::default()
-            };
-            let json = serde_json::to_vec(&resp).unwrap();
-            return Ok(json_response_bytes(StatusCode::OK, json));
-        }
+    let response = match decode_body(&codec, &body) {
+        Ok(msg) => server.handle_request(None, msg).await,
+        Err(_) => parse_error_response(),
     };
-
-    let response = server.handle_request(None, msg).await;
     debug!("--> {response}");
 
-    let json = serde_json::to_vec(&response).unwrap();
-    Ok(json_response_bytes(StatusCode::OK, json))
+    Ok(encode_hyper_response(&codec, &response))
+}
+
+fn encode_hyper_response<C: JsonRpcCodec>(
+    codec: &C,
+    resp: &message::Response,
+) -> Response<Full<Bytes>> {
+    match encode_response(codec, resp) {
+        Ok(body) => json_response_bytes(StatusCode::OK, body),
+        Err(err) => {
+            error!("Encode HTTP response: {err}");
+            json_response(StatusCode::INTERNAL_SERVER_ERROR, ERR_ENCODE_RESPONSE)
+        }
+    }
 }

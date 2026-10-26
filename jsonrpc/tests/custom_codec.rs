@@ -13,9 +13,13 @@ use karyon_jsonrpc::{
     codec::{ByteBuffer, Codec},
     server::ServerBuilder,
 };
-use karyon_net::Error as NetError;
+use karyon_net::{
+    quic::{ClientQuicConfig, ServerQuicConfig},
+    Error as NetError,
+};
+use serde_json::{json, Value};
 
-use shared::MathService;
+use shared::{generate_test_certs, MathService};
 
 /// Newline-delimited JSON codec.
 #[derive(Clone)]
@@ -114,6 +118,96 @@ fn custom_codec_pubsub() {
             .unsubscribe("MathService.counter_unsubscribe", sub.id())
             .await
             .expect("unsubscribe");
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+#[test]
+fn custom_codec_http_call() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+
+        let server = ServerBuilder::new_with_codec("http://127.0.0.1:0", NdJsonCodec)
+            .expect("server builder")
+            .service(service)
+            .build()
+            .await
+            .expect("build server");
+
+        let ep = server.local_endpoint().expect("endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new_with_codec(ep.to_string(), NdJsonCodec)
+            .expect("client builder")
+            .build()
+            .await
+            .expect("build client");
+
+        let r: i32 = client
+            .call("MathService.add", json!({"x": 2, "y": 40}))
+            .await
+            .expect("add");
+        assert_eq!(r, 42);
+
+        // A client on the default codec sends no newline, so the NDJSON
+        // server can not decode the body. This fails only if the server
+        // really uses its codec.
+        let plain = ClientBuilder::new(ep.to_string())
+            .expect("client builder")
+            .build()
+            .await
+            .expect("build client");
+        let r: Result<Value, _> = plain.call("MathService.ping", ()).await;
+        assert!(r.is_err());
+
+        plain.stop().await;
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+#[test]
+fn custom_codec_http3_pubsub() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let (cert_chain, private_key) = generate_test_certs();
+        let srv_cfg = ServerQuicConfig::new(cert_chain.clone(), private_key);
+        let cli_cfg = ClientQuicConfig::new(cert_chain, "localhost");
+
+        let server = ServerBuilder::new_with_codec("http://127.0.0.1:0", NdJsonCodec)
+            .expect("server builder")
+            .service(service.clone())
+            .pubsub_service(service)
+            .quic_config(srv_cfg)
+            .expect("quic config")
+            .build()
+            .await
+            .expect("build server");
+
+        let ep = server.local_endpoint().expect("endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new_with_codec(ep.to_string(), NdJsonCodec)
+            .expect("client builder")
+            .quic_config(cli_cfg)
+            .expect("quic config")
+            .build()
+            .await
+            .expect("build client");
+
+        let r: String = client.call("MathService.ping", ()).await.expect("ping");
+        assert_eq!(r, "pong");
+
+        let sub = client
+            .subscribe("MathService.counter_subscribe", ())
+            .await
+            .expect("subscribe");
+        for want in 1..=2 {
+            let v: i32 = serde_json::from_value(sub.recv().await.expect("nt")).expect("parse");
+            assert_eq!(v, want);
+        }
 
         client.stop().await;
         server.shutdown().await;

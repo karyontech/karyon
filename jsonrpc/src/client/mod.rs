@@ -115,6 +115,10 @@ pub struct Client<B = JsonCodec, W = JsonCodec> {
     pub(crate) task_group: Arc<TaskGroup>,
     pub(crate) config: ClientConfig,
     pub(crate) backend: ClientBackend,
+    /// Encodes and decodes HTTP bodies and HTTP/3 streams. The other
+    /// backends own their codec inside the connection.
+    #[cfg(feature = "http")]
+    pub(crate) codec: B,
     _codecs: PhantomData<(B, W)>,
 }
 
@@ -259,26 +263,26 @@ where
         #[cfg(feature = "http")]
         if let Endpoint::Http(..) = &config.endpoint {
             let backend = http::build_backend(&config, task_group.clone()).await?;
-            return Ok(Self::with_backend(config, task_group, backend));
+            return Ok(Self::with_backend(config, task_group, backend, byte_codec));
         }
 
         #[cfg(feature = "quic")]
         if let Endpoint::Quic(..) = &config.endpoint {
             let backend = quic_stream::build_backend(&config).await?;
-            return Ok(Self::with_backend(config, task_group, backend));
+            return Ok(Self::with_backend(config, task_group, backend, byte_codec));
         }
 
         #[cfg(feature = "ws")]
         if matches!(&config.endpoint, Endpoint::Ws(..) | Endpoint::Wss(..)) {
             let (backend, conn) = multiplexed::build_ws_backend(&config, ws_codec).await?;
-            let client = Self::with_backend(config, task_group, backend);
+            let client = Self::with_backend(config, task_group, backend, byte_codec);
             let (reader, writer) = conn.split();
             multiplexed::start_io_loop(&client, reader, writer);
             return Ok(client);
         }
 
-        let (backend, conn) = multiplexed::build_byte_backend(&config, byte_codec).await?;
-        let client = Self::with_backend(config, task_group, backend);
+        let (backend, conn) = multiplexed::build_byte_backend(&config, byte_codec.clone()).await?;
+        let client = Self::with_backend(config, task_group, backend, byte_codec);
         let (reader, writer) = conn.split();
         multiplexed::start_io_loop(&client, reader, writer);
         Ok(client)
@@ -288,12 +292,18 @@ where
         config: ClientConfig,
         task_group: Arc<TaskGroup>,
         backend: ClientBackend,
+        codec: B,
     ) -> Arc<Self> {
+        // Only the HTTP backend reads the codec from the client.
+        #[cfg(not(feature = "http"))]
+        drop(codec);
         Arc::new(Client {
             disconnect: AtomicBool::new(false),
             task_group,
             config,
             backend,
+            #[cfg(feature = "http")]
+            codec,
             _codecs: PhantomData,
         })
     }
