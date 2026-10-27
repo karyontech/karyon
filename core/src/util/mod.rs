@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 
 /// Generates and returns a random u32.
 pub fn random_32() -> u32 {

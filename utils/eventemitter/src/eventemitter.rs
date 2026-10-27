@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::trace;
 use parking_lot::Mutex;
-use rand::Rng;
+use rand::RngExt;
 
 use crate::error::{Error, Result};
 

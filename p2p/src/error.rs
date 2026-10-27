@@ -1,3 +1,4 @@
+use rand::rngs::SysError;
 use thiserror::Error as ThisError;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -90,7 +91,7 @@ pub enum Error {
     Yasna(#[from] yasna::ASN1Error),
 
     #[error(transparent)]
-    Rand(#[from] rand::rand_core::OsError),
+    Rand(#[from] SysError),
 
     #[error(transparent)]
     X509Parser(#[from] x509_parser::error::X509Error),

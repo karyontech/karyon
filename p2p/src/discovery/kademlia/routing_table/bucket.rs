@@ -103,7 +103,7 @@ impl Bucket {
 
     /// Returns an iterator of entries in random order.
     pub fn random_iter(&self, amount: usize) -> impl Iterator<Item = &BucketEntry> {
-        self.entries.choose_multiple(&mut rand::rng(), amount)
+        self.entries.sample(&mut rand::rng(), amount)
     }
 
     /// Updates the status of an entry in the bucket identified by the given key.
