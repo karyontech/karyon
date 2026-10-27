@@ -1,5 +1,27 @@
 # Changelog
 
+## karyon_core 1.0.3, karyon_net 1.0.3, karyon_jsonrpc 1.0.5, karyon_p2p 1.1.5, karyon_swarm 1.1.5, karyon_stun 0.1.2, karyon_eventemitter 1.0.2
+
+### Breaking changes
+
+- **`Error::Rand`** (`karyon_p2p`): now wraps `rand::rngs::SysError` from
+  rand 0.10, instead of `rand::rand_core::OsError`.
+
+### Fixes
+
+- **Weak Ed25519 keys** (`karyon_core`, `karyon_p2p`): `PublicKey::from_bytes`
+  now rejects small-order keys, and `verify` uses strict verification.
+  Before, a weak key with a crafted signature verified for any message, so
+  anyone could claim that key's PeerID in the p2p TLS handshake.
+- **`CondVar`** (`karyon_core`): no longer panics with "All IDs exhausted"
+  when many tasks wait on it, and a `signal()` is no longer lost when the
+  woken waiter is cancelled before it runs.
+- **`TaskGroup` after a panic** (`karyon_core`, `karyon_p2p`,
+  `karyon_jsonrpc`): `cancel()` no longer hangs after a task or its callback
+  panics, and panicked tasks are removed from the group. A panic in a p2p
+  protocol handler or a jsonrpc request task no longer hangs `Node`, `Peer`
+  or `Server` shutdown.
+
 ## 1.1.4 karyon_p2p, karyon_swarm
 
 ### Breaking changes
