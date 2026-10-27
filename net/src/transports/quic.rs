@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use quinn::Incoming;
+use quinn::{Incoming, VarInt};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::async_rustls::rustls;
@@ -28,6 +28,13 @@ use crate::{
 /// Default read chunk size for QUIC streams.
 const DEFAULT_READ_CHUNK_SIZE: usize = 1024 * 1024; // 1MB
 
+/// Default max unacked bytes a peer may send on one stream.
+const DEFAULT_STREAM_RECEIVE_WINDOW: u32 = 1024 * 1024; // 1MB
+
+/// Default max unacked bytes a peer may send on all streams of one
+/// connection. quinn's default is unbounded.
+const DEFAULT_RECEIVE_WINDOW: u32 = 8 * 1024 * 1024; // 8MB
+
 /// A QUIC send stream. Re-exported from quinn for use by higher layers.
 pub type QuicSendStream = quinn::SendStream;
 
@@ -39,7 +46,8 @@ pub type QuicRecvStream = quinn::RecvStream;
 pub struct QuicConfig {
     /// Maximum concurrent bidirectional streams.
     pub max_bi_streams: u64,
-    /// Maximum concurrent unidirectional streams.
+    /// Maximum concurrent unidirectional streams. 0 by default, since
+    /// nothing reads them unless the user calls `accept_uni`.
     pub max_uni_streams: u64,
     /// Keep-alive interval. None to disable.
     pub keep_alive_interval: Option<Duration>,
@@ -49,17 +57,23 @@ pub struct QuicConfig {
     pub enable_datagrams: bool,
     /// Read chunk size for stream reads (bytes).
     pub read_chunk_size: usize,
+    /// Max unacked bytes a peer may send on one stream.
+    pub stream_receive_window: u64,
+    /// Max unacked bytes a peer may send on all streams of one connection.
+    pub receive_window: u64,
 }
 
 impl Default for QuicConfig {
     fn default() -> Self {
         Self {
             max_bi_streams: 100,
-            max_uni_streams: 100,
+            max_uni_streams: 0,
             keep_alive_interval: Some(Duration::from_secs(5)),
             idle_timeout: Some(Duration::from_secs(30)),
             enable_datagrams: false,
             read_chunk_size: DEFAULT_READ_CHUNK_SIZE,
+            stream_receive_window: DEFAULT_STREAM_RECEIVE_WINDOW.into(),
+            receive_window: DEFAULT_RECEIVE_WINDOW.into(),
         }
     }
 }
@@ -206,7 +220,16 @@ fn build_transport_config(config: &QuicConfig) -> quinn::TransportConfig {
         quinn::VarInt::from_u64(config.max_bi_streams).unwrap_or(quinn::VarInt::from_u32(100u32)),
     );
     transport.max_concurrent_uni_streams(
-        quinn::VarInt::from_u64(config.max_uni_streams).unwrap_or(quinn::VarInt::from_u32(100u32)),
+        VarInt::from_u64(config.max_uni_streams).unwrap_or(VarInt::from_u32(0u32)),
+    );
+    // Bound the memory a peer can make us buffer per connection.
+    // Values above 2^62 do not fit a VarInt, use the defaults then.
+    transport.stream_receive_window(
+        VarInt::from_u64(config.stream_receive_window)
+            .unwrap_or(VarInt::from_u32(DEFAULT_STREAM_RECEIVE_WINDOW)),
+    );
+    transport.receive_window(
+        VarInt::from_u64(config.receive_window).unwrap_or(VarInt::from_u32(DEFAULT_RECEIVE_WINDOW)),
     );
     if let Some(interval) = config.keep_alive_interval {
         transport.keep_alive_interval(Some(interval));
