@@ -1,13 +1,15 @@
 use std::io;
 
-use async_tungstenite::tungstenite::Message as TungMessage;
+use async_tungstenite::tungstenite::{
+    protocol::WebSocketConfig, Bytes as TungBytes, Message as TungMessage,
+};
 use async_tungstenite::{WebSocketReceiver, WebSocketSender, WebSocketStream};
 use futures_util::StreamExt;
 
 #[cfg(feature = "tokio")]
-use async_tungstenite::tokio::{accept_async, client_async, TokioAdapter};
+use async_tungstenite::tokio::{accept_async_with_config, client_async_with_config, TokioAdapter};
 #[cfg(feature = "smol")]
-use async_tungstenite::{accept_async, client_async};
+use async_tungstenite::{accept_async_with_config, client_async_with_config};
 
 use crate::{
     codec::Codec,
@@ -20,6 +22,9 @@ use crate::{
 type WsInner = TokioAdapter<Box<dyn ByteStream>>;
 #[cfg(feature = "smol")]
 type WsInner = Box<dyn ByteStream>;
+
+/// Default max WS message size, the same as the built-in codecs.
+const DEFAULT_MAX_MSG_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
 /// WebSocket message types. Wraps the underlying WS protocol
 /// message kinds without exposing the third-party library.
@@ -72,6 +77,9 @@ impl Message {
 pub struct WsLayer<C> {
     url: Option<String>,
     codec: C,
+    /// Max size of one WS message or frame. Bigger ones are rejected
+    /// before they are buffered.
+    max_msg_size: usize,
 }
 
 impl<C> WsLayer<C>
@@ -83,12 +91,29 @@ where
         Self {
             url: Some(url.to_string()),
             codec,
+            max_msg_size: DEFAULT_MAX_MSG_SIZE,
         }
     }
 
     /// Create a server WS layer with codec.
     pub fn server(codec: C) -> Self {
-        Self { url: None, codec }
+        Self {
+            url: None,
+            codec,
+            max_msg_size: DEFAULT_MAX_MSG_SIZE,
+        }
+    }
+
+    /// Set the max size of one WS message. Defaults to 4MB.
+    pub fn with_max_msg_size(mut self, size: usize) -> Self {
+        self.max_msg_size = size;
+        self
+    }
+
+    fn config(&self) -> WebSocketConfig {
+        WebSocketConfig::default()
+            .max_message_size(Some(self.max_msg_size))
+            .max_frame_size(Some(self.max_msg_size))
     }
 }
 
@@ -107,7 +132,7 @@ where
         let peer = stream.peer_endpoint();
         let local = stream.local_endpoint();
 
-        let (ws, _) = client_async(url.as_str(), stream)
+        let (ws, _) = client_async_with_config(url.as_str(), stream, Some(self.config()))
             .await
             .map_err(|e| Error::IO(io::Error::other(e)))?;
 
@@ -125,7 +150,7 @@ where
         let peer = stream.peer_endpoint();
         let local = stream.local_endpoint();
 
-        let ws = accept_async(stream)
+        let ws = accept_async_with_config(stream, Some(self.config()))
             .await
             .map_err(|e| Error::IO(io::Error::other(e)))?;
 
@@ -135,12 +160,18 @@ where
 
 // -- Convert between ws::Message and tungstenite Message --
 
+// Move the payload out instead of copying it. `Vec::from` reuses the
+// buffer when it is not shared.
 fn from_tung(msg: TungMessage) -> Message {
     match msg {
-        TungMessage::Text(t) => Message::Text(t.to_string()),
-        TungMessage::Binary(b) => Message::Binary(b.to_vec()),
-        TungMessage::Ping(b) => Message::Ping(b.to_vec()),
-        TungMessage::Pong(b) => Message::Pong(b.to_vec()),
+        TungMessage::Text(t) => {
+            let bytes = Vec::from(TungBytes::from(t));
+            // Already checked as UTF-8 by tungstenite, so this does not fail.
+            Message::Text(String::from_utf8(bytes).unwrap_or_default())
+        }
+        TungMessage::Binary(b) => Message::Binary(Vec::from(b)),
+        TungMessage::Ping(b) => Message::Ping(Vec::from(b)),
+        TungMessage::Pong(b) => Message::Pong(Vec::from(b)),
         TungMessage::Close(_) => Message::Close,
         _ => Message::Close,
     }
