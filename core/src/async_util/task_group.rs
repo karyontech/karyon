@@ -5,6 +5,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc, Weak,
     },
+    thread::panicking,
 };
 
 use parking_lot::Mutex;
@@ -171,6 +172,43 @@ impl<T: std::fmt::Debug> std::fmt::Display for TaskResult<T> {
     }
 }
 
+/// Removes a task from its group. Detach instead of dropping the handler,
+/// so the task is not cancelled from within itself. If `cancel` already
+/// took it out, this is a no-op.
+fn remove_from_group(group: &Weak<Inner>, id: TaskID) {
+    if let Some(group) = group.upgrade() {
+        if let Some(handler) = group.remove(id) {
+            handler.detach();
+        }
+    }
+}
+
+/// Lives inside the spawned task. If the task or its callback panics, it
+/// signals `cancel_flag` and removes the task from the group, so `cancel`
+/// does not wait forever.
+struct PanicGuard {
+    ex: Executor,
+    cancel_flag: Arc<CondWait>,
+    group: Weak<Inner>,
+    id: TaskID,
+}
+
+impl Drop for PanicGuard {
+    fn drop(&mut self) {
+        // On a normal exit the task already signaled and removed itself.
+        if !panicking() {
+            return;
+        }
+        // Signaling needs an async lock, so do it from a new task.
+        let cancel_flag = self.cancel_flag.clone();
+        self.ex
+            .spawn(async move { cancel_flag.signal().await })
+            .detach();
+        // The task's own removal at the end never runs after a panic.
+        remove_from_group(&self.group, self.id);
+    }
+}
+
 /// TaskHandler
 pub struct TaskHandler {
     task: Task<()>,
@@ -200,7 +238,16 @@ impl TaskHandler {
         let stop_signal_c = stop_signal.clone();
         let cancel_flag = Arc::new(CondWait::new());
         let cancel_flag_c = cancel_flag.clone();
+        let guard = PanicGuard {
+            ex: ex.clone(),
+            cancel_flag: cancel_flag.clone(),
+            group: group.clone(),
+            id,
+        };
         let task = ex.spawn(async move {
+            // Dropped on every exit, but only acts on a panic.
+            let _guard = guard;
+
             // Waits for either the stop signal or the task to complete.
             let result = select(stop_signal_c.wait(), fut).await;
 
@@ -214,14 +261,8 @@ impl TaskHandler {
 
             cancel_flag_c.signal().await;
 
-            // Remove ourselves from the group. Detach instead of dropping
-            // the handler, so we are not cancelled from within our own
-            // task. If `cancel` already took us out, this is a no-op.
-            if let Some(group) = group.upgrade() {
-                if let Some(handler) = group.remove(id) {
-                    handler.detach();
-                }
-            }
+            // Normal exit. On a panic the guard does this instead.
+            remove_from_group(&group, id);
         });
 
         TaskHandler {
@@ -236,21 +277,22 @@ impl TaskHandler {
         self.task.detach();
     }
 
-    /// Cancels the task: tells it to stop, waits for its callback to run,
-    /// then aborts whatever is left.
+    /// Cancels the task: tells it to stop and waits for its callback to run.
     async fn cancel(self) {
         self.stop_signal.signal().await;
         self.cancel_flag.wait().await;
-        self.task.cancel().await;
+        // Nothing is left to run but the self removal. Detach instead of
+        // awaiting, since smol re-raises a task panic in the awaiting task.
+        self.detach();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{future, sync::Arc};
+    use std::{future, sync::Arc, time::Duration};
 
     use crate::async_runtime::block_on;
-    use crate::async_util::sleep;
+    use crate::async_util::{sleep, timeout};
 
     use super::*;
 
@@ -379,6 +421,30 @@ mod tests {
             let handler = group.remove(id).expect("task is present");
             assert!(group.is_empty());
             handler.cancel().await;
+        });
+    }
+
+    #[test]
+    fn test_task_group_cancel_after_panic() {
+        block_on(async {
+            let group = TaskGroup::new();
+            group.spawn(async { panic!("task panic") });
+
+            // Must not wait forever on the panicked task.
+            let res = timeout(Duration::from_secs(5), group.cancel()).await;
+            assert!(res.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_task_group_removes_panicked_tasks() {
+        block_on(async {
+            let group = TaskGroup::new();
+            group.spawn_then(future::ready(0), |_| async { panic!("callback panic") });
+            group.spawn(async { panic!("task panic") });
+
+            sleep(Duration::from_millis(50)).await;
+            assert!(group.is_empty());
         });
     }
 }
