@@ -187,9 +187,7 @@ impl KademliaDiscovery {
             }
             None => {
                 let peers = &self.config.bootstrap_peers;
-                let shuffled: Vec<_> = peers
-                    .choose_multiple(&mut rand::rng(), peers.len())
-                    .collect();
+                let shuffled: Vec<_> = peers.sample(&mut rand::rng(), peers.len()).collect();
                 for endpoint in shuffled {
                     if let Err(err) = self.lookup_service.start_lookup(endpoint, None).await {
                         error!("Failed to do lookup: {endpoint}: {err}");

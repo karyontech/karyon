@@ -279,7 +279,7 @@ impl RoutingTable {
         local: &LocalBloom,
     ) -> Option<Entry> {
         let buckets = self.buckets.read();
-        for bucket in buckets.choose_multiple(&mut rand::rng(), buckets.len()) {
+        for bucket in buckets.sample(&mut rand::rng(), buckets.len()) {
             for entry in bucket.random_iter(bucket.len()) {
                 if entry.status & entry_flag == 0 {
                     continue;

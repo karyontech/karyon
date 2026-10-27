@@ -6,7 +6,7 @@ use std::{
 };
 
 use log::{error, info, trace};
-use rand::{rngs::OsRng, TryRngCore};
+use rand::{rngs::SysRng, TryRng};
 
 use karyon_core::{
     async_runtime::Executor,
@@ -335,7 +335,7 @@ impl RefreshService {
     /// Sends a Ping msg and waits for the Pong response.
     async fn send_ping_msg(&self, conn: &udp::UdpConn, peer_addr: SocketAddr) -> Result<()> {
         let mut nonce: [u8; 32] = [0; 32];
-        OsRng.try_fill_bytes(&mut nonce)?;
+        SysRng.try_fill_bytes(&mut nonce)?;
 
         let ping = RefreshMsg::Ping(nonce);
         let encoded = encode(&ping)?;

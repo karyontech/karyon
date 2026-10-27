@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use bincode::{Decode, Encode};
-use rand::{rngs::OsRng, TryRngCore};
+use rand::{rngs::SysRng, TryRng};
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "serde")]
@@ -34,7 +34,7 @@ impl PeerID {
     /// Generates a random PeerID.
     pub fn random() -> Result<Self> {
         let mut id: [u8; 32] = [0; 32];
-        OsRng.try_fill_bytes(&mut id)?;
+        SysRng.try_fill_bytes(&mut id)?;
         Ok(Self(id))
     }
 }
