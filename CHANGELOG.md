@@ -1,5 +1,42 @@
 # Changelog
 
+## karyon_core 1.0.4, karyon_net 1.0.4, karyon_jsonrpc 1.0.6, karyon_p2p 1.1.6, karyon_swarm 1.1.6, karyon_stun 0.1.3
+
+### Breaking changes
+
+- **WebSocket message limit** (`karyon_net`, `karyon_jsonrpc`): WS messages
+  and frames over 4 MiB are now rejected by default. Before, tungstenite's
+  64 MiB limit applied and the codec limit was checked only after the whole
+  message was buffered. Use `WsLayer::with_max_msg_size` to allow more.
+- **New `QuicConfig` fields** (`karyon_net`): `stream_receive_window` and
+  `receive_window`. Code that builds `QuicConfig` with a full struct literal
+  must set them, or use `..Default::default()`.
+
+### Added
+
+- **`lookup_host`** (`karyon_core::async_runtime::net`): resolves a host
+  name on a blocking thread pool, for both smol and tokio.
+- **`WsLayer::with_max_msg_size`** (`karyon_net`): max size of one WS
+  message or frame.
+- **`TlsListener::with_handshake_timeout`** and
+  **`ServerQuicConfig::with_handshake_timeout`** (`karyon_net`): handshake
+  timeout of the `accept` helpers, 10s by default.
+
+### Fixes
+
+- **DNS on the executor** (`karyon_net`, `karyon_p2p`): `tcp::connect`,
+  `udp::dial` and `QuicEndpoint::dial` resolve domains off the executor,
+  under a 10s timeout. Before, a slow DNS server stalled executor threads.
+- **QUIC receive windows** (`karyon_net`): a connection buffers at most
+  8 MB of unread data by default, 1 MB per stream. Before, the connection
+  window was unbounded, so one peer could pin ~250 MB.
+- **SOCKS5 host length** (`karyon_net`): `Socks5Layer` returns an error for
+  empty or over 255 byte hosts. Before, a long host wrapped its one byte
+  length and the proxy read a different host and port.
+- **Accept handshake timeout** (`karyon_net`): `TlsListener::accept` and
+  `QuicEndpoint::accept` now fail if the handshake takes longer than the
+  handshake timeout, so a silent client no longer blocks an accept loop.
+
 ## karyon_core 1.0.3, karyon_net 1.0.3, karyon_jsonrpc 1.0.5, karyon_p2p 1.1.5, karyon_swarm 1.1.5, karyon_stun 0.1.2, karyon_eventemitter 1.0.2
 
 ### Breaking changes
