@@ -1,4 +1,4 @@
-use ed25519_dalek::{Signer as _, SigningKey, Verifier as _};
+use ed25519_dalek::{SignatureError, Signer as _, SigningKey, VerifyingKey};
 use rand::rng;
 
 use crate::{error::Error, Result};
@@ -124,7 +124,12 @@ impl Ed25519PublicKey {
             .try_into()
             .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 32]".to_string()))?;
 
-        Ok(Self(ed25519_dalek::VerifyingKey::from_bytes(&pk_bytes)?))
+        let pk = VerifyingKey::from_bytes(&pk_bytes)?;
+        // Small-order keys can make one signature valid for any message.
+        if pk.is_weak() {
+            return Err(SignatureError::new().into());
+        }
+        Ok(Self(pk))
     }
 }
 
@@ -138,7 +143,41 @@ impl PublicKeyExt for Ed25519PublicKey {
             .try_into()
             .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 64]".to_string()))?;
         self.0
-            .verify(msg, &ed25519_dalek::Signature::from_bytes(&sig_bytes))?;
+            .verify_strict(msg, &ed25519_dalek::Signature::from_bytes(&sig_bytes))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sign_and_verify() {
+        let kp = KeyPair::generate(&KeyPairType::Ed25519);
+        let sig = kp.sign(b"msg");
+        let pk = PublicKey::from_bytes(&KeyPairType::Ed25519, kp.public().as_bytes()).unwrap();
+        assert!(pk.verify(b"msg", &sig).is_ok());
+        assert!(pk.verify(b"other", &sig).is_err());
+    }
+
+    #[test]
+    fn reject_identity_key() {
+        // The identity point, a small-order key.
+        let mut identity = [0u8; 32];
+        identity[0] = 1;
+        assert!(PublicKey::from_bytes(&KeyPairType::Ed25519, &identity).is_err());
+    }
+
+    #[test]
+    fn reject_identity_signature() {
+        // Bypass from_bytes to check verify_strict on its own.
+        let mut identity = [0u8; 32];
+        identity[0] = 1;
+        let pk = Ed25519PublicKey(VerifyingKey::from_bytes(&identity).unwrap());
+        // R = identity, s = 0.
+        let mut sig = [0u8; 64];
+        sig[0] = 1;
+        assert!(pk.verify(b"any message", &sig).is_err());
     }
 }
