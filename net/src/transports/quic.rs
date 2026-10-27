@@ -49,8 +49,7 @@ pub type QuicRecvStream = quinn::RecvStream;
 pub struct QuicConfig {
     /// Maximum concurrent bidirectional streams.
     pub max_bi_streams: u64,
-    /// Maximum concurrent unidirectional streams. 0 by default, since
-    /// nothing reads them unless the user calls `accept_uni`.
+    /// Maximum concurrent unidirectional streams.
     pub max_uni_streams: u64,
     /// Keep-alive interval. None to disable.
     pub keep_alive_interval: Option<Duration>,
@@ -70,7 +69,7 @@ impl Default for QuicConfig {
     fn default() -> Self {
         Self {
             max_bi_streams: 100,
-            max_uni_streams: 0,
+            max_uni_streams: 100,
             keep_alive_interval: Some(Duration::from_secs(5)),
             idle_timeout: Some(Duration::from_secs(30)),
             enable_datagrams: false,
@@ -234,7 +233,7 @@ fn build_transport_config(config: &QuicConfig) -> quinn::TransportConfig {
         quinn::VarInt::from_u64(config.max_bi_streams).unwrap_or(quinn::VarInt::from_u32(100u32)),
     );
     transport.max_concurrent_uni_streams(
-        VarInt::from_u64(config.max_uni_streams).unwrap_or(VarInt::from_u32(0u32)),
+        VarInt::from_u64(config.max_uni_streams).unwrap_or(VarInt::from_u32(100u32)),
     );
     // Bound the memory a peer can make us buffer per connection.
     // Values above 2^62 do not fit a VarInt, use the defaults then.
