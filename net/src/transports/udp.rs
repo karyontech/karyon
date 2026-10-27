@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use karyon_core::async_runtime::net::UdpSocket;
 
-use crate::{Endpoint, Result};
+use crate::{endpoint::resolve_endpoint, Endpoint, Result};
 
 /// UDP config.
 #[derive(Default)]
@@ -40,7 +40,7 @@ impl UdpConn {
 
 /// Connect to a UDP endpoint.
 pub async fn dial(endpoint: &Endpoint, _config: UdpConfig) -> Result<UdpConn> {
-    let addr = SocketAddr::try_from(endpoint.clone())?;
+    let addr = resolve_endpoint(endpoint).await?;
     let socket = UdpSocket::bind("[::]:0").await?;
     socket.connect(addr).await?;
     Ok(UdpConn {

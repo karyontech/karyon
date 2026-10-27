@@ -20,7 +20,10 @@ use tokio::io::{AsyncWrite as TokioAsyncWrite, ReadBuf};
 #[cfg(feature = "smol")]
 use futures_util::io::{AsyncRead as FutAsyncRead, AsyncWrite as FutAsyncWrite};
 
-use crate::{stream::ByteStream, stream_mux::StreamMux, Bytes, Endpoint, Error, Result};
+use crate::{
+    endpoint::resolve_endpoint, stream::ByteStream, stream_mux::StreamMux, Bytes, Endpoint, Error,
+    Result,
+};
 
 /// Default read chunk size for QUIC streams.
 const DEFAULT_READ_CHUNK_SIZE: usize = 1024 * 1024; // 1MB
@@ -242,7 +245,7 @@ impl QuicEndpoint {
 
     /// Connect to a remote QUIC endpoint.
     pub async fn dial(endpoint: &Endpoint, config: ClientQuicConfig) -> Result<QuicConn> {
-        let addr = SocketAddr::try_from(endpoint.clone())?;
+        let addr = resolve_endpoint(endpoint).await?;
         let server_name = config.server_name.clone();
         let client_config = config.build()?;
         // Bind the client socket in the same address family as the target.

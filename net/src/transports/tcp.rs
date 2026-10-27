@@ -13,7 +13,7 @@ use karyon_core::async_runtime::{
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
 
-use crate::{ByteStream, Endpoint, Result};
+use crate::{endpoint::resolve_endpoint, ByteStream, Endpoint, Result};
 
 /// TCP config.
 #[derive(Clone)]
@@ -45,7 +45,7 @@ impl ByteStream for TcpByteStream {
 
 /// Connect to a TCP endpoint.
 pub async fn connect(endpoint: &Endpoint, config: TcpConfig) -> Result<Box<dyn ByteStream>> {
-    let addr = SocketAddr::try_from(endpoint.clone())?;
+    let addr = resolve_endpoint(endpoint).await?;
     let socket = TcpStream::connect(addr).await?;
     socket.set_nodelay(config.nodelay)?;
     let peer = Endpoint::new_tcp_addr(socket.peer_addr()?);
