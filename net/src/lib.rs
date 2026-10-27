@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(any(feature = "tls", feature = "quic"))]
+use std::time::Duration;
+
 mod transports;
 
 mod error;
@@ -47,6 +50,10 @@ pub use endpoint::{Addr, Endpoint, Port, ToEndpoint};
 
 // Error types
 pub use error::{Error, Result};
+
+/// Max time the `accept` helpers of TLS and QUIC wait for a handshake.
+#[cfg(any(feature = "tls", feature = "quic"))]
+const ACCEPT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 // Base transports
 #[cfg(feature = "tcp")]
