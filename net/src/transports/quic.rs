@@ -12,7 +12,10 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::async_rustls::rustls;
 
-use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
+use karyon_core::{
+    async_runtime::io::{AsyncRead, AsyncWrite},
+    async_util::timeout,
+};
 
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncWrite as TokioAsyncWrite, ReadBuf};
@@ -22,7 +25,7 @@ use futures_util::io::{AsyncRead as FutAsyncRead, AsyncWrite as FutAsyncWrite};
 
 use crate::{
     endpoint::resolve_endpoint, stream::ByteStream, stream_mux::StreamMux, Bytes, Endpoint, Error,
-    Result,
+    Result, ACCEPT_HANDSHAKE_TIMEOUT,
 };
 
 /// Default read chunk size for QUIC streams.
@@ -70,6 +73,8 @@ impl Default for QuicConfig {
 pub struct ServerQuicConfig {
     source: ServerSource,
     config: QuicConfig,
+    /// Max time `QuicEndpoint::accept` waits for a handshake.
+    handshake_timeout: Duration,
 }
 
 #[derive(Clone)]
@@ -93,6 +98,7 @@ impl ServerQuicConfig {
                 private_key,
             },
             config: QuicConfig::default(),
+            handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
         }
     }
 
@@ -102,12 +108,20 @@ impl ServerQuicConfig {
         Self {
             source: ServerSource::Rustls(Box::new(rustls_config)),
             config: QuicConfig::default(),
+            handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
         }
     }
 
     /// Override the QUIC transport parameters.
     pub fn with_config(mut self, config: QuicConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Set the max time `QuicEndpoint::accept` waits for a handshake.
+    /// Defaults to 10s.
+    pub fn with_handshake_timeout(mut self, timeout: Duration) -> Self {
+        self.handshake_timeout = timeout;
         self
     }
 
@@ -227,12 +241,14 @@ fn build_transport_config(config: &QuicConfig) -> quinn::TransportConfig {
 pub struct QuicEndpoint {
     inner: quinn::Endpoint,
     local_endpoint: Endpoint,
+    handshake_timeout: Duration,
 }
 
 impl QuicEndpoint {
     /// Bind to a local address and start listening with the given server config.
     pub async fn listen(endpoint: &Endpoint, config: ServerQuicConfig) -> Result<Self> {
         let addr = SocketAddr::try_from(endpoint.clone())?;
+        let handshake_timeout = config.handshake_timeout;
         let server_config = config.build()?;
         let inner = quinn::Endpoint::server(server_config, addr)?;
         let local_addr = inner.local_addr()?;
@@ -240,6 +256,7 @@ impl QuicEndpoint {
         Ok(Self {
             inner,
             local_endpoint,
+            handshake_timeout,
         })
     }
 
@@ -281,9 +298,14 @@ impl QuicEndpoint {
         })
     }
 
-    /// Accept an incoming QUIC connection and run its handshake.
+    /// Accept an incoming QUIC connection and run its handshake. The
+    /// handshake runs inline and fails after the handshake timeout (10s by
+    /// default, see [`ServerQuicConfig::with_handshake_timeout`]), so a slow
+    /// peer stalls a plain accept loop for up to that long. Servers should
+    /// use [`Self::accept_incoming`] instead.
     pub async fn accept(&self) -> Result<QuicConn> {
-        self.accept_incoming().await?.handshake().await
+        let incoming = self.accept_incoming().await?;
+        timeout(self.handshake_timeout, incoming.handshake()).await?
     }
 
     /// Returns the local endpoint.

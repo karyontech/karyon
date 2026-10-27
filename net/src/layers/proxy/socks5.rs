@@ -51,6 +51,14 @@ impl Socks5Layer {
 
 impl ClientLayer<Box<dyn ByteStream>, Box<dyn ByteStream>> for Socks5Layer {
     async fn handshake(&self, mut stream: Box<dyn ByteStream>) -> Result<Box<dyn ByteStream>> {
+        // A domain is sent with a one byte length, so it must be 1..=255
+        // bytes. Check before writing anything to the proxy.
+        let host = self.target_host.as_bytes();
+        let host_len = u8::try_from(host.len())
+            .ok()
+            .filter(|len| *len > 0)
+            .ok_or_else(|| Error::Socks5(format!("invalid host length: {}", host.len())))?;
+
         // Greeting: version + 1 method (no auth).
         stream.write_all(&[SOCKS5_VERSION, 1, NO_AUTH]).await?;
         stream.flush().await?;
@@ -63,7 +71,6 @@ impl ClientLayer<Box<dyn ByteStream>, Box<dyn ByteStream>> for Socks5Layer {
         }
 
         // Build connect request.
-        let host = self.target_host.as_bytes();
         let port = self.target_port.to_be_bytes();
 
         let mut req = vec![SOCKS5_VERSION, CMD_CONNECT, 0x00];
@@ -75,7 +82,7 @@ impl ClientLayer<Box<dyn ByteStream>, Box<dyn ByteStream>> for Socks5Layer {
             req.extend_from_slice(&ip.octets());
         } else {
             req.push(ATYPE_DOMAIN);
-            req.push(host.len() as u8);
+            req.push(host_len);
             req.extend_from_slice(host);
         }
         req.extend_from_slice(&port);

@@ -191,6 +191,26 @@ fn socks5_tunnel_domain() {
 }
 
 #[test]
+fn socks5_rejects_bad_host_length() {
+    run_test(10, async {
+        let echo_ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
+        let (_, echo_addr) = run_echo_server(&echo_ep).await;
+
+        let proxy_ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
+        let proxy_resolved = run_socks5_proxy(&proxy_ep, echo_addr).await;
+
+        // Empty and over 255 bytes: both rejected before anything is sent.
+        for host in [String::new(), "a".repeat(256)] {
+            let stream = tcp::connect(&proxy_resolved, Default::default())
+                .await
+                .unwrap();
+            let layer = Socks5Layer::new(&host, echo_addr.port());
+            assert!(ClientLayer::handshake(&layer, stream).await.is_err());
+        }
+    });
+}
+
+#[test]
 fn socks5_multiple_tunnels() {
     run_test(10, async {
         let echo_ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();

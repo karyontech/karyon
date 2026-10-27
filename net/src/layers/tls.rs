@@ -4,11 +4,15 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use rustls_pki_types::{self as pki_types, CertificateDer};
 
-use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
+use karyon_core::{
+    async_runtime::io::{AsyncRead, AsyncWrite},
+    async_util::timeout,
+};
 
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
@@ -17,7 +21,7 @@ use crate::{
     async_rustls::{rustls, TlsAcceptor, TlsConnector, TlsStream},
     layer::{ClientLayer, ServerLayer},
     transports::tcp::TcpListener,
-    Addr, ByteStream, Endpoint, Error, Result,
+    Addr, ByteStream, Endpoint, Error, Result, ACCEPT_HANDSHAKE_TIMEOUT,
 };
 
 /// TLS client config.
@@ -213,6 +217,8 @@ impl AsyncWrite for TlsByteStream {
 pub struct TlsListener {
     inner: TcpListener,
     layer: TlsLayer,
+    /// Max time `accept` waits for a handshake.
+    handshake_timeout: Duration,
 }
 
 impl TlsListener {
@@ -221,13 +227,27 @@ impl TlsListener {
         Self {
             inner,
             layer: TlsLayer::server(config),
+            handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
         }
     }
 
-    /// Accept a new TLS connection.
+    /// Set the max time `accept` waits for a handshake. Defaults to 10s.
+    pub fn with_handshake_timeout(mut self, timeout: Duration) -> Self {
+        self.handshake_timeout = timeout;
+        self
+    }
+
+    /// Accept a new TLS connection. The handshake runs inline and fails
+    /// after the handshake timeout (10s by default), so a slow client
+    /// stalls a plain accept loop for up to that long. Servers should accept on a `TcpListener` and run
+    /// `TlsLayer::handshake` in a separate task instead.
     pub async fn accept(&self) -> Result<Box<dyn ByteStream>> {
         let stream = self.inner.accept().await?;
-        ServerLayer::handshake(&self.layer, stream).await
+        timeout(
+            self.handshake_timeout,
+            ServerLayer::handshake(&self.layer, stream),
+        )
+        .await?
     }
 
     /// Local endpoint this listener is bound to.
