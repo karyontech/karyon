@@ -41,23 +41,23 @@ impl Calc {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
-    smol::block_on(async {
-        // Register the Calc service
-        let calc = Calc {
-            version: String::from("0.1"),
-        };
 
-        // Creates a new server
-        let server = ServerBuilder::new("tcp://127.0.0.1:6000")
-            .expect("Create a new server builder")
-            .service(Arc::new(calc))
-            .build()
-            .await
-            .expect("start a new server");
+    // Register the Calc service
+    let calc = Calc {
+        version: String::from("0.1"),
+    };
 
-        // Start the server
-        server.start_block().await.expect("Start the server");
-    });
+    // Creates a new server
+    let server = ServerBuilder::new("tcp://127.0.0.1:6000")
+        .expect("Create a new server builder")
+        .service(Arc::new(calc))
+        .build()
+        .await
+        .expect("start a new server");
+
+    // Start the server
+    server.start_block().await.expect("Start the server");
 }

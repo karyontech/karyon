@@ -57,18 +57,18 @@ have another layer added on top.
 | `unix` | Unix domain socket transport |
 | `proxy` | SOCKS5 proxy layer (implies `tcp`) |
 | `framing` | FramedConn codec framing (auto-enabled by `tcp`, `quic`, `unix`) |
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 
 ```toml
-# Default (smol + all protocols)
+# Default (tokio + all protocols)
 karyon_net = "1.0"
 
 # With QUIC and proxy
 karyon_net = { version = "1.0", features = ["quic", "proxy"] }
 
-# Tokio runtime
-karyon_net = { version = "1.0", default-features = false, features = ["tokio", "tcp", "tls"] }
+# Smol runtime
+karyon_net = { version = "1.0", default-features = false, features = ["smol", "tcp", "tls"] }
 ```
 
 ## Core Traits and Types
@@ -240,4 +240,4 @@ loop {
 
 ## Runtime Support
 
-Supports both **smol** (default) and **tokio** async runtimes.
+Supports both **tokio** (default) and **smol** async runtimes.

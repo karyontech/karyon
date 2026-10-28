@@ -13,7 +13,7 @@ categories = ["network-programming", "asynchronous"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["smol", "all-protocols"]
+default = ["tokio", "all-protocols"]
 all-protocols = ["tcp", "tls", "ws", "udp", "unix", "proxy", "quic"]
 framing = ["futures-util"]
 tcp = ["framing"]

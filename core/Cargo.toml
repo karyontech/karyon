@@ -11,7 +11,7 @@ keywords = ["async", "utilities", "smol", "tokio", "karyon"]
 categories = ["asynchronous"]
 
 [features]
-default = ["smol"]
+default = ["tokio"]
 crypto = ["ed25519-dalek"]
 testing = ["easy-parallel", "async-channel", "env_logger"]
 tokio = ["dep:tokio"]

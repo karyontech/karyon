@@ -87,20 +87,20 @@ async {
 
 | Feature | Description |
 |---------|-------------|
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 | `quic` | Enable QUIC transport |
 | `serde` | Enable serde support for p2p types |
 
 ```toml
-# Default (smol + TCP/TLS)
+# Default (tokio + TCP/TLS)
 karyon_p2p = "1.0"
 
 # With QUIC
 karyon_p2p = { version = "1.0", features = ["quic"] }
 
-# With tokio
-karyon_p2p = { version = "1.0", default-features = false, features = ["tokio", "quic"] }
+# With smol
+karyon_p2p = { version = "1.0", default-features = false, features = ["smol", "quic"] }
 ```
 
 ## Architecture

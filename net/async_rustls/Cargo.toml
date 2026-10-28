@@ -11,7 +11,7 @@ keywords = ["tls", "rustls", "async", "smol", "tokio"]
 categories = ["network-programming", "asynchronous", "cryptography"]
 
 [features]
-default = ["smol"]
+default = ["tokio"]
 smol = ["futures-rustls"]
 tokio = ["tokio-rustls"]
 

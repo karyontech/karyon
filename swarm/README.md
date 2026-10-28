@@ -19,8 +19,8 @@ $ cargo add karyon_swarm
 
 | Feature | Description |
 |---------|-------------|
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 
 ```toml
 karyon_swarm = "1"

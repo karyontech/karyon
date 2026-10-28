@@ -16,7 +16,7 @@ categories = ["development-tools"]
 proc-macro = true
 
 [features]
-default = ["smol"]
+default = ["tokio"]
 smol = []
 tokio = []
 
