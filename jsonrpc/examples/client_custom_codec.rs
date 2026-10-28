@@ -2,7 +2,7 @@ use std::{io, time::Duration};
 
 use log::info;
 use serde::{Deserialize, Serialize};
-use smol::Timer;
+use tokio::time::sleep;
 
 use karyon_jsonrpc::{
     client::ClientBuilder,
@@ -44,22 +44,22 @@ impl Codec<ByteBuffer> for CustomJsonCodec {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
-    smol::future::block_on(async {
-        let client = ClientBuilder::new_with_codec("tcp://127.0.0.1:6000", CustomJsonCodec {})
-            .expect("Create client builder")
-            .build()
-            .await
-            .expect("Create rpc client");
 
-        loop {
-            Timer::after(Duration::from_millis(100)).await;
-            let result: Pong = client
-                .call("Calc.ping", ())
-                .await
-                .expect("Call Calc.ping method");
-            info!("Ping result:  {result:?}");
-        }
-    });
+    let client = ClientBuilder::new_with_codec("tcp://127.0.0.1:6000", CustomJsonCodec {})
+        .expect("Create client builder")
+        .build()
+        .await
+        .expect("Create rpc client");
+
+    loop {
+        sleep(Duration::from_millis(100)).await;
+        let result: Pong = client
+            .call("Calc.ping", ())
+            .await
+            .expect("Call Calc.ping method");
+        info!("Ping result:  {result:?}");
+    }
 }

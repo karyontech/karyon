@@ -14,7 +14,7 @@ categories = ["network-programming", "asynchronous"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["smol", "quic"]
+default = ["tokio", "quic"]
 smol = ["karyon_core/smol", "karyon_net/smol", "futures-rustls"]
 tokio = ["karyon_core/tokio", "karyon_net/tokio", "tokio-rustls"]
 serde = ["dep:serde", "karyon_net/serde"]

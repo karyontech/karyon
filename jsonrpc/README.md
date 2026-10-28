@@ -170,8 +170,8 @@ async {
 | `http` | HTTP/1.1 and HTTP/2 over TCP (implies `tcp`) |
 | `http3` | HTTP/3 over QUIC (implies `http` and `quic`) |
 | `unix` | Unix socket (included by default) |
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 
 ```toml
 # QUIC support

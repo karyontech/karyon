@@ -49,22 +49,22 @@ async {
 
 | Feature | Description |
 |---------|-------------|
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 | `crypto` | Ed25519 key pairs: generate, sign, verify |
 | `testing` | Async test runners with executors and timeouts |
 
 Exactly one runtime feature (`smol` or `tokio`) must be enabled.
 
 ```toml
-# Default (smol)
+# Default (tokio)
 karyon_core = "1.0"
 
 # With crypto
 karyon_core = { version = "1.0", features = ["crypto"] }
 
-# Tokio runtime
-karyon_core = { version = "1.0", default-features = false, features = ["tokio"] }
+# Smol runtime
+karyon_core = { version = "1.0", default-features = false, features = ["smol"] }
 ```
 
 ## Modules

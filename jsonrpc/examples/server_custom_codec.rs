@@ -54,18 +54,18 @@ impl Codec<ByteBuffer> for CustomJsonCodec {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
-    smol::block_on(async {
-        let calc = Calc {};
 
-        let server = ServerBuilder::new_with_codec("tcp://127.0.0.1:6000", CustomJsonCodec {})
-            .expect("Create a new server builder")
-            .service(Arc::new(calc))
-            .build()
-            .await
-            .expect("start a new server");
+    let calc = Calc {};
 
-        server.start_block().await.expect("Start the server");
-    });
+    let server = ServerBuilder::new_with_codec("tcp://127.0.0.1:6000", CustomJsonCodec {})
+        .expect("Create a new server builder")
+        .service(Arc::new(calc))
+        .build()
+        .await
+        .expect("start a new server");
+
+    server.start_block().await.expect("Start the server");
 }

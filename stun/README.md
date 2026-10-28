@@ -91,18 +91,18 @@ println!("public address: {public_addr}");
 | `tcp` | TCP (default) |
 | `tls` | TLS over TCP (implies `tcp`, default) |
 | `quic` | QUIC, karyon extension (default) |
-| `smol` | Use smol async runtime (default) |
-| `tokio` | Use tokio async runtime |
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
 
 ```toml
-# Default (smol + UDP/TCP/TLS/QUIC)
+# Default (tokio + UDP/TCP/TLS/QUIC)
 karyon_stun = "0.1"
 
 # UDP only
-karyon_stun = { version = "0.1", default-features = false, features = ["smol", "udp"] }
+karyon_stun = { version = "0.1", default-features = false, features = ["tokio", "udp"] }
 
-# With tokio
-karyon_stun = { version = "0.1", default-features = false, features = ["tokio", "udp", "tcp", "tls"] }
+# With smol
+karyon_stun = { version = "0.1", default-features = false, features = ["smol", "udp", "tcp", "tls"] }
 ```
 
 ## Scope

@@ -12,7 +12,7 @@ keywords = ["p2p", "swarm", "protocol", "broadcast", "karyon"]
 categories = ["network-programming", "asynchronous"]
 
 [features]
-default = ["smol"]
+default = ["tokio"]
 smol = ["karyon_p2p/smol", "karyon_core/smol"]
 tokio = ["karyon_p2p/tokio", "karyon_core/tokio"]
 

@@ -13,7 +13,7 @@ categories = ["network-programming", "asynchronous"]
 
 
 [features]
-default = ["smol", "tcp", "unix", "quic", "http", "http3", "tls", "ws"]
+default = ["tokio", "tcp", "unix", "quic", "http", "http3", "tls", "ws"]
 tcp = ["karyon_net/tcp"]
 tls = ["tcp", "karyon_net/tls"]
 ws = ["tcp", "karyon_net/ws", "async-tungstenite"]

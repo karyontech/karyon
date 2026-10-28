@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use smol::{channel, Executor};
+use tokio::{runtime::Runtime, sync::mpsc::unbounded_channel};
 
-use karyon_core::testing::run_executor;
 use karyon_p2p::{
     endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
@@ -45,27 +44,24 @@ fn main() {
         ..Default::default()
     };
 
-    // Create a new Executor
-    let ex = Arc::new(Executor::new());
+    // Create a new tokio runtime
+    let rt = Arc::new(Runtime::new().expect("Create tokio runtime"));
 
     // Create a new Node
-    let node = Node::new(&key_pair, config, ex.clone().into());
+    let node = Node::new(&key_pair, config, rt.clone().into());
 
-    let (ctrlc_s, ctrlc_r) = channel::unbounded();
-    let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
+    let (ctrlc_s, mut ctrlc_r) = unbounded_channel();
+    let handle = move || ctrlc_s.send(()).expect("Send ctrlc signal");
     ctrlc::set_handler(handle).expect("ctrlc set handler");
 
-    run_executor(
-        async {
-            // Run the node
-            node.run().await.expect("Run the node");
+    rt.block_on(async {
+        // Run the node
+        node.run().await.expect("Run the node");
 
-            // Wait for ctrlc signal
-            ctrlc_r.recv().await.expect("Receive ctrlc signal");
+        // Wait for ctrlc signal
+        ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
-            // Shutdown the node
-            node.shutdown().await;
-        },
-        ex,
-    );
+        // Shutdown the node
+        node.shutdown().await;
+    });
 }

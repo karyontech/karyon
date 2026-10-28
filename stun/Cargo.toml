@@ -11,7 +11,7 @@ keywords = ["stun", "nat", "quic", "networking", "karyon"]
 categories = ["network-programming", "asynchronous"]
 
 [features]
-default = ["smol", "udp", "tcp", "tls", "quic"]
+default = ["tokio", "udp", "tcp", "tls", "quic"]
 udp = ["karyon_net/udp"]
 tcp = ["karyon_net/tcp"]
 tls = ["tcp", "karyon_net/tls"]

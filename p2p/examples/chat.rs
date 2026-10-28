@@ -3,9 +3,8 @@ use std::{io, sync::Arc};
 use async_trait::async_trait;
 use blocking::unblock;
 use clap::Parser;
-use smol::{channel, Executor};
+use tokio::{runtime::Runtime, spawn, sync::mpsc::unbounded_channel};
 
-use karyon_core::testing::run_executor;
 use karyon_p2p::{
     endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
@@ -49,15 +48,13 @@ struct Cli {
 pub struct ChatProtocol {
     username: String,
     peer: PeerConn,
-    executor: Arc<Executor<'static>>,
 }
 
 impl ChatProtocol {
-    fn new(username: &str, peer: PeerConn, executor: Arc<Executor<'static>>) -> Self {
+    fn new(username: &str, peer: PeerConn) -> Self {
         Self {
             peer,
             username: username.to_string(),
-            executor,
         }
     }
 }
@@ -65,7 +62,7 @@ impl ChatProtocol {
 #[async_trait]
 impl Protocol for ChatProtocol {
     async fn start(self: Arc<Self>) -> Result<(), Error> {
-        let task = self.executor.spawn({
+        let task = spawn({
             let this = self.clone();
             async move {
                 loop {
@@ -87,7 +84,7 @@ impl Protocol for ChatProtocol {
             }
         }
 
-        task.cancel().await;
+        task.abort();
         Ok(())
     }
 
@@ -116,37 +113,31 @@ fn main() {
         ..Default::default()
     };
 
-    // Create a new Executor
-    let ex = Arc::new(Executor::new());
+    // Create a new tokio runtime
+    let rt = Arc::new(Runtime::new().expect("Create tokio runtime"));
 
     // Create a new Node
-    let node = Node::new(&key_pair, config, ex.clone().into());
+    let node = Node::new(&key_pair, config, rt.clone().into());
 
-    let (ctrlc_s, ctrlc_r) = channel::unbounded();
-    let handle = move || ctrlc_s.try_send(()).expect("Send ctrlc signal");
+    let (ctrlc_s, mut ctrlc_r) = unbounded_channel();
+    let handle = move || ctrlc_s.send(()).expect("Send ctrlc signal");
     ctrlc::set_handler(handle).expect("ctrlc set handler");
 
-    run_executor(
-        {
-            let ex = ex.clone();
-            async {
-                let username = cli.username;
+    rt.block_on(async {
+        let username = cli.username;
 
-                // Attach the ChatProtocol
-                node.attach_protocol(move |peer| ChatProtocol::new(&username, peer, ex.clone()))
-                    .await
-                    .expect("Attach chat protocol to the p2p node");
+        // Attach the ChatProtocol
+        node.attach_protocol(move |peer| ChatProtocol::new(&username, peer))
+            .await
+            .expect("Attach chat protocol to the p2p node");
 
-                // Run the node
-                node.run().await.expect("Run the node");
+        // Run the node
+        node.run().await.expect("Run the node");
 
-                // Wait for ctrlc signal
-                ctrlc_r.recv().await.expect("Receive ctrlc signal");
+        // Wait for ctrlc signal
+        ctrlc_r.recv().await.expect("Receive ctrlc signal");
 
-                // Shutdown the node
-                node.shutdown().await;
-            }
-        },
-        ex,
-    );
+        // Shutdown the node
+        node.shutdown().await;
+    });
 }

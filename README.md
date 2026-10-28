@@ -13,8 +13,8 @@
 
 A set of composable Rust crates for networking, peer-to-peer systems, and decentralized software.
 
-All crates support both smol (default) and tokio. To use tokio, disable
-default features and enable the `tokio` feature.
+All crates support both tokio (default) and smol. To use smol, disable
+default features and enable the `smol` feature.
 
 [Website](https://karyontech.net/) | [Discord](https://discord.gg/xuXRcrkz3p) | [irc](https://libera.chat/) #karyon on liberachat
 
