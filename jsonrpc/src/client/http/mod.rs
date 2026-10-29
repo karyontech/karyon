@@ -349,7 +349,13 @@ where
         let sub = subscriptions.subscribe(sub_id).await;
 
         self.task_group.spawn_then(
-            h3::subscription_task(send, reader, unsub_rx, sub.clone()),
+            h3::subscription_task(
+                send,
+                reader,
+                unsub_rx,
+                sub.clone(),
+                self.config.notification_decoder,
+            ),
             |res: TaskResult<Result<()>>| async move {
                 log::debug!("H3 subscription task ended: {res}");
             },

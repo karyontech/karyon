@@ -1,3 +1,5 @@
+#[path = "shared/positional.rs"]
+mod positional;
 mod shared;
 
 use std::sync::Arc;
@@ -219,6 +221,48 @@ fn rpc_and_pubsub_together() {
             .unsubscribe("MathService.counter_unsubscribe", sub.id())
             .await
             .expect("Unsubscribe");
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+/// A server with a custom notification format and a client with the
+/// matching decoder.
+#[test]
+fn custom_notification_format() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+
+        let server = ServerBuilder::new("tcp://127.0.0.1:0")
+            .expect("Create server builder")
+            .pubsub_service(service)
+            .with_notification_encoder(positional::encode)
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .with_notification_decoder(positional::decode)
+            .build()
+            .await
+            .expect("Build client");
+
+        let sub = client
+            .subscribe("MathService.counter_subscribe", ())
+            .await
+            .expect("Subscribe");
+
+        let msg1: i32 = serde_json::from_value(sub.recv().await.expect("Recv notification 1"))
+            .expect("Parse notification");
+        let msg2: i32 = serde_json::from_value(sub.recv().await.expect("Recv notification 2"))
+            .expect("Parse notification");
+        assert_eq!(msg1, 1);
+        assert_eq!(msg2, 2);
 
         client.stop().await;
         server.shutdown().await;

@@ -44,7 +44,7 @@ use crate::codec::JsonRpcWsCodec;
 pub use builder::ClientBuilder;
 #[cfg(feature = "http")]
 pub use http::HttpConfig;
-pub use subscriptions::Subscription;
+pub use subscriptions::{NotificationDecoder, Subscription};
 
 use message_dispatcher::MessageDispatcher;
 use subscriptions::Subscriptions;
@@ -76,6 +76,8 @@ pub(crate) struct ClientConfig {
     pub http_config: HttpConfig,
     pub timeout: Option<u64>,
     pub subscription_buffer_size: usize,
+    /// Set via `ClientBuilder::with_notification_decoder`.
+    pub notification_decoder: NotificationDecoder,
 }
 
 pub(crate) enum ClientBackend {

@@ -168,7 +168,8 @@ where
         self
     }
 
-    /// Set a custom notification encoder.
+    /// Set a custom notification encoder. A karyon client then needs the
+    /// matching `ClientBuilder::with_notification_decoder`.
     pub fn with_notification_encoder(
         mut self,
         encoder: fn(NewNotification) -> Notification,

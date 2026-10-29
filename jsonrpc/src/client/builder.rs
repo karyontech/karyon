@@ -12,7 +12,10 @@ use karyon_net::quic::ClientQuicConfig;
 use karyon_net::tcp::TcpConfig;
 
 use crate::{
-    client::WsCodec,
+    client::{
+        subscriptions::{default_notification_decoder, NotificationDecoder},
+        WsCodec,
+    },
     codec::{JsonCodec, JsonRpcCodec},
     error::Result,
 };
@@ -83,6 +86,7 @@ impl<B: JsonRpcCodec> ClientBuilder<B, JsonCodec> {
                 #[cfg(feature = "http")]
                 http_config: HttpConfig::default(),
                 subscription_buffer_size: DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE,
+                notification_decoder: default_notification_decoder,
             },
             byte_codec: codec,
             ws_codec: JsonCodec::default(),
@@ -105,6 +109,13 @@ where
     /// Set max subscription buffer size.
     pub fn set_max_subscription_buffer_size(mut self, size: usize) -> Self {
         self.inner.subscription_buffer_size = size;
+        self
+    }
+
+    /// Set a custom notification decoder. Use it when the server sends
+    /// notifications in another format (`ServerBuilder::with_notification_encoder`).
+    pub fn with_notification_decoder(mut self, decoder: NotificationDecoder) -> Self {
+        self.inner.notification_decoder = decoder;
         self
     }
 
