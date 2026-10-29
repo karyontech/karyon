@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use karyon_core::testing::run_test;
 
-use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
+use karyon_jsonrpc::{client::ClientBuilder, error::Error, server::ServerBuilder};
 
 use shared::MathService;
 
@@ -70,7 +70,10 @@ fn rpc_error_handling() {
             .expect("Build client");
 
         let result: Result<Value, _> = client.call("MathService.error_method", ()).await;
-        assert!(result.is_err(), "Should return an error");
+        assert!(
+            matches!(result, Err(Error::CallError(500, _))),
+            "Should return a call error: {result:?}"
+        );
 
         let result: Result<Value, _> = client.call("MathService.nonexistent", ()).await;
         assert!(result.is_err(), "Nonexistent method should return error");

@@ -2,7 +2,10 @@
 //! A single message connection is shared across all calls and
 //! subscriptions. A background task splits reader from writer.
 
-use std::sync::{atomic::Ordering, Arc};
+use std::{
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 
 use async_channel::Receiver;
 use log::{debug, error, info};
@@ -293,21 +296,25 @@ where
     }
 
     let result = match client.config.timeout {
-        Some(t) => timeout(std::time::Duration::from_millis(t), rx.recv()).await?,
-        None => rx.recv().await,
+        Some(t) => match timeout(Duration::from_millis(t), rx.recv()).await {
+            Ok(res) => res.map_err(Error::from),
+            Err(err) => Err(Error::from(err)),
+        },
+        None => rx.recv().await.map_err(Error::from),
     };
 
+    // Unregister on every error, timeout included, so the entry does not
+    // stay in the dispatcher.
     let response = match result {
         Ok(r) => r,
         Err(err) => {
             message_dispatcher.unregister(&id).await;
-            return Err(err.into());
+            return Err(err);
         }
     };
 
-    if let Some(error) = response.error {
-        return Err(Error::SubscribeError(error.code, error.message));
-    }
+    // Error responses go back to the caller, which maps them to
+    // `CallError` or `SubscribeError`.
 
     let resp_id = response
         .id
