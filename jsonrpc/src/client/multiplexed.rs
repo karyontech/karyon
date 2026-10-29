@@ -24,8 +24,9 @@ use karyon_net::{layers::ws::WsConn, ClientLayer};
 
 use crate::{
     client::{
-        message_dispatcher::MessageDispatcher, subscriptions::Subscriptions, Client, ClientBackend,
-        ClientConfig, RequestID, WsCodec,
+        message_dispatcher::MessageDispatcher,
+        subscriptions::{NotificationDecoder, Subscriptions},
+        Client, ClientBackend, ClientConfig, RequestID, WsCodec,
     },
     codec::JsonRpcCodec,
     error::{Error, Result},
@@ -144,6 +145,7 @@ where
         send_chan.1.clone(),
         message_dispatcher,
         subscriptions,
+        client.config.notification_decoder,
     )
     .await
 }
@@ -154,6 +156,7 @@ async fn run_io_loop<R, Wr>(
     outbound: Receiver<serde_json::Value>,
     message_dispatcher: &MessageDispatcher,
     subscriptions: &Subscriptions,
+    decoder: NotificationDecoder,
 ) -> Result<()>
 where
     R: MessageRx<Message = serde_json::Value> + Send,
@@ -165,7 +168,7 @@ where
                 writer.send_msg(req?).await?;
             }
             Either::Right(msg) => {
-                match handle_mux_msg(message_dispatcher, subscriptions, msg?).await {
+                match handle_mux_msg(message_dispatcher, subscriptions, decoder, msg?).await {
                     Err(Error::SubscriptionBufferFull) => {
                         return Err(Error::SubscriptionBufferFull);
                     }
@@ -183,6 +186,7 @@ where
 async fn handle_mux_msg(
     message_dispatcher: &MessageDispatcher,
     subscriptions: &Subscriptions,
+    decoder: NotificationDecoder,
     msg: serde_json::Value,
 ) -> Result<()> {
     match serde_json::from_value::<NewMsg>(msg.clone()) {
@@ -192,7 +196,7 @@ async fn handle_mux_msg(
         }
         Ok(NewMsg::Notification(nt)) => {
             debug!("<-- {nt}");
-            subscriptions.notify(nt).await
+            subscriptions.notify(decoder(nt)?).await
         }
         Err(err) => {
             error!("Receive unexpected msg {msg}: {err}");

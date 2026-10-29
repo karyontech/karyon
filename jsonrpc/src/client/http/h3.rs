@@ -16,7 +16,7 @@ use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
     client::http::HttpConfig,
-    client::subscriptions::Subscription,
+    client::subscriptions::{decode_notification, NotificationDecoder, Subscription},
     codec::{encode_msg, extend_buf, JsonRpcCodec},
     error::{Error, Result},
     message,
@@ -189,21 +189,14 @@ pub(super) async fn subscription_task<C: JsonRpcCodec>(
     mut reader: H3Reader<C>,
     unsub_rx: Receiver<Value>,
     sub: Arc<Subscription>,
+    decoder: NotificationDecoder,
 ) -> Result<()> {
     loop {
         match select(reader.next(), unsub_rx.recv()).await {
             Either::Left(Ok(Some(msg))) => {
-                let nt: message::Notification = match serde_json::from_value(msg) {
-                    Ok(v) => v,
+                let nt_res = match decode_notification(decoder, msg) {
+                    Ok(r) => r,
                     Err(_) => continue,
-                };
-                debug!("<-- {nt}");
-                let nt_res: message::NotificationResult = match nt.params {
-                    Some(ref p) => match serde_json::from_value(p.clone()) {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    },
-                    None => continue,
                 };
                 let val = nt_res.result.unwrap_or(serde_json::json!(""));
                 if sub.notify(val).await.is_err() {

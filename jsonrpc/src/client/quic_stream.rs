@@ -24,7 +24,7 @@ use karyon_net::{
 
 use crate::{
     client::{
-        subscriptions::{Subscription, Subscriptions},
+        subscriptions::{decode_notification, NotificationDecoder, Subscription, Subscriptions},
         Client, ClientBackend, ClientConfig, RequestID, WsCodec,
     },
     codec::{JsonCodec, JsonRpcCodec},
@@ -134,7 +134,13 @@ where
     let (reader, writer) = conn.split();
 
     client.task_group.spawn_then(
-        subscription_stream_task(reader, writer, unsub_rx, sub.clone()),
+        subscription_stream_task(
+            reader,
+            writer,
+            unsub_rx,
+            sub.clone(),
+            client.config.notification_decoder,
+        ),
         |res: TaskResult<Result<()>>| async move {
             debug!("QUIC subscription stream task ended: {res}");
         },
@@ -150,6 +156,7 @@ async fn subscription_stream_task(
     mut writer: FramedWriter<JsonCodec>,
     unsub_rx: async_channel::Receiver<serde_json::Value>,
     sub: Arc<Subscription>,
+    decoder: NotificationDecoder,
 ) -> Result<()> {
     loop {
         match select(reader.recv_msg(), unsub_rx.recv()).await {
@@ -158,17 +165,9 @@ async fn subscription_stream_task(
                     Ok(m) => m,
                     Err(_) => break,
                 };
-                let nt: message::Notification = match serde_json::from_value(msg) {
-                    Ok(v) => v,
+                let nt_res = match decode_notification(decoder, msg) {
+                    Ok(r) => r,
                     Err(_) => continue,
-                };
-                debug!("<-- {nt}");
-                let nt_res: message::NotificationResult = match nt.params {
-                    Some(ref p) => match serde_json::from_value(p.clone()) {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    },
-                    None => continue,
                 };
                 let val = nt_res.result.unwrap_or(serde_json::json!(""));
                 if sub.notify(val).await.is_err() {

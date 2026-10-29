@@ -1,8 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_channel::{Receiver, Sender};
-use serde_json::json;
-use serde_json::Value;
+#[cfg(feature = "quic")]
+use log::debug;
+use serde_json::{from_value, json, Value};
 
 use karyon_core::async_runtime::lock::RwLock;
 
@@ -10,6 +11,29 @@ use crate::{
     error::{Error, Result},
     message::{Notification, NotificationResult, SubscriptionID},
 };
+
+/// Turns a received notification into its subscription id and result.
+/// Must match the server's notification encoder.
+pub type NotificationDecoder = fn(Notification) -> Result<NotificationResult>;
+
+/// Default decoder: `params` is `{"subscription": id, "result": value}`.
+pub(super) fn default_notification_decoder(nt: Notification) -> Result<NotificationResult> {
+    match nt.params {
+        Some(p) => Ok(from_value(p)?),
+        None => Err(Error::InvalidMsg("Invalid notification msg".to_string())),
+    }
+}
+
+/// Parse a raw notification message and decode it with `decoder`.
+#[cfg(feature = "quic")]
+pub(super) fn decode_notification(
+    decoder: NotificationDecoder,
+    msg: Value,
+) -> Result<NotificationResult> {
+    let nt: Notification = from_value(msg)?;
+    debug!("<-- {nt}");
+    decoder(nt)
+}
 
 /// A subscription established when the client's subscribe to a method
 pub struct Subscription {
@@ -83,13 +107,8 @@ impl Subscriptions {
         }
     }
 
-    /// Notifies the subscription about the given notification.
-    pub(super) async fn notify(&self, nt: Notification) -> Result<()> {
-        let nt_res: NotificationResult = match nt.params {
-            Some(ref p) => serde_json::from_value(p.clone())?,
-            None => return Err(Error::InvalidMsg("Invalid notification msg".to_string())),
-        };
-
+    /// Notifies the subscription about the given decoded notification.
+    pub(super) async fn notify(&self, nt_res: NotificationResult) -> Result<()> {
         match self.subs.read().await.get(&nt_res.subscription) {
             Some(s) => s.notify(nt_res.result.unwrap_or(json!(""))).await?,
             None => {
