@@ -23,6 +23,10 @@ use crate::error::{Error, Result};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4MB
 
+/// Default HTTP `Content-Type`, for the default `JsonCodec`.
+#[cfg(feature = "http")]
+pub(crate) const DEFAULT_CONTENT_TYPE: &str = "application/json";
+
 /// Byte-stream codec used for TCP, TLS, Unix, QUIC, and HTTP.
 pub trait JsonRpcCodec:
     Codec<ByteBuffer, Message = serde_json::Value, Error = karyon_net::Error>

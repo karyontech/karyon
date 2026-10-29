@@ -9,6 +9,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
     client::conn::http2::{handshake, Connection, SendRequest},
+    header::CONTENT_TYPE,
     rt::{Read, Write},
     Request,
 };
@@ -23,7 +24,7 @@ use hyper_util::rt::TokioIo;
 use smol_hyper::rt::FuturesIo;
 
 use crate::{
-    client::http::parse_response,
+    client::http::{parse_response, HttpConfig},
     codec::{encode_msg, JsonRpcCodec},
     error::{Error, Result},
     hyper_exec::HyperExecutor,
@@ -58,13 +59,14 @@ pub(super) async fn connect(
 pub(super) async fn send<C: JsonRpcCodec>(
     sender: &H2SendRequest,
     endpoint: &Endpoint,
+    config: &HttpConfig,
     msg: serde_json::Value,
     codec: &C,
 ) -> Result<message::Response> {
     let body = encode_msg(codec, &msg)?;
 
     let req = Request::post(endpoint.to_string())
-        .header("Content-Type", "application/json")
+        .header(CONTENT_TYPE, config.content_type.as_str())
         .body(Full::new(body))
         .map_err(|e| Error::HttpError(e.to_string()))?;
 

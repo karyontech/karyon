@@ -48,6 +48,8 @@ use crate::{codec::JsonRpcWsCodec, server::acceptor::WsAcceptor};
 
 pub use builder::ServerBuilder;
 pub use channel::Channel;
+#[cfg(feature = "http")]
+pub use http::HttpConfig;
 pub use pubsub_service::{PubSubRPCMethod, PubSubRPCService};
 pub use service::{RPCMethod, RPCService};
 
@@ -80,6 +82,9 @@ pub(crate) struct ServerConfig {
     /// User-customizable notification wire format.
     /// Set via `ServerBuilder::with_notification_encoder`.
     pub notification_encoder: fn(NewNotification) -> message::Notification,
+    /// Set via `ServerBuilder::http_config`.
+    #[cfg(feature = "http")]
+    pub http_config: HttpConfig,
 }
 
 /// One variant per backend family. Stream-based transports share

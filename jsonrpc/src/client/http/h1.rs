@@ -11,7 +11,10 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::{header::HOST, Request};
+use hyper::{
+    header::{CONTENT_TYPE, HOST},
+    Request,
+};
 
 #[cfg(feature = "smol")]
 use hyper::{
@@ -98,7 +101,8 @@ fn build_request<C: JsonRpcCodec>(
 ) -> Result<Request<Full<Bytes>>> {
     let body = encode_msg(codec, msg)?;
 
-    let mut req = Request::post(endpoint.to_string()).header("Content-Type", "application/json");
+    let mut req =
+        Request::post(endpoint.to_string()).header(CONTENT_TYPE, config.content_type.as_str());
     if let Some(host) = &config.host {
         req = req.header(HOST, host);
     }

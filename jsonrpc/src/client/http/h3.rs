@@ -7,7 +7,7 @@ use async_channel::Receiver;
 use bytes::Bytes;
 use h3::client::{RequestStream, SendRequest};
 use h3_quinn::{BidiStream, SendStream};
-use hyper::{Request, StatusCode};
+use hyper::{header::CONTENT_TYPE, Request, StatusCode};
 use log::debug;
 use serde_json::Value;
 
@@ -15,6 +15,7 @@ use karyon_core::async_util::{select, Either, TaskGroup};
 use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
+    client::http::HttpConfig,
     client::subscriptions::Subscription,
     codec::{encode_msg, extend_buf, JsonRpcCodec},
     error::{Error, Result},
@@ -95,6 +96,7 @@ impl<C: JsonRpcCodec> H3Reader<C> {
 /// Send the request headers and `msg`. The request body stays open.
 async fn start_request<C: JsonRpcCodec>(
     mut send_request: H3SendRequest,
+    config: &HttpConfig,
     msg: serde_json::Value,
     codec: &C,
 ) -> Result<H3Stream> {
@@ -104,7 +106,7 @@ async fn start_request<C: JsonRpcCodec>(
     // and authority are only filled in to satisfy `Request::post`'s
     // parser; the server only routes on `:path`.
     let req = Request::post("https://localhost/")
-        .header("Content-Type", "application/json")
+        .header(CONTENT_TYPE, config.content_type.as_str())
         .body(())
         .map_err(|e| Error::HttpError(e.to_string()))?;
 
@@ -147,10 +149,11 @@ async fn read_response<C: JsonRpcCodec>(
 
 pub(super) async fn send<C: JsonRpcCodec>(
     send_request: H3SendRequest,
+    config: &HttpConfig,
     msg: serde_json::Value,
     codec: &C,
 ) -> Result<message::Response> {
-    let mut stream = start_request(send_request, msg, codec).await?;
+    let mut stream = start_request(send_request, config, msg, codec).await?;
     // Finish before reading, so servers that read the whole body first
     // still answer.
     stream
@@ -166,10 +169,11 @@ pub(super) async fn send<C: JsonRpcCodec>(
 /// notifications.
 pub(super) async fn subscribe<C: JsonRpcCodec>(
     send_request: H3SendRequest,
+    config: &HttpConfig,
     msg: serde_json::Value,
     codec: &C,
 ) -> Result<(message::Response, H3SendStream, H3Reader<C>)> {
-    let stream = start_request(send_request, msg, codec).await?;
+    let stream = start_request(send_request, config, msg, codec).await?;
     let (send, mut reader) = read_response(stream, codec).await?;
     let rpc_response = reader.next_response().await?;
     Ok((rpc_response, send, reader))
