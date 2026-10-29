@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use karyon_core::testing::run_test;
 
-use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
+use karyon_jsonrpc::{client::ClientBuilder, error::Error, server::ServerBuilder};
 use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
@@ -190,6 +190,43 @@ fn pubsub_subscription() {
             .unsubscribe("MathService.counter_unsubscribe", sub.id())
             .await
             .expect("Unsubscribe");
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+/// A failed call returns `CallError`.
+#[test]
+fn call_returns_call_error() {
+    run_test(10, async {
+        let (srv_cfg, cli_cfg) = test_quic_configs();
+
+        let server = ServerBuilder::new("quic://127.0.0.1:0")
+            .expect("Create server builder")
+            .service(Arc::new(MathService {}))
+            .quic_config(srv_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build client");
+
+        let result: Result<Value, _> = client.call("MathService.error_method", ()).await;
+        assert!(
+            matches!(result, Err(Error::CallError(500, _))),
+            "Should return a call error: {result:?}"
+        );
 
         client.stop().await;
         server.shutdown().await;

@@ -190,6 +190,9 @@ where
             }
             ClientBackend::Multiplexed { subscriptions, .. } => {
                 let response = multiplexed::send_request(self, method, params).await?;
+                if let Some(error) = response.error {
+                    return Err(Error::SubscribeError(error.code, error.message));
+                }
                 let sub_id = match response.result {
                     Some(result) => serde_json::from_value::<SubscriptionID>(result)?,
                     None => return Err(Error::InvalidMsg("Invalid subscription id".to_string())),
@@ -236,9 +239,12 @@ where
                 Ok(())
             }
             ClientBackend::Multiplexed { subscriptions, .. } => {
-                let _ = multiplexed::send_request(self, method, sub_id).await?;
+                let response = multiplexed::send_request(self, method, sub_id).await?;
                 subscriptions.unsubscribe(&sub_id).await;
-                Ok(())
+                match response.error {
+                    Some(error) => Err(Error::SubscribeError(error.code, error.message)),
+                    None => Ok(()),
+                }
             }
         }
     }
