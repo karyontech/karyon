@@ -213,7 +213,9 @@ karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "htt
 - **QUIC**: each RPC call opens a new bidirectional stream via `StreamMux`. Each subscription
   also opens its own dedicated stream and splits it for concurrent notification writing +
   unsubscribe reading.
-- **HTTP/1-2**: standard hyper request/response. No persistent connection.
+- **HTTP/1-2**: standard hyper request/response. The server accepts HTTP/1.1 and HTTP/2.
+  The client uses HTTP/1.1 by default; `ClientBuilder::http_config` with
+  `HttpConfig { http2: true, .. }`.
 - **HTTP/3**: QUIC-based. Subscriptions stream DATA frames on a single request.
 
 ## Clients

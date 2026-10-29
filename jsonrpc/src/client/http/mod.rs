@@ -1,8 +1,7 @@
-//! HTTP client backend: HTTP/1 (smol), HTTP/1+2 (tokio), and HTTP/3 (QUIC).
+//! HTTP client backend: HTTP/1.1 (smol, or pooled on tokio), opt-in
+//! HTTP/2 over plain TCP, and HTTP/3 (QUIC).
 
-#[cfg(feature = "smol")]
 mod h1;
-#[cfg(feature = "tokio")]
 mod h2;
 #[cfg(feature = "http3")]
 mod h3;
@@ -21,7 +20,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::json;
 
 #[cfg(feature = "tokio")]
-use hyper_util::client::legacy::Client as HyperClient;
+use hyper_util::client::legacy::{connect::HttpConnector, Client as HyperClient};
 
 #[cfg(feature = "tokio")]
 use crate::hyper_exec::HyperExecutor;
@@ -52,6 +51,18 @@ use parking_lot::Mutex;
 #[cfg(feature = "http3")]
 use crate::client::subscriptions::{Subscription, Subscriptions};
 
+/// HTTP settings for `http://` endpoints, set with
+/// `ClientBuilder::http_config`.
+#[derive(Clone, Debug, Default)]
+pub struct HttpConfig {
+    /// Use HTTP/2 over plain TCP (prior knowledge, no upgrade) instead of
+    /// HTTP/1.1. One connection is opened in `build()` and shared by all
+    /// calls. A QUIC config (HTTP/3) takes priority.
+    pub http2: bool,
+    /// `Host` header for HTTP/1.1 requests. Not sent when `None`.
+    pub host: Option<String>,
+}
+
 /// HTTP client backend for JSON-RPC.
 pub(crate) struct HttpClientBackend {
     inner: HttpTransport,
@@ -60,40 +71,66 @@ pub(crate) struct HttpClientBackend {
     task_group: Arc<TaskGroup>,
 }
 
-// smol uses HTTP/1.1 only via `hyper::client::conn::http1`, which
-// is the smallest hyper API that compiles against `smol-hyper`.
-// tokio gets HTTP/1.1 + HTTP/2 with connection pooling for free
-// through `hyper-util`'s legacy `Client`. The hyper client is boxed
-// because it is much larger than the other variants.
+// smol uses HTTP/1.1 via `hyper::client::conn::http1`, which is the
+// smallest hyper API that compiles against `smol-hyper`. tokio gets
+// HTTP/1.1 with connection pooling through `hyper-util`'s legacy
+// `Client`, boxed because it is much larger than the other variants.
+// HTTP/2 is opt-in and uses one shared connection on both runtimes.
 enum HttpTransport {
     #[cfg(feature = "smol")]
-    Smol { endpoint: Endpoint },
+    Smol {
+        endpoint: Endpoint,
+        config: HttpConfig,
+    },
     #[cfg(feature = "tokio")]
     Tokio {
         endpoint: Endpoint,
-        client: Box<HyperClient<hyper_util::client::legacy::connect::HttpConnector, Full<Bytes>>>,
+        config: HttpConfig,
+        client: Box<HyperClient<HttpConnector, Full<Bytes>>>,
+    },
+    H2 {
+        endpoint: Endpoint,
+        sender: h2::H2SendRequest,
     },
     #[cfg(feature = "http3")]
     H3 { send_request: h3::H3SendRequest },
 }
 
 impl HttpClientBackend {
-    /// Create an HTTP/1.1 + HTTP/2 client.
-    pub(crate) fn new(endpoint: &Endpoint, task_group: Arc<TaskGroup>) -> Result<Self> {
+    /// Create an HTTP/1.1 client.
+    pub(crate) fn new(
+        endpoint: &Endpoint,
+        config: &HttpConfig,
+        task_group: Arc<TaskGroup>,
+    ) -> Result<Self> {
         #[cfg(feature = "smol")]
         let inner = HttpTransport::Smol {
             endpoint: endpoint.clone(),
+            config: config.clone(),
         };
 
         #[cfg(feature = "tokio")]
         let inner = HttpTransport::Tokio {
             endpoint: endpoint.clone(),
+            config: config.clone(),
             client: Box::new(
                 HyperClient::builder(HyperExecutor::new(task_group.clone())).build_http(),
             ),
         };
 
         Ok(Self { inner, task_group })
+    }
+
+    /// Create an HTTP/2 client over plain TCP. Opens the connection now.
+    pub(crate) async fn new_h2(endpoint: &Endpoint, task_group: Arc<TaskGroup>) -> Result<Self> {
+        let sender = h2::connect(endpoint, &task_group).await?;
+        Ok(Self {
+            inner: HttpTransport::H2 {
+                endpoint: endpoint.clone(),
+                sender,
+            },
+            task_group,
+        })
     }
 
     /// Create an HTTP/3 client (QUIC). The driver task is spawned via
@@ -120,13 +157,16 @@ impl HttpClientBackend {
         let _ = &self.task_group;
         match &self.inner {
             #[cfg(feature = "smol")]
-            HttpTransport::Smol { endpoint } => {
-                h1::send(endpoint, msg, &self.task_group, codec).await
+            HttpTransport::Smol { endpoint, config } => {
+                h1::send(endpoint, config, msg, &self.task_group, codec).await
             }
             #[cfg(feature = "tokio")]
-            HttpTransport::Tokio { endpoint, client } => {
-                h2::send(client, endpoint, msg, codec).await
-            }
+            HttpTransport::Tokio {
+                endpoint,
+                config,
+                client,
+            } => h1::send(client, endpoint, config, msg, codec).await,
+            HttpTransport::H2 { endpoint, sender } => h2::send(sender, endpoint, msg, codec).await,
             #[cfg(feature = "http3")]
             HttpTransport::H3 { send_request } => h3::send(send_request.clone(), msg, codec).await,
         }
@@ -174,28 +214,36 @@ where
     Ok(rpc_response)
 }
 
-/// Build the HTTP backend, optionally with HTTP/3 support.
+/// Build the HTTP backend: HTTP/3 if a QUIC config is set, else
+/// HTTP/2 if enabled, else HTTP/1.1.
 pub(super) async fn build_backend(
     config: &ClientConfig,
     task_group: Arc<TaskGroup>,
 ) -> Result<ClientBackend> {
     #[cfg(feature = "http3")]
-    let http_backend = match config.quic_config.as_ref() {
-        Some(qc) => HttpClientBackend::new_h3(&config.endpoint, qc, task_group).await?,
-        None => HttpClientBackend::new(&config.endpoint, task_group)?,
-    };
-    #[cfg(not(feature = "http3"))]
-    let http_backend = HttpClientBackend::new(&config.endpoint, task_group)?;
+    if let Some(qc) = config.quic_config.as_ref() {
+        let backend = HttpClientBackend::new_h3(&config.endpoint, qc, task_group).await?;
+        return Ok(http_client_backend(config, backend));
+    }
 
+    let http_backend = if config.http_config.http2 {
+        HttpClientBackend::new_h2(&config.endpoint, task_group).await?
+    } else {
+        HttpClientBackend::new(&config.endpoint, &config.http_config, task_group)?
+    };
+    Ok(http_client_backend(config, http_backend))
+}
+
+fn http_client_backend(config: &ClientConfig, http_backend: HttpClientBackend) -> ClientBackend {
     info!("HTTP client configured for endpoint: {}", config.endpoint);
 
-    Ok(ClientBackend::Http {
+    ClientBackend::Http {
         http_backend: Box::new(http_backend),
         #[cfg(feature = "http3")]
         subscriptions: Subscriptions::new(config.subscription_buffer_size),
         #[cfg(feature = "http3")]
         unsub_chans: Mutex::new(HashMap::new()),
-    })
+    }
 }
 
 // -- Client impl (HTTP-specific) --

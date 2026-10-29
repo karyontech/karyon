@@ -42,6 +42,8 @@ use std::collections::HashMap;
 use crate::codec::JsonRpcWsCodec;
 
 pub use builder::ClientBuilder;
+#[cfg(feature = "http")]
+pub use http::HttpConfig;
 pub use subscriptions::Subscription;
 
 use message_dispatcher::MessageDispatcher;
@@ -70,6 +72,8 @@ pub(crate) struct ClientConfig {
     pub tls_config: Option<karyon_net::tls::ClientTlsConfig>,
     #[cfg(feature = "quic")]
     pub quic_config: Option<ClientQuicConfig>,
+    #[cfg(feature = "http")]
+    pub http_config: HttpConfig,
     pub timeout: Option<u64>,
     pub subscription_buffer_size: usize,
 }
