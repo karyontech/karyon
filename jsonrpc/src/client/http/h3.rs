@@ -3,12 +3,15 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use async_channel::Receiver;
 use bytes::Bytes;
+use h3::client::{RequestStream, SendRequest};
+use h3_quinn::{BidiStream, SendStream};
 use hyper::{Request, StatusCode};
 use log::debug;
 use serde_json::Value;
 
-use karyon_core::async_util::TaskGroup;
+use karyon_core::async_util::{select, Either, TaskGroup};
 use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
@@ -18,8 +21,10 @@ use crate::{
     message,
 };
 
-pub(super) type H3SendRequest = h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>;
-pub(super) type H3RecvStream = h3::client::RequestStream<h3_quinn::RecvStream, Bytes>;
+pub(super) type H3SendRequest = SendRequest<h3_quinn::OpenStreams, Bytes>;
+pub(super) type H3RecvStream = RequestStream<h3_quinn::RecvStream, Bytes>;
+pub(super) type H3SendStream = RequestStream<SendStream<Bytes>, Bytes>;
+type H3Stream = RequestStream<BidiStream<Bytes>, Bytes>;
 
 /// Connect to an HTTP/3 server and return a request sender. A
 /// background task drives the connection until close.
@@ -87,12 +92,12 @@ impl<C: JsonRpcCodec> H3Reader<C> {
     }
 }
 
-/// Send one request and return a reader for the reply stream.
-async fn request<C: JsonRpcCodec>(
+/// Send the request headers and `msg`. The request body stays open.
+async fn start_request<C: JsonRpcCodec>(
     mut send_request: H3SendRequest,
     msg: serde_json::Value,
     codec: &C,
-) -> Result<H3Reader<C>> {
+) -> Result<H3Stream> {
     let body = encode_msg(codec, &msg)?;
 
     // The QUIC connection is already established, so the URI's scheme
@@ -113,11 +118,15 @@ async fn request<C: JsonRpcCodec>(
         .await
         .map_err(|e| Error::HttpError(format!("H3 data: {e}")))?;
 
-    stream
-        .finish()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 finish: {e}")))?;
+    Ok(stream)
+}
 
+/// Wait for the response headers and split the stream into the send
+/// half and a reader for the reply.
+async fn read_response<C: JsonRpcCodec>(
+    mut stream: H3Stream,
+    codec: &C,
+) -> Result<(H3SendStream, H3Reader<C>)> {
     let resp = stream
         .recv_response()
         .await
@@ -127,11 +136,13 @@ async fn request<C: JsonRpcCodec>(
         return Err(Error::HttpError(format!("HTTP/3 error: {}", resp.status())));
     }
 
-    Ok(H3Reader {
-        recv: stream.split().1,
+    let (send, recv) = stream.split();
+    let reader = H3Reader {
+        recv,
         buf: ByteBuffer::new(),
         codec: codec.clone(),
-    })
+    };
+    Ok((send, reader))
 }
 
 pub(super) async fn send<C: JsonRpcCodec>(
@@ -139,51 +150,71 @@ pub(super) async fn send<C: JsonRpcCodec>(
     msg: serde_json::Value,
     codec: &C,
 ) -> Result<message::Response> {
-    request(send_request, msg, codec)
-        .await?
-        .next_response()
+    let mut stream = start_request(send_request, msg, codec).await?;
+    // Finish before reading, so servers that read the whole body first
+    // still answer.
+    stream
+        .finish()
         .await
+        .map_err(|e| Error::HttpError(format!("H3 finish: {e}")))?;
+    let (_, mut reader) = read_response(stream, codec).await?;
+    reader.next_response().await
 }
 
-/// Subscribe over HTTP/3: send the request, read the initial response,
-/// and return the reader for streaming notifications.
+/// Subscribe over HTTP/3: send the request with the body left open, read
+/// the initial response, and return the send half and the reader for
+/// notifications.
 pub(super) async fn subscribe<C: JsonRpcCodec>(
     send_request: H3SendRequest,
     msg: serde_json::Value,
     codec: &C,
-) -> Result<(message::Response, H3Reader<C>)> {
-    let mut reader = request(send_request, msg, codec).await?;
+) -> Result<(message::Response, H3SendStream, H3Reader<C>)> {
+    let stream = start_request(send_request, msg, codec).await?;
+    let (send, mut reader) = read_response(stream, codec).await?;
     let rpc_response = reader.next_response().await?;
-    Ok((rpc_response, reader))
+    Ok((rpc_response, send, reader))
 }
 
-pub(super) async fn notification_reader_task<C: JsonRpcCodec>(
-    reader: H3Reader<C>,
+/// Forward notifications to the subscription until the stream ends or
+/// an unsubscribe request arrives. The unsubscribe goes out on the same
+/// stream, so the server handles it with the subscription's channel.
+// TODO: remove the subscription when this task exits; now `recv()`
+// waits forever once the stream ends.
+pub(super) async fn subscription_task<C: JsonRpcCodec>(
+    mut send: H3SendStream,
+    mut reader: H3Reader<C>,
+    unsub_rx: Receiver<Value>,
     sub: Arc<Subscription>,
 ) -> Result<()> {
-    read_notifications(reader, &sub).await
-}
-
-async fn read_notifications<C: JsonRpcCodec>(
-    mut reader: H3Reader<C>,
-    sub: &Subscription,
-) -> Result<()> {
-    while let Some(msg) = reader.next().await? {
-        let nt: message::Notification = match serde_json::from_value(msg) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        debug!("<-- {nt}");
-        let nt_res: message::NotificationResult = match nt.params {
-            Some(ref p) => match serde_json::from_value(p.clone()) {
-                Ok(r) => r,
-                Err(_) => continue,
-            },
-            None => continue,
-        };
-        let val = nt_res.result.unwrap_or(serde_json::json!(""));
-        if sub.notify(val).await.is_err() {
-            break;
+    loop {
+        match select(reader.next(), unsub_rx.recv()).await {
+            Either::Left(Ok(Some(msg))) => {
+                let nt: message::Notification = match serde_json::from_value(msg) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                debug!("<-- {nt}");
+                let nt_res: message::NotificationResult = match nt.params {
+                    Some(ref p) => match serde_json::from_value(p.clone()) {
+                        Ok(r) => r,
+                        Err(_) => continue,
+                    },
+                    None => continue,
+                };
+                let val = nt_res.result.unwrap_or(serde_json::json!(""));
+                if sub.notify(val).await.is_err() {
+                    break;
+                }
+            }
+            Either::Left(_) => break,
+            Either::Right(unsub_msg) => {
+                if let Ok(msg) = unsub_msg {
+                    let body = encode_msg(&reader.codec, &msg)?;
+                    let _ = send.send_data(body).await;
+                    let _ = send.finish().await;
+                }
+                break;
+            }
         }
     }
     Ok(())

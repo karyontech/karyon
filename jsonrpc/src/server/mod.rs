@@ -114,8 +114,6 @@ impl Server {
 
     async fn accept_loop(self: &Arc<Self>) -> Result<()> {
         match &self.backend {
-            // Only the kernel accept runs here; the handshake runs in a
-            // separate task, so a slow client cannot stall the loop.
             ServerBackend::StreamAcceptor(acceptor) => loop {
                 match acceptor.accept().await {
                     Ok(stream) => {
@@ -130,7 +128,6 @@ impl Server {
                     Err(err) => error!("Accept connection: {err}"),
                 }
             },
-            // As above: the QUIC handshake runs in its own task.
             #[cfg(feature = "quic")]
             ServerBackend::QuicEndpoint(endpoint) => loop {
                 match endpoint.accept_incoming().await {

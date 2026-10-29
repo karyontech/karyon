@@ -93,6 +93,7 @@ pub(crate) enum ClientBackend {
         /// Per-subscription unsubscribe signal: send the unsubscribe
         /// JSON; the reader task forwards it and exits.
         // TODO why not using async queue here ?
+        // TODO: move this map; entries leak when the stream ends.
         unsub_chans: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
     },
     #[cfg(feature = "http")]
@@ -102,6 +103,10 @@ pub(crate) enum ClientBackend {
         http_backend: Box<http::HttpClientBackend>,
         #[cfg(feature = "http3")]
         subscriptions: Arc<Subscriptions>,
+        /// Unsubscribe requests, sent on each subscription's own stream.
+        // TODO: move this map, same as `QuicStream::unsub_chans`.
+        #[cfg(feature = "http3")]
+        unsub_chans: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
     },
 }
 
@@ -199,9 +204,7 @@ where
                 "Subscriptions not supported over HTTP/1-2".to_string(),
             )),
             #[cfg(feature = "http3")]
-            ClientBackend::Http { http_backend, .. } => {
-                self.h3_unsubscribe(http_backend, method, sub_id).await
-            }
+            ClientBackend::Http { .. } => self.h3_unsubscribe(method, sub_id).await,
             #[cfg(feature = "quic")]
             ClientBackend::QuicStream {
                 subscriptions,

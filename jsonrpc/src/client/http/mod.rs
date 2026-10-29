@@ -44,6 +44,12 @@ use crate::{
 };
 
 #[cfg(feature = "http3")]
+use std::collections::HashMap;
+
+#[cfg(feature = "http3")]
+use parking_lot::Mutex;
+
+#[cfg(feature = "http3")]
 use crate::client::subscriptions::{Subscription, Subscriptions};
 
 /// HTTP client backend for JSON-RPC.
@@ -132,7 +138,7 @@ impl HttpClientBackend {
         &self,
         msg: serde_json::Value,
         codec: &C,
-    ) -> Result<(message::Response, h3::H3Reader<C>)> {
+    ) -> Result<(message::Response, h3::H3SendStream, h3::H3Reader<C>)> {
         let HttpTransport::H3 { send_request } = &self.inner else {
             return Err(Error::UnsupportedProtocol(
                 "subscribe_h3 requires HTTP/3".into(),
@@ -187,6 +193,8 @@ pub(super) async fn build_backend(
         http_backend: Box::new(http_backend),
         #[cfg(feature = "http3")]
         subscriptions: Subscriptions::new(config.subscription_buffer_size),
+        #[cfg(feature = "http3")]
+        unsub_chans: Mutex::new(HashMap::new()),
     })
 }
 
@@ -234,7 +242,12 @@ where
         method: &str,
         params: T,
     ) -> Result<Arc<Subscription>> {
-        let ClientBackend::Http { subscriptions, .. } = &self.backend else {
+        let ClientBackend::Http {
+            subscriptions,
+            unsub_chans,
+            ..
+        } = &self.backend
+        else {
             return Err(Error::InvalidState("not in HTTP mode".into()));
         };
 
@@ -247,7 +260,7 @@ where
         };
         let msg = serde_json::to_value(request)?;
 
-        let (response, reader) = http_backend.subscribe_h3(msg, &self.codec).await?;
+        let (response, send, reader) = http_backend.subscribe_h3(msg, &self.codec).await?;
 
         if let Some(error) = response.error {
             return Err(Error::SubscribeError(error.code, error.message));
@@ -258,33 +271,44 @@ where
             None => return Err(Error::InvalidMsg("Invalid subscription id".into())),
         };
 
+        let (unsub_tx, unsub_rx) = async_channel::bounded::<serde_json::Value>(1);
+        unsub_chans.lock().insert(sub_id, unsub_tx);
+
         let sub = subscriptions.subscribe(sub_id).await;
 
         self.task_group.spawn_then(
-            h3::notification_reader_task(reader, sub.clone()),
+            h3::subscription_task(send, reader, unsub_rx, sub.clone()),
             |res: TaskResult<Result<()>>| async move {
-                log::debug!("H3 notification reader task ended: {res}");
+                log::debug!("H3 subscription task ended: {res}");
             },
         );
 
         Ok(sub)
     }
 
-    /// Unsubscribe over HTTP/3.
+    /// Unsubscribe over HTTP/3. The subscription task sends the request
+    /// on the subscription's own stream.
     #[cfg(feature = "http3")]
-    pub(super) async fn h3_unsubscribe(
-        &self,
-        http_backend: &HttpClientBackend,
-        method: &str,
-        sub_id: SubscriptionID,
-    ) -> Result<()> {
-        let ClientBackend::Http { subscriptions, .. } = &self.backend else {
+    pub(super) async fn h3_unsubscribe(&self, method: &str, sub_id: SubscriptionID) -> Result<()> {
+        let ClientBackend::Http {
+            subscriptions,
+            unsub_chans,
+            ..
+        } = &self.backend
+        else {
             return Err(Error::InvalidState("not in HTTP mode".into()));
         };
 
-        let response = self.http_call(http_backend, method, sub_id).await?;
-        if let Some(error) = response.error {
-            return Err(Error::SubscribeError(error.code, error.message));
+        // Own `let` so the MutexGuard is dropped before the `.await`.
+        let ch = unsub_chans.lock().remove(&sub_id);
+        if let Some(ch) = ch {
+            let request = message::Request {
+                jsonrpc: message::JSONRPC_VERSION.to_string(),
+                id: json!(random_32()),
+                method: method.to_string(),
+                params: Some(json!(sub_id)),
+            };
+            let _ = ch.send(serde_json::to_value(request)?).await;
         }
         subscriptions.unsubscribe(&sub_id).await;
         Ok(())
