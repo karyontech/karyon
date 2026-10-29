@@ -10,7 +10,7 @@ use async_channel::bounded;
 use bytes::Bytes;
 use h3::server::{Connection as H3Connection, RequestResolver, RequestStream};
 use h3_quinn::{Connection, RecvStream, SendStream};
-use hyper::{Method, Request, Response, StatusCode};
+use hyper::{header::CONTENT_TYPE, Method, Request, Response, StatusCode};
 use log::{debug, error};
 use serde_json::{json, to_value, Value};
 
@@ -22,7 +22,7 @@ use karyon_net::{
 };
 
 use crate::{
-    codec::{encode_msg, extend_buf, JsonRpcCodec},
+    codec::{encode_msg, extend_buf, JsonRpcCodec, DEFAULT_CONTENT_TYPE},
     error::{Error, Result},
     message,
     server::{
@@ -153,9 +153,17 @@ async fn handle_h3_request<C: JsonRpcCodec>(
     peer: Option<Endpoint>,
     codec: C,
 ) -> Result<()> {
+    let content_type = server.config.http_config.content_type.clone();
+
     if req.method() != Method::POST {
         let body = ERR_METHOD_NOT_ALLOWED.as_bytes();
-        return h3_send(&mut send, StatusCode::METHOD_NOT_ALLOWED, body).await;
+        return h3_send(
+            &mut send,
+            StatusCode::METHOD_NOT_ALLOWED,
+            DEFAULT_CONTENT_TYPE,
+            body,
+        )
+        .await;
     }
 
     // Read only the first message; a subscription keeps the body open.
@@ -168,12 +176,18 @@ async fn handle_h3_request<C: JsonRpcCodec>(
         Ok(Some(msg)) => msg,
         Err(Error::BufferFull(_)) => {
             let body = ERR_BODY_TOO_LARGE.as_bytes();
-            return h3_send(&mut send, StatusCode::PAYLOAD_TOO_LARGE, body).await;
+            return h3_send(
+                &mut send,
+                StatusCode::PAYLOAD_TOO_LARGE,
+                DEFAULT_CONTENT_TYPE,
+                body,
+            )
+            .await;
         }
         Err(Error::HttpError(err)) => return Err(Error::HttpError(err)),
         Ok(None) | Err(_) => {
             let body = encode_response(&codec, &parse_error_response())?;
-            return h3_send(&mut send, StatusCode::OK, &body).await;
+            return h3_send(&mut send, StatusCode::OK, &content_type, &body).await;
         }
     };
 
@@ -181,7 +195,7 @@ async fn handle_h3_request<C: JsonRpcCodec>(
         SanityCheckResult::NewReq(req) => req,
         SanityCheckResult::ErrRes(res) => {
             let body = encode_response(&codec, &res)?;
-            return h3_send(&mut send, StatusCode::OK, &body).await;
+            return h3_send(&mut send, StatusCode::OK, &content_type, &body).await;
         }
     };
 
@@ -201,7 +215,7 @@ async fn handle_h3_request<C: JsonRpcCodec>(
     let response = server.handle_request(None, msg).await;
     debug!("--> {response}");
     let body = encode_response(&codec, &response)?;
-    h3_send(&mut send, StatusCode::OK, &body).await
+    h3_send(&mut send, StatusCode::OK, &content_type, &body).await
 }
 
 /// Pubsub over HTTP/3: the subscription gets its own `Channel`.
@@ -215,6 +229,7 @@ async fn handle_h3_subscription<C: JsonRpcCodec>(
     peer: Option<Endpoint>,
     codec: C,
 ) -> Result<()> {
+    let content_type = server.config.http_config.content_type.clone();
     let (ch_tx, ch_rx) = bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
     let channel = Channel::new(ch_tx, peer);
 
@@ -233,12 +248,14 @@ async fn handle_h3_subscription<C: JsonRpcCodec>(
         Err(err) => {
             let response = err.to_response(Some(req.msg.id), None);
             let body = encode_response(&codec, &response)?;
-            return h3_send(&mut send, StatusCode::OK, &body).await;
+            return h3_send(&mut send, StatusCode::OK, &content_type, &body).await;
         }
     };
 
     debug!("--> {response}");
-    send.send_response(ok_response()?).await.map_err(h3_err)?;
+    send.send_response(ok_response(&content_type)?)
+        .await
+        .map_err(h3_err)?;
     let body = encode_response(&codec, &response)?;
     send.send_data(body).await.map_err(h3_err)?;
 
@@ -297,18 +314,23 @@ impl<C: JsonRpcCodec> BodyReader<C> {
     }
 }
 
-fn ok_response() -> Result<Response<()>> {
+fn ok_response(content_type: &str) -> Result<Response<()>> {
     Response::builder()
         .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
+        .header(CONTENT_TYPE, content_type)
         .body(())
         .map_err(|e| Error::HttpError(e.to_string()))
 }
 
-async fn h3_send(send: &mut H3Send, status: StatusCode, body: &[u8]) -> Result<()> {
+async fn h3_send(
+    send: &mut H3Send,
+    status: StatusCode,
+    content_type: &str,
+    body: &[u8],
+) -> Result<()> {
     let resp = Response::builder()
         .status(status)
-        .header("Content-Type", "application/json")
+        .header(CONTENT_TYPE, content_type)
         .body(())
         .map_err(|e| Error::HttpError(e.to_string()))?;
     send.send_response(resp).await.map_err(h3_err)?;

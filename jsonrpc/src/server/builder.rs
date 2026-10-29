@@ -26,6 +26,8 @@ use crate::{
 #[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]
 use crate::error::Error;
 
+#[cfg(feature = "http")]
+use super::HttpConfig;
 use super::{Server, ServerConfig};
 
 #[cfg(any(feature = "tls", feature = "ws"))]
@@ -130,6 +132,21 @@ where
         }
     }
 
+    /// Set HTTP config for an `http://` endpoint.
+    #[cfg(feature = "http")]
+    pub fn http_config(mut self, config: HttpConfig) -> Result<Self> {
+        match self.config.endpoint {
+            Endpoint::Http(..) => {
+                self.config.http_config = config;
+                Ok(self)
+            }
+            _ => Err(Error::UnsupportedProtocol(format!(
+                "Invalid http config for endpoint: {}",
+                self.config.endpoint
+            ))),
+        }
+    }
+
     /// Set an executor.
     pub fn with_executor(mut self, ex: Executor) -> Self {
         self.executor = Some(ex);
@@ -199,6 +216,8 @@ impl<B: JsonRpcCodec> ServerBuilder<B, JsonCodec> {
                 #[cfg(feature = "quic")]
                 quic_config: None,
                 notification_encoder: default_notification_encoder,
+                #[cfg(feature = "http")]
+                http_config: HttpConfig::default(),
                 read_timeout: None,
                 #[cfg(any(feature = "tls", feature = "ws"))]
                 handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,

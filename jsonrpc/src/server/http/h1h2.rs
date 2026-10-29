@@ -130,15 +130,17 @@ async fn handle_hyper_request<C: JsonRpcCodec>(
     };
     debug!("--> {response}");
 
-    Ok(encode_hyper_response(&codec, &response))
+    let content_type = &server.config.http_config.content_type;
+    Ok(encode_hyper_response(&codec, content_type, &response))
 }
 
 fn encode_hyper_response<C: JsonRpcCodec>(
     codec: &C,
+    content_type: &str,
     resp: &message::Response,
 ) -> Response<Full<Bytes>> {
     match encode_response(codec, resp) {
-        Ok(body) => json_response_bytes(StatusCode::OK, body),
+        Ok(body) => json_response_bytes(StatusCode::OK, content_type, body),
         Err(err) => {
             error!("Encode HTTP response: {err}");
             json_response(StatusCode::INTERNAL_SERVER_ERROR, ERR_ENCODE_RESPONSE)

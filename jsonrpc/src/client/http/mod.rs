@@ -37,7 +37,7 @@ use karyon_net::Endpoint;
 
 use crate::{
     client::{Client, ClientBackend, ClientConfig, RequestID, WsCodec},
-    codec::{decode_body, JsonRpcCodec},
+    codec::{decode_body, JsonRpcCodec, DEFAULT_CONTENT_TYPE},
     error::{Error, Result},
     message::{self, SubscriptionID},
 };
@@ -53,7 +53,7 @@ use crate::client::subscriptions::{Subscription, Subscriptions};
 
 /// HTTP settings for `http://` endpoints, set with
 /// `ClientBuilder::http_config`.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct HttpConfig {
     /// Use HTTP/2 over plain TCP (prior knowledge, no upgrade) instead of
     /// HTTP/1.1. One connection is opened in `build()` and shared by all
@@ -61,11 +61,25 @@ pub struct HttpConfig {
     pub http2: bool,
     /// `Host` header for HTTP/1.1 requests. Not sent when `None`.
     pub host: Option<String>,
+    /// `Content-Type` of the requests. Set it to match a custom codec.
+    /// Defaults to `application/json`.
+    pub content_type: String,
+}
+
+impl Default for HttpConfig {
+    fn default() -> Self {
+        Self {
+            http2: false,
+            host: None,
+            content_type: DEFAULT_CONTENT_TYPE.to_string(),
+        }
+    }
 }
 
 /// HTTP client backend for JSON-RPC.
 pub(crate) struct HttpClientBackend {
     inner: HttpTransport,
+    config: HttpConfig,
     /// Shared with the Client so driver tasks (h1 per-request, h3
     /// connection) get cancelled when the Client stops.
     task_group: Arc<TaskGroup>,
@@ -78,14 +92,10 @@ pub(crate) struct HttpClientBackend {
 // HTTP/2 is opt-in and uses one shared connection on both runtimes.
 enum HttpTransport {
     #[cfg(feature = "smol")]
-    Smol {
-        endpoint: Endpoint,
-        config: HttpConfig,
-    },
+    Smol { endpoint: Endpoint },
     #[cfg(feature = "tokio")]
     Tokio {
         endpoint: Endpoint,
-        config: HttpConfig,
         client: Box<HyperClient<HttpConnector, Full<Bytes>>>,
     },
     H2 {
@@ -106,29 +116,36 @@ impl HttpClientBackend {
         #[cfg(feature = "smol")]
         let inner = HttpTransport::Smol {
             endpoint: endpoint.clone(),
-            config: config.clone(),
         };
 
         #[cfg(feature = "tokio")]
         let inner = HttpTransport::Tokio {
             endpoint: endpoint.clone(),
-            config: config.clone(),
             client: Box::new(
                 HyperClient::builder(HyperExecutor::new(task_group.clone())).build_http(),
             ),
         };
 
-        Ok(Self { inner, task_group })
+        Ok(Self {
+            inner,
+            config: config.clone(),
+            task_group,
+        })
     }
 
     /// Create an HTTP/2 client over plain TCP. Opens the connection now.
-    pub(crate) async fn new_h2(endpoint: &Endpoint, task_group: Arc<TaskGroup>) -> Result<Self> {
+    pub(crate) async fn new_h2(
+        endpoint: &Endpoint,
+        config: &HttpConfig,
+        task_group: Arc<TaskGroup>,
+    ) -> Result<Self> {
         let sender = h2::connect(endpoint, &task_group).await?;
         Ok(Self {
             inner: HttpTransport::H2 {
                 endpoint: endpoint.clone(),
                 sender,
             },
+            config: config.clone(),
             task_group,
         })
     }
@@ -139,11 +156,13 @@ impl HttpClientBackend {
     pub(crate) async fn new_h3(
         endpoint: &Endpoint,
         quic_config: &karyon_net::quic::ClientQuicConfig,
+        config: &HttpConfig,
         task_group: Arc<TaskGroup>,
     ) -> Result<Self> {
         let send_request = h3::connect(endpoint, quic_config, task_group.clone()).await?;
         Ok(Self {
             inner: HttpTransport::H3 { send_request },
+            config: config.clone(),
             task_group,
         })
     }
@@ -155,20 +174,23 @@ impl HttpClientBackend {
         codec: &C,
     ) -> Result<message::Response> {
         let _ = &self.task_group;
+        let config = &self.config;
         match &self.inner {
             #[cfg(feature = "smol")]
-            HttpTransport::Smol { endpoint, config } => {
+            HttpTransport::Smol { endpoint } => {
                 h1::send(endpoint, config, msg, &self.task_group, codec).await
             }
             #[cfg(feature = "tokio")]
-            HttpTransport::Tokio {
-                endpoint,
-                config,
-                client,
-            } => h1::send(client, endpoint, config, msg, codec).await,
-            HttpTransport::H2 { endpoint, sender } => h2::send(sender, endpoint, msg, codec).await,
+            HttpTransport::Tokio { endpoint, client } => {
+                h1::send(client, endpoint, config, msg, codec).await
+            }
+            HttpTransport::H2 { endpoint, sender } => {
+                h2::send(sender, endpoint, config, msg, codec).await
+            }
             #[cfg(feature = "http3")]
-            HttpTransport::H3 { send_request } => h3::send(send_request.clone(), msg, codec).await,
+            HttpTransport::H3 { send_request } => {
+                h3::send(send_request.clone(), config, msg, codec).await
+            }
         }
     }
 
@@ -184,7 +206,7 @@ impl HttpClientBackend {
                 "subscribe_h3 requires HTTP/3".into(),
             ));
         };
-        h3::subscribe(send_request.clone(), msg, codec).await
+        h3::subscribe(send_request.clone(), &self.config, msg, codec).await
     }
 }
 
@@ -222,12 +244,14 @@ pub(super) async fn build_backend(
 ) -> Result<ClientBackend> {
     #[cfg(feature = "http3")]
     if let Some(qc) = config.quic_config.as_ref() {
-        let backend = HttpClientBackend::new_h3(&config.endpoint, qc, task_group).await?;
+        let backend =
+            HttpClientBackend::new_h3(&config.endpoint, qc, &config.http_config, task_group)
+                .await?;
         return Ok(http_client_backend(config, backend));
     }
 
     let http_backend = if config.http_config.http2 {
-        HttpClientBackend::new_h2(&config.endpoint, task_group).await?
+        HttpClientBackend::new_h2(&config.endpoint, &config.http_config, task_group).await?
     } else {
         HttpClientBackend::new(&config.endpoint, &config.http_config, task_group)?
     };

@@ -9,7 +9,7 @@ use std::{net::SocketAddr, sync::Arc};
 use async_trait::async_trait;
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::{Response, StatusCode};
+use hyper::{header::CONTENT_TYPE, Response, StatusCode};
 use serde_json::to_value;
 
 use karyon_core::async_runtime::net::TcpListener;
@@ -22,11 +22,28 @@ use karyon_net::Endpoint;
 pub(super) use crate::hyper_exec::HyperExecutor;
 
 use crate::{
-    codec::{encode_msg, JsonRpcCodec},
+    codec::{encode_msg, JsonRpcCodec, DEFAULT_CONTENT_TYPE},
     error::{Error, Result},
     message,
     server::{Server, FAILED_TO_PARSE_ERROR_MSG},
 };
+
+/// HTTP settings for `http://` endpoints, set with
+/// `ServerBuilder::http_config`.
+#[derive(Clone, Debug)]
+pub struct HttpConfig {
+    /// `Content-Type` of the responses. Set it to match a custom codec.
+    /// Defaults to `application/json`.
+    pub content_type: String,
+}
+
+impl Default for HttpConfig {
+    fn default() -> Self {
+        Self {
+            content_type: DEFAULT_CONTENT_TYPE.to_string(),
+        }
+    }
+}
 
 /// Max HTTP request body size (1 MB).
 pub(super) const MAX_HTTP_BODY_SIZE: u64 = 1024 * 1024;
@@ -122,18 +139,20 @@ impl<C: JsonRpcCodec> HttpAcceptor for HttpServer<C> {
 
 // -- Shared helpers --
 
+/// Response with one of the pre-encoded JSON error bodies (`ERR_*`).
 pub(super) fn json_response(status: StatusCode, body: &str) -> Response<Full<Bytes>> {
-    Response::builder()
-        .status(status)
-        .header("Content-Type", "application/json")
-        .body(Full::new(Bytes::from(body.to_string())))
-        .unwrap()
+    json_response_bytes(status, DEFAULT_CONTENT_TYPE, Bytes::from(body.to_string()))
 }
 
-pub(super) fn json_response_bytes(status: StatusCode, body: Bytes) -> Response<Full<Bytes>> {
+/// Response with a codec-encoded body.
+pub(super) fn json_response_bytes(
+    status: StatusCode,
+    content_type: &str,
+    body: Bytes,
+) -> Response<Full<Bytes>> {
     Response::builder()
         .status(status)
-        .header("Content-Type", "application/json")
+        .header(CONTENT_TYPE, content_type)
         .body(Full::new(body))
         .unwrap()
 }
