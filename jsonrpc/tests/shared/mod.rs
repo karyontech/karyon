@@ -24,6 +24,11 @@ impl MathService {
         Ok(serde_json::json!(params.x + params.y))
     }
 
+    /// Returns its params unchanged.
+    async fn echo(&self, params: Value) -> Result<Value, RPCError> {
+        Ok(params)
+    }
+
     async fn ping(&self, _params: Value) -> Result<Value, RPCError> {
         Ok(serde_json::json!("pong"))
     }

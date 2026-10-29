@@ -100,6 +100,8 @@ async fn handle_quic_stream(
     // Pubsub handlers need a dedicated stream for streaming notifications.
     // Everything else (regular RPC, method not found) can reuse the
     // shared dispatch path.
+    // TODO: match on the handler and pass it on. Now it is resolved three
+    // times (here, `handle_quic_subscription`, `handle_request`).
     let is_pubsub = matches!(
         server.resolve_handler(&req.srvc_name, &req.method_name, true),
         Handler::Pubsub(_)

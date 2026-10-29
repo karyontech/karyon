@@ -143,6 +143,8 @@ where
     Ok(sub)
 }
 
+// TODO: remove the subscription and its `unsub_chans` entry when this
+// task exits; now `recv()` waits forever once the stream ends.
 async fn subscription_stream_task(
     mut reader: FramedReader<JsonCodec>,
     mut writer: FramedWriter<JsonCodec>,
