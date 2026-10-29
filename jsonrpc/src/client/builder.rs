@@ -20,6 +20,8 @@ use crate::{
 #[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]
 use crate::error::Error;
 
+#[cfg(feature = "http")]
+use super::HttpConfig;
 use super::{Client, ClientConfig};
 
 const DEFAULT_TIMEOUT: u64 = 3000;
@@ -78,6 +80,8 @@ impl<B: JsonRpcCodec> ClientBuilder<B, JsonCodec> {
                 tls_config: None,
                 #[cfg(feature = "quic")]
                 quic_config: None,
+                #[cfg(feature = "http")]
+                http_config: HttpConfig::default(),
                 subscription_buffer_size: DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE,
             },
             byte_codec: codec,
@@ -146,6 +150,21 @@ where
             }
             _ => Err(Error::UnsupportedProtocol(format!(
                 "Invalid quic config for endpoint: {}",
+                self.inner.endpoint
+            ))),
+        }
+    }
+
+    /// Set HTTP config (HTTP/2, `Host` header) for an `http://` endpoint.
+    #[cfg(feature = "http")]
+    pub fn http_config(mut self, config: HttpConfig) -> Result<Self> {
+        match self.inner.endpoint {
+            Endpoint::Http(..) => {
+                self.inner.http_config = config;
+                Ok(self)
+            }
+            _ => Err(Error::UnsupportedProtocol(format!(
+                "Invalid http config for endpoint: {}",
                 self.inner.endpoint
             ))),
         }
