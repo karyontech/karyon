@@ -16,8 +16,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use log::{debug, error, info};
 
 use karyon_core::{
-    async_runtime::Executor,
-    async_util::{select, timeout, AsyncQueue, Either, TaskGroup, TaskResult},
+    async_runtime::{
+        lock::{Semaphore, SemaphoreGuard},
+        Executor,
+    },
+    async_util::{select, timeout, AsyncQueue, Backoff, CondWait, Either, TaskGroup, TaskResult},
 };
 
 use karyon_net::{Endpoint, MessageRx, MessageTx};
@@ -59,6 +62,19 @@ pub const METHOD_NOT_FOUND_ERROR_MSG: &str = "Method not found";
 pub const UNSUPPORTED_JSONRPC_VERSION: &str = "Unsupported jsonrpc version";
 
 const CHANNEL_SUBSCRIPTION_BUFFER_SIZE: usize = 100;
+
+/// Max requests handled at once per message connection. The reader waits
+/// for a free slot before reading the next request.
+// TODO: make this configurable.
+const MAX_CONCURRENT_REQUESTS: usize = 64;
+
+/// First retry delay after a failed accept, e.g. when out of file
+/// descriptors, in milliseconds.
+// TODO: make this configurable.
+const ACCEPT_BACKOFF_BASE: u64 = 10;
+/// Max retry delay after a failed accept, in milliseconds.
+// TODO: make this configurable.
+const ACCEPT_BACKOFF_MAX: u64 = 1000;
 
 /// Bound on the per-connection outbound response queue.
 const RESPONSE_QUEUE_SIZE: usize = 256;
@@ -118,10 +134,13 @@ impl Server {
     }
 
     async fn accept_loop(self: &Arc<Self>) -> Result<()> {
+        // Back off on accept errors, so the loop does not spin.
+        let backoff = accept_backoff();
         match &self.backend {
             ServerBackend::StreamAcceptor(acceptor) => loop {
                 match acceptor.accept().await {
                     Ok(stream) => {
+                        backoff.reset();
                         let acceptor = acceptor.clone();
                         let server = self.clone();
                         self.task_group.spawn(async move {
@@ -130,15 +149,22 @@ impl Server {
                             }
                         });
                     }
-                    Err(err) => error!("Accept connection: {err}"),
+                    Err(err) => {
+                        error!("Accept connection: {err}");
+                        backoff.sleep().await;
+                    }
                 }
             },
             #[cfg(feature = "quic")]
             ServerBackend::QuicEndpoint(endpoint) => loop {
                 match endpoint.accept_incoming().await {
-                    Ok(incoming) => self.handle_quic_incoming(incoming),
+                    Ok(incoming) => {
+                        backoff.reset();
+                        self.handle_quic_incoming(incoming);
+                    }
                     Err(err) => {
-                        error!("Accept QUIC conn: {err}")
+                        error!("Accept QUIC conn: {err}");
+                        backoff.sleep().await;
                     }
                 }
             },
@@ -181,8 +207,12 @@ impl Server {
         let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
         let channel = Channel::new(ch_tx, peer.clone());
         let queue = AsyncQueue::new(RESPONSE_QUEUE_SIZE);
+        // Set when the writer stops. The reader and the request tasks
+        // stop too, instead of waiting forever on a full queue.
+        let writer_done = Arc::new(CondWait::new());
 
         let writer_chan = channel.clone();
+        let writer_stopped = writer_done.clone();
         self.task_group.spawn_then(
             stream_writer_task(
                 writer,
@@ -195,13 +225,19 @@ impl Server {
                     debug!("Writer stopped: {err}");
                 }
                 writer_chan.close();
+                writer_stopped.broadcast().await;
             },
         );
 
         let reader_chan = channel.clone();
         let read_timeout = self.config.read_timeout;
+        let conn = ConnState {
+            queue,
+            channel,
+            writer_done,
+        };
         self.task_group.spawn_then(
-            stream_reader_task(self.clone(), reader, queue, channel, read_timeout),
+            stream_reader_task(self.clone(), reader, conn, read_timeout),
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {
                     debug!("Connection {peer:?} dropped: {err}");
@@ -213,14 +249,14 @@ impl Server {
         );
     }
 
-    async fn new_request(
+    fn new_request(
         self: &Arc<Self>,
-        queue: Arc<AsyncQueue<serde_json::Value>>,
-        channel: Arc<Channel>,
+        conn: ConnState,
+        permit: SemaphoreGuard,
         msg: serde_json::Value,
     ) {
         self.task_group.spawn_then(
-            request_task(self.clone(), queue, channel, msg),
+            request_task(self.clone(), conn, permit, msg),
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(Err(err)) = result {
                     error!("Handle request: {err}");
@@ -388,37 +424,63 @@ where
     }
 }
 
+/// Shared state of one message connection, cloned into each request.
+#[derive(Clone)]
+struct ConnState {
+    queue: Arc<AsyncQueue<serde_json::Value>>,
+    channel: Arc<Channel>,
+    writer_done: Arc<CondWait>,
+}
+
 async fn stream_reader_task<R>(
     server: Arc<Server>,
     mut reader: R,
-    queue: Arc<AsyncQueue<serde_json::Value>>,
-    channel: Arc<Channel>,
+    conn: ConnState,
     read_timeout: Option<Duration>,
 ) -> Result<()>
 where
     R: MessageRx<Message = serde_json::Value> + Send,
 {
+    let permits = Semaphore::new(MAX_CONCURRENT_REQUESTS);
     loop {
+        // Wait for a free slot, so one client cannot start an unbounded
+        // number of request tasks.
+        let permit = permits.acquire().await?;
+
         // Once set, an idle client is dropped instead of holding the
         // socket open forever.
-        let msg = match read_timeout {
-            Some(t) => timeout(t, reader.recv_msg()).await??,
-            None => reader.recv_msg().await?,
+        let recv = async {
+            match read_timeout {
+                Some(t) => timeout(t, reader.recv_msg()).await?,
+                None => reader.recv_msg().await,
+            }
         };
-        server
-            .new_request(queue.clone(), channel.clone(), msg)
-            .await;
+        let msg = match select(conn.writer_done.wait(), recv).await {
+            // Nobody sends the responses anymore.
+            Either::Left(_) => return Ok(()),
+            Either::Right(msg) => msg?,
+        };
+        server.new_request(conn.clone(), permit, msg);
     }
 }
 
 async fn request_task(
     server: Arc<Server>,
-    queue: Arc<AsyncQueue<serde_json::Value>>,
-    channel: Arc<Channel>,
+    conn: ConnState,
+    _permit: SemaphoreGuard,
     msg: serde_json::Value,
 ) -> Result<()> {
-    let response = server.handle_request(Some(channel), msg).await;
+    let response = server.handle_request(Some(conn.channel), msg).await;
     debug!("--> {response}");
-    queue.push(serde_json::json!(response)).await;
+    // Drop the response if the writer is gone.
+    select(
+        conn.queue.push(serde_json::json!(response)),
+        conn.writer_done.wait(),
+    )
+    .await;
     Ok(())
+}
+
+pub(super) fn accept_backoff() -> Backoff {
+    Backoff::new(ACCEPT_BACKOFF_BASE, ACCEPT_BACKOFF_MAX)
 }

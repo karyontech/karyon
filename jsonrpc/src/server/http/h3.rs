@@ -14,7 +14,7 @@ use hyper::{header::CONTENT_TYPE, Method, Request, Response, StatusCode};
 use log::{debug, error};
 use serde_json::{json, to_value, Value};
 
-use karyon_core::async_util::{select, Either};
+use karyon_core::async_util::{select, Backoff, Either};
 
 use karyon_net::{
     quic::{QuicConn, QuicEndpoint, QuicIncoming},
@@ -44,15 +44,18 @@ pub(super) async fn accept_h3<C: JsonRpcCodec>(
     server: &Arc<Server>,
     quic_ep: &QuicEndpoint,
     codec: &C,
+    backoff: &Backoff,
 ) {
     // Only the accept runs here; the handshake runs in the spawned task.
     let incoming = match quic_ep.accept_incoming().await {
         Ok(incoming) => incoming,
         Err(err) => {
             error!("Accept QUIC for HTTP/3: {err}");
+            backoff.sleep().await;
             return;
         }
     };
+    backoff.reset();
 
     server
         .task_group
