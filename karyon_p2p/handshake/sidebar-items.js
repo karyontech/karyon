@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["handshake","mutual_match","protocols_intersection","send_verack","send_vermsg","validate_verack_msg","validate_version_msg"],"struct":["HandshakeParams","VerAckMsg","VerMsg","WireVersion"],"type":["HandshakeWriter","NegotiatedProtocols"]};

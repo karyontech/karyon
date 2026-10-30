@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Action","Subject"],"struct":["AllowAll","PeerCandidate"],"trait":["AccessControl"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_FAILURES","MAX_UDP_BUF","REFRESH_PER_BUCKET","RL_CAPACITY","RL_REFILL_PER_SEC"],"struct":["RateBucket","RefreshService"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_CONTENT_TYPE","DEFAULT_MAX_BUFFER_SIZE"],"fn":["decode_body","encode_msg","extend_buf"],"struct":["JsonCodec"],"trait":["Codec","JsonRpcCodec","JsonRpcWsCodec"],"type":["ByteBuffer"]};

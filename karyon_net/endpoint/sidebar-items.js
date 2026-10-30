@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DNS_TIMEOUT"],"enum":["Addr","Endpoint"],"fn":["resolve","resolve_endpoint","url_to_addr"],"trait":["ToEndpoint"],"type":["Port"]};

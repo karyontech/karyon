@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["bincode_config","decode","encode"]};
