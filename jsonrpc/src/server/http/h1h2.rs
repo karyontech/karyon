@@ -12,7 +12,15 @@ use hyper::{
 use hyper_util::server::conn::auto::Builder as HttpConnBuilder;
 use log::{debug, error};
 
-use karyon_core::async_runtime::net::{TcpListener, TcpStream};
+#[cfg(feature = "tokio")]
+use hyper_util::rt::TokioTimer as HyperTimer;
+#[cfg(feature = "smol")]
+use smol_hyper::rt::SmolTimer as HyperTimer;
+
+use karyon_core::{
+    async_runtime::net::{TcpListener, TcpStream},
+    async_util::Backoff,
+};
 
 use crate::{
     codec::{decode_body, JsonRpcCodec},
@@ -32,15 +40,18 @@ pub(super) async fn accept_tcp<C: JsonRpcCodec>(
     server: &Arc<Server>,
     listener: &TcpListener,
     codec: &C,
+    backoff: &Backoff,
 ) {
     match listener.accept().await {
         Ok((stream, peer_addr)) => {
+            backoff.reset();
             server
                 .task_group
                 .spawn(serve_task(server.clone(), stream, peer_addr, codec.clone()));
         }
         Err(err) => {
             error!("Accept TCP connection: {err}");
+            backoff.sleep().await;
         }
     }
 }
@@ -77,7 +88,11 @@ async fn serve_conn<C: JsonRpcCodec>(
     #[cfg(feature = "tokio")]
     let io = hyper_util::rt::TokioIo::new(stream);
 
-    let builder = HttpConnBuilder::new(HyperExecutor::new(task_group));
+    let mut builder = HttpConnBuilder::new(HyperExecutor::new(task_group));
+    // hyper only applies its HTTP/1.1 header read timeout (30s) when a
+    // timer is set; without it a client can hold the connection by never
+    // finishing its headers.
+    builder.http1().timer(HyperTimer::new());
     let conn = builder.serve_connection(io, service);
 
     if let Err(err) = conn.await {
