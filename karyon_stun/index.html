@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="karyon stun"><title>karyon_stun - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="karyon_stun" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate karyon_stun</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../karyon_stun/index.html">karyon_<wbr>stun</a><span class="version">0.1.3</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#karyon-stun" title="karyon stun">karyon stun</a><ul><li><a href="#install" title="Install">Install</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#stun-over-quic" title="STUN over QUIC">STUN over QUIC</a></li><li><a href="#feature-flags" title="Feature Flags">Feature Flags</a></li><li><a href="#scope" title="Scope">Scope</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>karyon_<wbr>stun</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/karyon_stun/lib.rs.html#1-21">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="karyon-stun"><a class="doc-anchor" href="#karyon-stun">§</a>karyon stun</h2>
+<p>A minimal async <a href="https://www.rfc-editor.org/rfc/rfc5389">STUN</a> server and
+client, built on <a href="https://crates.io/crates/karyon_net">karyon_net</a>. Lets
+peers behind NAT discover their public address. Runs over UDP, TCP, TLS
+and QUIC: the first three per RFC 5389, QUIC as a karyon extension (see
+<a href="#stun-over-quic">STUN over QUIC</a>).</p>
+<h3 id="install"><a class="doc-anchor" href="#install">§</a>Install</h3><div class="example-wrap"><pre class="language-bash"><code>$ cargo add karyon_stun</code></pre></div><h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3><h4 id="server"><a class="doc-anchor" href="#server">§</a>Server</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_core::async_runtime::global_executor;
+<span class="kw">use </span>karyon_stun::{StunConfig, StunServer};
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>config = StunConfig {
+        udp_endpoint: <span class="prelude-val">Some</span>(<span class="string">"udp://0.0.0.0:3478"</span>.parse().unwrap()),
+        tcp_endpoint: <span class="prelude-val">Some</span>(<span class="string">"tcp://0.0.0.0:3478"</span>.parse().unwrap()),
+        software: <span class="prelude-val">Some</span>(<span class="string">"karyon-stun"</span>.into()),
+        ..Default::default()
+    };
+
+    <span class="kw">let </span>server = StunServer::new(config, global_executor());
+    server.run().<span class="kw">await</span>.expect(<span class="string">"run stun server"</span>);
+
+    <span class="comment">// ... until shutdown:
+    </span>server.shutdown().<span class="kw">await</span>;
+};</code></pre></div><h4 id="client"><a class="doc-anchor" href="#client">§</a>Client</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>karyon_net::Endpoint;
+<span class="kw">use </span>karyon_stun::StunClient;
+
+<span class="kw">async </span>{
+    <span class="kw">let </span>server: Endpoint = <span class="string">"udp://198.51.100.7:3478"</span>.parse().unwrap();
+    <span class="kw">let </span>client = StunClient::new(server);
+    <span class="kw">let </span>public_addr = client.discover().<span class="kw">await</span>.expect(<span class="string">"discover public address"</span>);
+    <span class="macro">println!</span>(<span class="string">"public address: {public_addr}"</span>);
+};</code></pre></div>
+<p>TLS and QUIC take a karyon_net config on both sides: set
+<code>StunConfig::tls_endpoint</code> / <code>quic_endpoint</code> on the server, and call
+<code>StunClient::with_tls</code> / <code>with_quic</code> on the client.</p>
+<h3 id="stun-over-quic"><a class="doc-anchor" href="#stun-over-quic">§</a>STUN over QUIC</h3>
+<p>karyon_stun can also serve and query STUN over QUIC.</p>
+<p>QUIC is not part of RFC 5389/8489: it is a karyon extension (STUN
+messages on one QUIC bidirectional stream). It works between karyon
+servers and clients; standard STUN servers and clients do not speak it.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>endpoint: Endpoint = <span class="string">"quic://0.0.0.0:5349"</span>.parse().unwrap();
+<span class="kw">let </span>config = StunConfig {
+    quic_endpoint: <span class="prelude-val">Some</span>((endpoint, server_config)),
+    ..Default::default()
+};
+<span class="kw">let </span>server = StunServer::new(config, global_executor());
+server.run().<span class="kw">await</span>.expect(<span class="string">"run stun server"</span>);
+
+<span class="kw">let </span>client = StunClient::new(<span class="string">"quic://198.51.100.7:5349"</span>.parse().unwrap())
+    .with_quic(client_config);
+<span class="kw">let </span>public_addr = client.discover().<span class="kw">await</span>.expect(<span class="string">"discover public address"</span>);
+<span class="macro">println!</span>(<span class="string">"public address: {public_addr}"</span>);</code></pre></div><h3 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature Flags</h3><div><table><thead><tr><th>Feature</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>udp</code></td><td>UDP, the primary STUN transport (default)</td></tr>
+<tr><td><code>tcp</code></td><td>TCP (default)</td></tr>
+<tr><td><code>tls</code></td><td>TLS over TCP (implies <code>tcp</code>, default)</td></tr>
+<tr><td><code>quic</code></td><td>QUIC, karyon extension (default)</td></tr>
+<tr><td><code>tokio</code></td><td>Use tokio async runtime (default)</td></tr>
+<tr><td><code>smol</code></td><td>Use smol async runtime</td></tr>
+</tbody></table>
+</div><div class="example-wrap"><pre class="language-toml"><code># Default (tokio + UDP/TCP/TLS/QUIC)
+karyon_stun = &quot;0.1&quot;
+
+# UDP only
+karyon_stun = { version = &quot;0.1&quot;, default-features = false, features = [&quot;tokio&quot;, &quot;udp&quot;] }
+
+# With smol
+karyon_stun = { version = &quot;0.1&quot;, default-features = false, features = [&quot;smol&quot;, &quot;udp&quot;, &quot;tcp&quot;, &quot;tls&quot;] }</code></pre></div><h3 id="scope"><a class="doc-anchor" href="#scope">§</a>Scope</h3>
+<p>Implements the useful subset of RFC 5389:</p>
+<ul>
+<li>Binding Request / Response / Error Response</li>
+<li>XOR-MAPPED-ADDRESS (preferred) and MAPPED-ADDRESS (legacy fallback)</li>
+<li>ERROR-CODE and SOFTWARE attributes</li>
+<li>UDP retransmits (500ms / 1s / 2s), multiple requests per TCP, TLS
+or QUIC stream</li>
+<li>Stream connections are capped (<code>StunConfig::max_connections</code>, default
+1024) and closed after 10s without a request</li>
+</ul>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.Attribute"><code>pub use attrs::<a class="enum" href="attrs/enum.Attribute.html" title="enum karyon_stun::attrs::Attribute">Attribute</a>;</code></dt><dt id="reexport.StunClient"><code>pub use client::<a class="struct" href="client/struct.StunClient.html" title="struct karyon_stun::client::StunClient">StunClient</a>;</code></dt><dt id="reexport.StunCodec"><code>pub use codec::<a class="struct" href="codec/struct.StunCodec.html" title="struct karyon_stun::codec::StunCodec">StunCodec</a>;</code></dt><dt id="reexport.Error"><code>pub use error::<a class="enum" href="error/enum.Error.html" title="enum karyon_stun::error::Error">Error</a>;</code></dt><dt id="reexport.Result"><code>pub use error::<a class="type" href="error/type.Result.html" title="type karyon_stun::error::Result">Result</a>;</code></dt><dt id="reexport.MessageType"><code>pub use msg::<a class="enum" href="msg/enum.MessageType.html" title="enum karyon_stun::msg::MessageType">MessageType</a>;</code></dt><dt id="reexport.StunMessage"><code>pub use msg::<a class="struct" href="msg/struct.StunMessage.html" title="struct karyon_stun::msg::StunMessage">StunMessage</a>;</code></dt><dt id="reexport.TransactionId"><code>pub use msg::<a class="struct" href="msg/struct.TransactionId.html" title="struct karyon_stun::msg::TransactionId">TransactionId</a>;</code></dt><dt id="reexport.MAGIC_COOKIE"><code>pub use msg::<a class="constant" href="msg/constant.MAGIC_COOKIE.html" title="constant karyon_stun::msg::MAGIC_COOKIE">MAGIC_COOKIE</a>;</code></dt><dt id="reexport.StunConfig"><code>pub use server::<a class="struct" href="server/struct.StunConfig.html" title="struct karyon_stun::server::StunConfig">StunConfig</a>;</code></dt><dt id="reexport.StunServer"><code>pub use server::<a class="struct" href="server/struct.StunServer.html" title="struct karyon_stun::server::StunServer">StunServer</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="attrs/index.html" title="mod karyon_stun::attrs">attrs</a></dt><dt><a class="mod" href="client/index.html" title="mod karyon_stun::client">client</a></dt><dt><a class="mod" href="codec/index.html" title="mod karyon_stun::codec">codec</a></dt><dt><a class="mod" href="error/index.html" title="mod karyon_stun::error">error</a></dt><dt><a class="mod" href="msg/index.html" title="mod karyon_stun::msg">msg</a></dt><dt><a class="mod" href="server/index.html" title="mod karyon_stun::server">server</a></dt></dl><script type="text/json" id="notable-traits-data">{"IntoIter<T>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.IntoIter.html\" title=\"struct core::result::IntoIter\">IntoIter</a>&lt;T&gt;</code></h3><pre><code><div class=\"where\">impl&lt;T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.IntoIter.html\" title=\"struct core::result::IntoIter\">IntoIter</a>&lt;T&gt;</div><div class=\"where\">    type <a href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html#associatedtype.Item\" class=\"associatedtype\">Item</a> = T;</div>","Iter<'_, T>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.Iter.html\" title=\"struct core::result::Iter\">Iter</a>&lt;'a, T&gt;</code></h3><pre><code><div class=\"where\">impl&lt;'a, T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.Iter.html\" title=\"struct core::result::Iter\">Iter</a>&lt;'a, T&gt;</div><div class=\"where\">    type <a href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html#associatedtype.Item\" class=\"associatedtype\">Item</a> = <a class=\"primitive\" href=\"https://doc.rust-lang.org/1.99.1/std/primitive.reference.html\">&amp;'a T</a>;</div>","IterMut<'_, T>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.IterMut.html\" title=\"struct core::result::IterMut\">IterMut</a>&lt;'a, T&gt;</code></h3><pre><code><div class=\"where\">impl&lt;'a, T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.99.1/core/result/struct.IterMut.html\" title=\"struct core::result::IterMut\">IterMut</a>&lt;'a, T&gt;</div><div class=\"where\">    type <a href=\"https://doc.rust-lang.org/1.99.1/core/iter/traits/iterator/trait.Iterator.html#associatedtype.Item\" class=\"associatedtype\">Item</a> = <a class=\"primitive\" href=\"https://doc.rust-lang.org/1.99.1/std/primitive.reference.html\">&amp;'a mut T</a>;</div>"}</script></section></div></main></body></html>

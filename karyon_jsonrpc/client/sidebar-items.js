@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ClientBackend"],"mod":["builder","http","message_dispatcher","multiplexed","quic_stream","subscriptions"],"struct":["Client","ClientConfig","HttpConfig","Subscription"],"trait":["WsCodec"],"type":["NotificationDecoder","RequestID"]};
