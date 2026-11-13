@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ATTR_ERROR_CODE","ATTR_MAPPED_ADDRESS","ATTR_SOFTWARE","ATTR_XOR_MAPPED_ADDRESS","CLASS_MASK","FAMILY_IPV4","FAMILY_IPV6"],"enum":["Attribute"],"fn":["decode_address","decode_error","encode_address","encode_error","xor_address"]};

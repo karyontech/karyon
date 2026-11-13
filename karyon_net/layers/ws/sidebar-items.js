@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MAX_MSG_SIZE"],"enum":["Message"],"fn":["from_tung","into_tung"],"struct":["WsConn","WsLayer","WsReader","WsWriter"],"type":["WsInner"]};
