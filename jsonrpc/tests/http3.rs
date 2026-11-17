@@ -7,10 +7,10 @@ mod shared;
 use std::{future::poll_fn, net::SocketAddr, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes};
-use h3::client::{new as h3_client, RequestStream, SendRequest};
+use h3::client::{RequestStream, SendRequest, new as h3_client};
 use h3_quinn::{BidiStream, Connection, OpenStreams};
 use hyper::Request;
-use serde_json::{json, Deserializer, Value};
+use serde_json::{Deserializer, Value, json};
 
 use karyon_core::{async_runtime::spawn, async_util::timeout, testing::run_test};
 
@@ -19,12 +19,12 @@ use karyon_jsonrpc::{
     server::{Server, ServerBuilder},
 };
 use karyon_net::{
-    quic::{ClientQuicConfig, QuicConn, QuicEndpoint, ServerQuicConfig},
     Endpoint,
+    quic::{ClientQuicConfig, QuicConn, QuicEndpoint, ServerQuicConfig},
 };
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-use shared::{generate_test_certs, MathService};
+use shared::{MathService, generate_test_certs};
 
 /// Must match `MathService::blob_subscribe`.
 const BLOB_COUNT: usize = 5;

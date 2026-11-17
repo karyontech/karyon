@@ -1,6 +1,6 @@
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use bincode::{Decode, Encode};
-use rand::{rngs::SysRng, TryRng};
+use rand::{TryRng, rngs::SysRng};
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "serde")]

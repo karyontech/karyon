@@ -8,10 +8,10 @@ use async_trait::async_trait;
 use karyon_core::{async_util::sleep, testing::run_test_with_executor};
 
 use karyon_p2p::{
+    Config, Error, Version,
     endpoint::Endpoint,
     monitor::PeerPoolEvent,
     protocol::{PeerConn, Protocol, ProtocolID},
-    Config, Error, Version,
 };
 
 use shared::{create_node, fast_config, free_port};
@@ -72,9 +72,9 @@ fn four_node_discovery_network() {
 
         let node1 = create_node(
             Config {
-                listen_endpoints: vec![format!("tcp://127.0.0.1:{n1_listen_port}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tcp://127.0.0.1:{n1_listen_port}").parse().unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{n1_discovery_port}")
                         .parse()
@@ -99,9 +99,9 @@ fn four_node_discovery_network() {
         let n2_discovery_port = free_port();
         let node2 = create_node(
             Config {
-                listen_endpoints: vec![format!("tcp://127.0.0.1:{n2_listen_port}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tcp://127.0.0.1:{n2_listen_port}").parse().unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{n2_discovery_port}")
                         .parse()
@@ -120,9 +120,9 @@ fn four_node_discovery_network() {
         let n3_discovery_port = free_port();
         let node3 = create_node(
             Config {
-                listen_endpoints: vec![format!("tcp://127.0.0.1:{n3_listen_port}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tcp://127.0.0.1:{n3_listen_port}").parse().unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{n3_discovery_port}")
                         .parse()

@@ -17,7 +17,7 @@ members = [
 
 [workspace.package]
 description = "A library for building p2p, decentralized, and collaborative software"
-edition = "2021"
+edition = "2024"
 homepage = "https://karyontech.net"
 repository = "https://github.com/karyontech/karyon"
 license = "MIT"
@@ -34,7 +34,7 @@ karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "1.0.1", default-featu
 
 karyon_p2p = { path = "p2p", version = "1.1.6", default-features = false }
 karyon_swarm = { path = "swarm", version = "1.1.6", default-features = false }
-karyon_stun = { path = "stun", version = "0.1.3", default-features = false }
+karyon_stun = { path = "stun", version = "0.2.0", default-features = false }
 
 karyon_eventemitter = { path = "./utils/eventemitter", version = "1.0.2", default-features = false }
 karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "1.0.1", default-features = false }

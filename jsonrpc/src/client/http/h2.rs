@@ -8,10 +8,10 @@ use std::{net::SocketAddr, sync::Arc};
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
-    client::conn::http2::{handshake, Connection, SendRequest},
+    Request,
+    client::conn::http2::{Connection, SendRequest, handshake},
     header::CONTENT_TYPE,
     rt::{Read, Write},
-    Request,
 };
 use log::error;
 
@@ -24,8 +24,8 @@ use hyper_util::rt::TokioIo;
 use smol_hyper::rt::FuturesIo;
 
 use crate::{
-    client::http::{parse_response, HttpConfig},
-    codec::{encode_msg, JsonRpcCodec},
+    client::http::{HttpConfig, parse_response},
+    codec::{JsonRpcCodec, encode_msg},
     error::{Error, Result},
     hyper_exec::HyperExecutor,
     message,

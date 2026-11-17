@@ -19,19 +19,19 @@ use karyon_core::{
 use karyon_net::Endpoint;
 
 use crate::{
+    PeerID, Result,
     config::Config,
     discovery::{DiscoveredPeer, Discovery, PeerConnectionEvent},
-    message::{pick_endpoint, PeerAddr, Protocol},
+    message::{PeerAddr, Protocol, pick_endpoint},
     monitor::Monitor,
     protocol::ProtocolFlags,
-    PeerID, Result,
 };
 
 use bloom::BloomRef;
 use lookup::{LookupEndpoints, LookupService};
 use refresh::RefreshService;
 use routing_table::{
-    RoutingTable, CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY, UNREACHABLE_ENTRY,
+    CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY,
     UNSTABLE_ENTRY,
 };
 

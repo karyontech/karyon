@@ -4,7 +4,7 @@ mod shared;
 
 use karyon_core::testing::run_test_with_executor;
 
-use karyon_p2p::{monitor::PeerPoolEvent, Config};
+use karyon_p2p::{Config, monitor::PeerPoolEvent};
 
 use shared::{create_node, fast_config, free_port};
 

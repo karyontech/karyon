@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 use karyon_eventemitter::{AsEventValue, EventEmitter, EventTopic, EventValue};
 

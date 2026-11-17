@@ -4,9 +4,9 @@ use clap::Parser;
 use tokio::{runtime::Runtime, sync::mpsc::unbounded_channel};
 
 use karyon_p2p::{
+    Config, Node,
     endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
-    Config, Node,
 };
 
 #[derive(Parser)]

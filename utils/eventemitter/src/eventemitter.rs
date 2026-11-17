@@ -193,11 +193,11 @@ where
     ) -> Result<
         FuturesUnordered<
             impl std::future::Future<
-                    Output = (
-                        EventListenerID,
-                        std::result::Result<(), async_channel::SendError<Event>>,
-                    ),
-                > + use<'_, T, E>,
+                Output = (
+                    EventListenerID,
+                    std::result::Result<(), async_channel::SendError<Event>>,
+                ),
+            > + use<'_, T, E>,
         >,
     > {
         let value: Arc<dyn AsEventValue> = Arc::new(value.clone());

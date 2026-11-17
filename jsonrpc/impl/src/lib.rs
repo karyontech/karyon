@@ -2,8 +2,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parse_macro_input, spanned::Spanned, FnArg, ImplItem, ItemFn, ItemImpl, LitStr, ReturnType,
-    Signature, Type, TypePath,
+    FnArg, ImplItem, ItemFn, ItemImpl, LitStr, ReturnType, Signature, Type, TypePath,
+    parse_macro_input, spanned::Spanned,
 };
 
 #[proc_macro_attribute]
@@ -238,13 +238,13 @@ fn validate_method(method: &Signature) -> Result<(), syn::Error> {
 fn parse_service_name(attr: syn::Meta) -> Result<Option<String>, syn::Error> {
     if let syn::Meta::NameValue(ref n) = attr {
         if n.path.is_ident("name") {
-            if let syn::Expr::Lit(lit) = &n.value {
-                if let syn::Lit::Str(lit_str) = &lit.lit {
-                    if lit_str.value().is_empty() {
-                        return Err(syn::Error::new(attr.span(), "Empty string"));
-                    }
-                    return Ok(Some(lit_str.value().to_string()));
+            if let syn::Expr::Lit(lit) = &n.value
+                && let syn::Lit::Str(lit_str) = &lit.lit
+            {
+                if lit_str.value().is_empty() {
+                    return Err(syn::Error::new(attr.span(), "Empty string"));
                 }
+                return Ok(Some(lit_str.value().to_string()));
             }
         } else {
             return Err(syn::Error::new(attr.span(), "Unexpected attribute"));

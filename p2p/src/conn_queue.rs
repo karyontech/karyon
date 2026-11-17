@@ -9,7 +9,7 @@ use karyon_net::{Endpoint, FramedConn, FramedReader, FramedWriter};
 #[cfg(feature = "quic")]
 use karyon_net::quic::QuicConn;
 
-use crate::{codec::PeerNetMsgCodec, conn_direction::ConnDirection, Error, PeerID, Result};
+use crate::{Error, PeerID, Result, codec::PeerNetMsgCodec, conn_direction::ConnDirection};
 
 /// Framed peer-data-plane connection used by the queue.
 type PeerConnRef = FramedConn<PeerNetMsgCodec>;

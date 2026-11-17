@@ -1,6 +1,6 @@
 use karyon_net::{
-    codec::{Codec, LengthCodec},
     ByteBuffer,
+    codec::{Codec, LengthCodec},
 };
 
 use crate::{

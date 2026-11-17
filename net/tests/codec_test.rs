@@ -1,12 +1,13 @@
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use karyon_core::{async_util::sleep, testing::run_test};
 use karyon_net::{
+    ByteBuffer, Endpoint,
     codec::{Codec, LengthCodec},
-    framed, tcp, ByteBuffer, Endpoint,
+    framed, tcp,
 };
 
 const DEFAULT_MAX_SIZE: usize = 8 * 1024 * 1024;

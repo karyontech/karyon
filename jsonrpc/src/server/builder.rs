@@ -16,11 +16,11 @@ use karyon_net::quic::ServerQuicConfig;
 use crate::{
     codec::{JsonCodec, JsonRpcCodec},
     error::Result,
-    message::{Notification, NotificationResult, JSONRPC_VERSION},
-    server::channel::NewNotification,
+    message::{JSONRPC_VERSION, Notification, NotificationResult},
     server::PubSubRPCService,
     server::RPCService,
     server::WsCodec,
+    server::channel::NewNotification,
 };
 
 #[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]

@@ -12,10 +12,10 @@ use karyon_net::Addr;
 use crate::discovery::kademlia::bloom::LocalBloom;
 
 pub use bucket::{
-    Bucket, BucketEntry, EntryStatusFlag, CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY,
+    Bucket, BucketEntry, CONNECTED_ENTRY, DISCONNECTED_ENTRY, EntryStatusFlag, PENDING_ENTRY,
     UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
 };
-pub use entry::{xor_distance, Entry, Key};
+pub use entry::{Entry, Key, xor_distance};
 
 use bucket::BUCKET_SIZE;
 use entry::KEY_SIZE;
@@ -238,10 +238,10 @@ impl RoutingTable {
         for bucket in buckets.iter() {
             for be in bucket.iter() {
                 for a in be.entry.discovery_addrs.iter() {
-                    if let Addr::Ip(entry_ip) = &a.addr {
-                        if entry_ip == ip {
-                            return true;
-                        }
+                    if let Addr::Ip(entry_ip) = &a.addr
+                        && entry_ip == ip
+                    {
+                        return true;
                     }
                 }
             }

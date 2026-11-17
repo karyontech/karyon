@@ -16,17 +16,17 @@ use http_body_util::BodyExt;
 use http_body_util::Full;
 use hyper::StatusCode;
 use log::info;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 #[cfg(feature = "tokio")]
-use hyper_util::client::legacy::{connect::HttpConnector, Client as HyperClient};
+use hyper_util::client::legacy::{Client as HyperClient, connect::HttpConnector};
 
 #[cfg(feature = "tokio")]
 use crate::hyper_exec::HyperExecutor;
 
 use karyon_core::{
-    async_util::{timeout, TaskGroup},
+    async_util::{TaskGroup, timeout},
     util::random_32,
 };
 
@@ -37,7 +37,7 @@ use karyon_net::Endpoint;
 
 use crate::{
     client::{Client, ClientBackend, ClientConfig, RequestID, WsCodec},
-    codec::{decode_body, JsonRpcCodec, DEFAULT_CONTENT_TYPE},
+    codec::{DEFAULT_CONTENT_TYPE, JsonRpcCodec, decode_body},
     error::{Error, Result},
     message::{self, SubscriptionID},
 };

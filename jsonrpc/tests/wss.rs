@@ -9,7 +9,7 @@ use karyon_core::testing::run_test;
 use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
 use karyon_net::tls::{ClientTlsConfig, ServerTlsConfig};
 
-use shared::{generate_test_certs, MathService};
+use shared::{MathService, generate_test_certs};
 
 fn test_tls_configs() -> (ServerTlsConfig, ClientTlsConfig) {
     let _ =

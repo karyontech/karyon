@@ -3,8 +3,8 @@ use std::{net::IpAddr, sync::Arc};
 use karyon_net::Endpoint;
 
 use crate::{
-    access_control::{AccessControl, AllowAll},
     Version,
+    access_control::{AccessControl, AllowAll},
 };
 
 /// Configuration for the p2p network.

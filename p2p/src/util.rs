@@ -1,4 +1,4 @@
-use bincode::{config, Decode, Encode};
+use bincode::{Decode, Encode, config};
 
 use crate::Result;
 

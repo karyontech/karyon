@@ -12,8 +12,8 @@ use std::{io, sync::Arc};
 use karyon_core::testing::run_test;
 
 use karyon_jsonrpc::{client::ClientBuilder, codec::Codec, server::ServerBuilder};
-use karyon_net::layers::ws::Message as WsMessage;
 use karyon_net::Error as NetError;
+use karyon_net::layers::ws::Message as WsMessage;
 
 use shared::MathService;
 

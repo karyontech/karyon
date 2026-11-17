@@ -1,6 +1,6 @@
 use bincode::config;
 
-use crate::{codec::Codec, ByteBuffer, Error, Result};
+use crate::{ByteBuffer, Error, Result, codec::Codec};
 
 const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4MB
 

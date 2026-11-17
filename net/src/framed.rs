@@ -1,12 +1,12 @@
 use std::io::{self, ErrorKind};
 
-use karyon_core::async_runtime::io::{split, AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
+use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf, split};
 
 use crate::{
+    Buffer, ByteBuffer, Endpoint, Result,
     codec::Codec,
     message::{MessageRx, MessageTx},
     stream::ByteStream,
-    Buffer, ByteBuffer, Endpoint, Result,
 };
 
 // Default read chunk size (64KB).

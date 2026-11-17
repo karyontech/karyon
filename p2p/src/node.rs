@@ -14,20 +14,20 @@ use karyon_eventemitter::EventListener;
 use karyon_net::Endpoint;
 
 use crate::{
+    PeerID, Result,
     access_control::{Action, Subject},
     codec::PeerNetMsgCodec,
     config::Config,
     conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     connector::Connector,
-    discovery::{kademlia::KademliaDiscovery, DiscoveredPeer, Discovery, PeerConnectionEvent},
+    discovery::{DiscoveredPeer, Discovery, PeerConnectionEvent, kademlia::KademliaDiscovery},
     listener::Listener,
-    message::{pick_endpoint, Protocol},
+    message::{Protocol, pick_endpoint},
     monitor::{Monitor, PoolEvent},
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
     protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID},
     protocols::PingProtocol,
-    PeerID, Result,
 };
 
 /// Central entry point for the p2p network.

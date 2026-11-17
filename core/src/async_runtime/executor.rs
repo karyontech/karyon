@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 use std::{
     future::pending,
     num::NonZeroUsize,
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     thread,
 };
 
@@ -92,12 +92,14 @@ pub fn global_executor() -> Executor {
             let ex = ex.clone();
             thread::Builder::new()
                 .name(format!("smol-executor-{i}"))
-                .spawn(move || loop {
-                    // A panicking task unwinds out of block_on; log it
-                    // and keep the worker alive.
-                    let run = AssertUnwindSafe(|| smol::block_on(ex.run(pending::<()>())));
-                    if catch_unwind(run).is_err() {
-                        error!("global executor worker recovered from a task panic");
+                .spawn(move || {
+                    loop {
+                        // A panicking task unwinds out of block_on; log it
+                        // and keep the worker alive.
+                        let run = AssertUnwindSafe(|| smol::block_on(ex.run(pending::<()>())));
+                        if catch_unwind(run).is_err() {
+                            error!("global executor worker recovered from a task panic");
+                        }
                     }
                 })
                 .expect("cannot spawn executor thread");

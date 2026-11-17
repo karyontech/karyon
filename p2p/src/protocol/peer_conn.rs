@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
+    Error, Result,
     peer::Peer,
     protocol::{ProtocolEvent, ProtocolID},
-    Error, Result,
 };
 
 /// Per-protocol view of a Peer with the protocol id baked in. Built

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyon_net::{framed, ByteStream, Endpoint};
+use karyon_net::{ByteStream, Endpoint, framed};
 
 use crate::{
     codec::JsonRpcCodec,
@@ -30,8 +30,8 @@ use std::net::SocketAddr;
 
 #[cfg(feature = "ws")]
 use karyon_net::{
-    layers::ws::{WsConn, WsLayer},
     Error as NetError,
+    layers::ws::{WsConn, WsLayer},
 };
 
 #[cfg(any(feature = "tls", feature = "ws"))]

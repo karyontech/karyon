@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use karyon_core::{async_runtime::spawn, async_util::sleep, util::random_32};
 

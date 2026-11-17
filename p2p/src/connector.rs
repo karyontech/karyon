@@ -4,25 +4,25 @@ use log::{error, trace, warn};
 
 use karyon_core::{
     async_runtime::{
-        lock::{Semaphore, SemaphoreGuard},
         Executor,
+        lock::{Semaphore, SemaphoreGuard},
     },
     async_util::{Backoff, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
-use karyon_net::{codec::Codec, framed, tcp, ByteBuffer, ClientLayer, Endpoint, FramedConn};
+use karyon_net::{ByteBuffer, ClientLayer, Endpoint, FramedConn, codec::Codec, framed, tcp};
 
 use crate::{
+    Error, PeerID, Result,
     codec::PeerNetMsgCodec,
     conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     monitor::{ConnectionKind, Monitor},
     tls_config::{peer_id_from_certs, tls_client_config},
-    Error, PeerID, Result,
 };
 
 #[cfg(feature = "quic")]
-use karyon_net::{quic, StreamMux};
+use karyon_net::{StreamMux, quic};
 
 #[cfg(feature = "quic")]
 use crate::tls_config::quic_client_config;

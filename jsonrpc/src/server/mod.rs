@@ -17,10 +17,10 @@ use log::{debug, error, info};
 
 use karyon_core::{
     async_runtime::{
-        lock::{Semaphore, SemaphoreGuard},
         Executor,
+        lock::{Semaphore, SemaphoreGuard},
     },
-    async_util::{select, timeout, AsyncQueue, Backoff, CondWait, Either, TaskGroup, TaskResult},
+    async_util::{AsyncQueue, Backoff, CondWait, Either, TaskGroup, TaskResult, select, timeout},
 };
 
 use karyon_net::{Endpoint, MessageRx, MessageTx};

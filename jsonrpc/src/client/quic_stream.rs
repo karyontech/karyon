@@ -2,30 +2,29 @@
 
 use std::{
     collections::HashMap,
-    sync::{atomic::Ordering, Arc},
+    sync::{Arc, atomic::Ordering},
 };
 
 use async_channel::Sender;
 use log::{debug, info};
 use parking_lot::Mutex;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 use karyon_core::{
-    async_util::{select, Either, TaskResult},
+    async_util::{Either, TaskResult, select},
     util::random_32,
 };
 
 use karyon_net::{
-    framed,
+    FramedReader, FramedWriter, StreamMux, framed,
     quic::{QuicConn, QuicEndpoint},
-    FramedReader, FramedWriter, StreamMux,
 };
 
 use crate::{
     client::{
-        subscriptions::{decode_notification, NotificationDecoder, Subscription, Subscriptions},
         Client, ClientBackend, ClientConfig, RequestID, WsCodec,
+        subscriptions::{NotificationDecoder, Subscription, Subscriptions, decode_notification},
     },
     codec::{JsonCodec, JsonRpcCodec},
     error::{Error, Result},

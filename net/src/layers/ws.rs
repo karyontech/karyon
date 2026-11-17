@@ -1,21 +1,21 @@
 use std::io;
 
 use async_tungstenite::tungstenite::{
-    protocol::WebSocketConfig, Bytes as TungBytes, Message as TungMessage,
+    Bytes as TungBytes, Message as TungMessage, protocol::WebSocketConfig,
 };
 use async_tungstenite::{WebSocketReceiver, WebSocketSender, WebSocketStream};
 use futures_util::StreamExt;
 
 #[cfg(feature = "tokio")]
-use async_tungstenite::tokio::{accept_async_with_config, client_async_with_config, TokioAdapter};
+use async_tungstenite::tokio::{TokioAdapter, accept_async_with_config, client_async_with_config};
 #[cfg(feature = "smol")]
 use async_tungstenite::{accept_async_with_config, client_async_with_config};
 
 use crate::{
+    ByteStream, Endpoint, Error, Result,
     codec::Codec,
     layer::{ClientLayer, ServerLayer},
     message::{MessageRx, MessageTx},
-    ByteStream, Endpoint, Error, Result,
 };
 
 #[cfg(feature = "tokio")]

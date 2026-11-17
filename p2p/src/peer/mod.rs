@@ -12,16 +12,16 @@ use log::{error, trace};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{timeout, TaskGroup, TaskResult},
+    async_util::{TaskGroup, TaskResult, timeout},
 };
 
 use crate::{
+    Config, Result,
     conn_direction::ConnDirection,
     conn_queue::QueuedConn,
     endpoint::Endpoint,
     peer_pool::PeerPool,
     protocol::{PeerConn, ProtocolEvent, ProtocolID},
-    Config, Result,
 };
 
 pub use peer_id::PeerID;
@@ -141,8 +141,8 @@ impl Peer {
 
     pub(crate) async fn run(self: Arc<Self>) -> Result<()> {
         self.run_connect_protocols().await;
-        let stop_reason = self.stop_reason_rx.recv().await?;
-        stop_reason
+
+        self.stop_reason_rx.recv().await?
     }
 
     pub(crate) async fn shutdown(self: &Arc<Self>) -> Result<()> {

@@ -2,30 +2,30 @@ use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
-use rand::{rngs::SysRng, seq::IndexedRandom, TryRng};
+use rand::{TryRng, rngs::SysRng, seq::IndexedRandom};
 
 use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair};
 
 use karyon_net::{Addr, Endpoint};
 
 use crate::{
+    Config, Error, PeerID, Result,
     access_control::{Action, Subject},
     conn_direction::ConnDirection,
     connector::Connector,
     discovery::kademlia::{
+        SUPPORTED_LOOKUP_PROTOCOLS,
         bloom::BloomRef,
         messages::{
             FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
         },
         routing_table::RoutingTable,
-        SUPPORTED_LOOKUP_PROTOCOLS,
     },
     listener::Listener,
-    message::{pick_endpoint, PeerAddr, Protocol, ShutdownMsg},
+    message::{PeerAddr, Protocol, ShutdownMsg, pick_endpoint},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
     util::decode,
     version::version_match,
-    Config, Error, PeerID, Result,
 };
 
 /// Framed lookup-plane connection.
@@ -484,10 +484,10 @@ impl LookupService {
 /// `public_ip` when both are the same family.
 fn advertised_addr(ep: &Endpoint, public_ip: Option<IpAddr>) -> Option<PeerAddr> {
     let mut pa = PeerAddr::from_endpoint(ep, 0)?;
-    if let (Some(public), Addr::Ip(ip)) = (public_ip, &pa.addr) {
-        if public.is_ipv4() == ip.is_ipv4() {
-            pa.addr = Addr::Ip(public);
-        }
+    if let (Some(public), Addr::Ip(ip)) = (public_ip, &pa.addr)
+        && public.is_ipv4() == ip.is_ipv4()
+    {
+        pa.addr = Addr::Ip(public);
     }
     Some(pa)
 }

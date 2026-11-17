@@ -17,5 +17,5 @@ pub use attrs::Attribute;
 pub use client::StunClient;
 pub use codec::StunCodec;
 pub use error::{Error, Result};
-pub use msg::{MessageType, StunMessage, TransactionId, MAGIC_COOKIE};
+pub use msg::{MAGIC_COOKIE, MessageType, StunMessage, TransactionId};
 pub use server::{StunConfig, StunServer};

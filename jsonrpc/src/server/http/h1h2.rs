@@ -5,9 +5,9 @@ use std::{net::SocketAddr, sync::Arc};
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::{
+    Method, Request, Response, StatusCode,
     body::{Body, Incoming},
     service::service_fn,
-    Method, Request, Response, StatusCode,
 };
 use hyper_util::server::conn::auto::Builder as HttpConnBuilder;
 use log::{debug, error};
@@ -23,16 +23,16 @@ use karyon_core::{
 };
 
 use crate::{
-    codec::{decode_body, JsonRpcCodec},
+    codec::{JsonRpcCodec, decode_body},
     error::Result,
     message,
     server::{
-        http::{
-            encode_response, json_response, json_response_bytes, parse_error_response,
-            HyperExecutor, ERR_BODY_TOO_LARGE, ERR_ENCODE_RESPONSE, ERR_METHOD_NOT_ALLOWED,
-            ERR_READ_BODY, MAX_HTTP_BODY_SIZE,
-        },
         Server,
+        http::{
+            ERR_BODY_TOO_LARGE, ERR_ENCODE_RESPONSE, ERR_METHOD_NOT_ALLOWED, ERR_READ_BODY,
+            HyperExecutor, MAX_HTTP_BODY_SIZE, encode_response, json_response, json_response_bytes,
+            parse_error_response,
+        },
     },
 };
 
@@ -115,13 +115,13 @@ async fn handle_hyper_request<C: JsonRpcCodec>(
     }
 
     // Fast reject when Content-Length already exceeds the cap.
-    if let Some(len) = req.body().size_hint().upper() {
-        if len > MAX_HTTP_BODY_SIZE {
-            return Ok(json_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                ERR_BODY_TOO_LARGE,
-            ));
-        }
+    if let Some(len) = req.body().size_hint().upper()
+        && len > MAX_HTTP_BODY_SIZE
+    {
+        return Ok(json_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            ERR_BODY_TOO_LARGE,
+        ));
     }
 
     // Limited enforces the cap during read regardless of Content-Length.

@@ -1,8 +1,8 @@
 use std::{future::Future, time::Duration};
 
-use crate::{error::Error, Result};
+use crate::{Result, error::Error};
 
-use super::{select, sleep, Either};
+use super::{Either, select, sleep};
 
 /// Waits for a future to complete or times out if it exceeds a specified
 /// duration.

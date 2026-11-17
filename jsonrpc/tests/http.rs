@@ -17,8 +17,8 @@ use karyon_jsonrpc::{
     server::{HttpConfig as ServerHttpConfig, ServerBuilder},
 };
 use karyon_net::{
-    tcp::{self, TcpListener},
     Endpoint,
+    tcp::{self, TcpListener},
 };
 
 use shared::MathService;

@@ -16,11 +16,11 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use karyon_core::async_util::sleep;
 use karyon_core::testing::run_test_with_executor;
+use karyon_net::Endpoint;
 #[cfg(feature = "quic")]
 use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
 #[cfg(feature = "tls")]
 use karyon_net::tls::{ClientTlsConfig, ServerTlsConfig};
-use karyon_net::Endpoint;
 use karyon_stun::{StunClient, StunConfig, StunServer};
 
 /// Find a free UDP port by binding to port 0.

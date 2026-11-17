@@ -1,5 +1,5 @@
-use karyon_net::codec::Codec;
 use karyon_net::ByteBuffer;
+use karyon_net::codec::Codec;
 
 use crate::error::Error;
 use crate::msg::StunMessage;

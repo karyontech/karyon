@@ -7,15 +7,15 @@ use futures_rustls::rustls;
 use tokio_rustls::rustls;
 
 use rustls::{
-    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    crypto::{
-        aws_lc_rs::{self, cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, kx_group},
-        CryptoProvider, SupportedKxGroup,
-    },
-    server::danger::{ClientCertVerified, ClientCertVerifier},
     CertificateError, DigitallySignedStruct, DistinguishedName,
     Error::InvalidCertificate,
     SignatureScheme, SupportedCipherSuite, SupportedProtocolVersion,
+    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+    crypto::{
+        CryptoProvider, SupportedKxGroup,
+        aws_lc_rs::{self, cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, kx_group},
+    },
+    server::danger::{ClientCertVerified, ClientCertVerifier},
 };
 
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
@@ -243,12 +243,12 @@ impl ServerCertVerifier for SrvrCertVerifier {
         // Verify that the peer id in the certificate's extension matches the
         // one the client intends to connect to.
         // Both should be equal for establishing a fully secure connection.
-        if let Some(pid) = &self.peer_id {
-            if pid != &peer_id {
-                return Err(InvalidCertificate(
-                    CertificateError::ApplicationVerificationFailure,
-                ));
-            }
+        if let Some(pid) = &self.peer_id
+            && pid != &peer_id
+        {
+            return Err(InvalidCertificate(
+                CertificateError::ApplicationVerificationFailure,
+            ));
         }
 
         Ok(ServerCertVerified::assertion())

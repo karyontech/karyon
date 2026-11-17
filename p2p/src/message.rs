@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 
 use karyon_net::{Addr, Endpoint, Port};
 
-use crate::{protocol::ProtocolID, util::encode, Result};
+use crate::{Result, protocol::ProtocolID, util::encode};
 
 /// Transport protocol used by a peer address.
 #[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]

@@ -10,16 +10,16 @@ use std::{
 use log::{debug, trace};
 
 use karyon_core::{
-    async_runtime::{lock::RwLock, Executor},
+    async_runtime::{Executor, lock::RwLock},
     async_util::{TaskGroup, TaskResult},
 };
 
 use karyon_p2p::{
-    protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
     DiscoveredPeer, Node, PeerEvent, PeerEventListener, PeerID, Result,
+    protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
 };
 
-pub use swarm_key::{compute_swarm_key, swarm_key_from_protocol, SwarmKey};
+pub use swarm_key::{SwarmKey, compute_swarm_key, swarm_key_from_protocol};
 
 /// Per-swarm state.
 struct SwarmInfo {
@@ -271,16 +271,16 @@ impl Swarm {
         };
 
         for pid in all_pids {
-            if let Some(protos) = self.node.peer_protocol_set(&pid).await {
-                if protos.contains(protocol_id) {
-                    info.peers.write().await.insert(pid.clone());
-                    self.peer_swarms
-                        .write()
-                        .await
-                        .entry(pid)
-                        .or_default()
-                        .insert(*key);
-                }
+            if let Some(protos) = self.node.peer_protocol_set(&pid).await
+                && protos.contains(protocol_id)
+            {
+                info.peers.write().await.insert(pid.clone());
+                self.peer_swarms
+                    .write()
+                    .await
+                    .entry(pid)
+                    .or_default()
+                    .insert(*key);
             }
         }
     }

@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 
 use crate::attrs::Attribute;
 use crate::error::{Error, Result};

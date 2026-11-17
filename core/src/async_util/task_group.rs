@@ -2,17 +2,17 @@ use std::{
     collections::HashMap,
     future::Future,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Weak,
+        atomic::{AtomicUsize, Ordering},
     },
     thread::panicking,
 };
 
 use parking_lot::Mutex;
 
-use crate::async_runtime::{global_executor, Executor, Task};
+use crate::async_runtime::{Executor, Task, global_executor};
 
-use super::{select, CondWait, Either};
+use super::{CondWait, Either, select};
 
 /// Identifies a spawned task within a [`TaskGroup`].
 pub type TaskID = usize;
@@ -176,10 +176,10 @@ impl<T: std::fmt::Debug> std::fmt::Display for TaskResult<T> {
 /// so the task is not cancelled from within itself. If `cancel` already
 /// took it out, this is a no-op.
 fn remove_from_group(group: &Weak<Inner>, id: TaskID) {
-    if let Some(group) = group.upgrade() {
-        if let Some(handler) = group.remove(id) {
-            handler.detach();
-        }
+    if let Some(group) = group.upgrade()
+        && let Some(handler) = group.remove(id)
+    {
+        handler.detach();
     }
 }
 

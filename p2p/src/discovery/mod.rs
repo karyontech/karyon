@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{message::PeerAddr, protocol::ProtocolFlags, PeerID, Result};
+use crate::{PeerID, Result, message::PeerAddr, protocol::ProtocolFlags};
 
 /// Represents a discovered peer that the discovery protocol wants the
 /// Node to connect to.

@@ -2,7 +2,7 @@ mod shared;
 
 use karyon_core::testing::run_test_with_executor;
 
-use karyon_p2p::{endpoint::Endpoint, monitor::PeerPoolEvent, Config};
+use karyon_p2p::{Config, endpoint::Endpoint, monitor::PeerPoolEvent};
 
 use shared::{create_node, fast_config, free_port};
 
@@ -62,9 +62,9 @@ fn discovery_network() {
 
         let node1 = create_node(
             Config {
-                listen_endpoints: vec![format!("tls://127.0.0.1:{n1_listen_port}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tls://127.0.0.1:{n1_listen_port}").parse().unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{n1_discovery_port}")
                         .parse()
@@ -89,9 +89,9 @@ fn discovery_network() {
         let n2_discovery_port = free_port();
         let node2 = create_node(
             Config {
-                listen_endpoints: vec![format!("tls://127.0.0.1:{n2_listen_port}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tls://127.0.0.1:{n2_listen_port}").parse().unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{n2_discovery_port}")
                         .parse()

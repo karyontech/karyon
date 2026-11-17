@@ -12,17 +12,17 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
-    header::{CONTENT_TYPE, HOST},
     Request,
+    header::{CONTENT_TYPE, HOST},
 };
 
 #[cfg(feature = "smol")]
 use hyper::{
-    client::conn::http1::{handshake, Connection},
+    client::conn::http1::{Connection, handshake},
     rt::{Read, Write},
 };
 #[cfg(feature = "tokio")]
-use hyper_util::client::legacy::{connect::HttpConnector, Client as HyperClient};
+use hyper_util::client::legacy::{Client as HyperClient, connect::HttpConnector};
 #[cfg(feature = "smol")]
 use log::error;
 #[cfg(feature = "smol")]
@@ -33,8 +33,8 @@ use karyon_core::{async_runtime::net::TcpStream, async_util::TaskGroup};
 use karyon_net::Endpoint;
 
 use crate::{
-    client::http::{parse_response, HttpConfig},
-    codec::{encode_msg, JsonRpcCodec},
+    client::http::{HttpConfig, parse_response},
+    codec::{JsonRpcCodec, encode_msg},
     error::{Error, Result},
     message,
 };

@@ -3,8 +3,8 @@ mod shared;
 use std::{
     collections::HashSet,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -12,7 +12,7 @@ use std::{
 use karyon_core::{async_util::sleep, testing::run_test_with_executor};
 
 use karyon_p2p::{
-    monitor::PeerPoolEvent, AccessControl, Action, Config, ConnDirection, PeerID, Subject,
+    AccessControl, Action, Config, ConnDirection, PeerID, Subject, monitor::PeerPoolEvent,
 };
 
 use shared::{create_node, fast_config, free_port};

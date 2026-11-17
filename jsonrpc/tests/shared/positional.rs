@@ -5,7 +5,7 @@ use serde_json::{from_value, json};
 
 use karyon_jsonrpc::{
     error::{Error, Result},
-    message::{Notification, NotificationResult, JSONRPC_VERSION},
+    message::{JSONRPC_VERSION, Notification, NotificationResult},
     server::channel::NewNotification,
 };
 
