@@ -151,3 +151,30 @@ pub enum RefreshMsg {
     Ping([u8; 32]),
     Pong([u8; 32]),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use bincode::error::DecodeError;
+
+    use crate::{Error, message::ShutdownMsg};
+
+    #[test]
+    fn decode_rejects_huge_length_prefix() {
+        let msg = KadNetMsg::new(KadNetCmd::Shutdown, ShutdownMsg(0)).unwrap();
+        let mut bytes = encode(&msg).unwrap();
+
+        // The message ends with the payload: its length, then one byte.
+        // Claim 2^40 bytes in the length.
+        let len_size = size_of::<u64>();
+        let at = bytes.len() - 1 - len_size;
+        bytes[at..at + len_size].copy_from_slice(&(1u64 << 40).to_le_bytes());
+
+        let res = decode::<KadNetMsg>(&bytes);
+        assert!(matches!(
+            res,
+            Err(Error::BincodeDecode(DecodeError::LimitExceeded))
+        ));
+    }
+}

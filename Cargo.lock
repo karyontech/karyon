@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
