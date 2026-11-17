@@ -6,7 +6,7 @@ use std::{
 use log::{error, info, warn};
 
 use karyon_core::{
-    async_runtime::{lock::RwLock, Executor},
+    async_runtime::{Executor, lock::RwLock},
     async_util::{TaskGroup, TaskResult},
 };
 
@@ -15,14 +15,14 @@ use karyon_eventemitter::{EventEmitter, EventListener, EventTopic, EventValue};
 use karyon_net::Endpoint;
 
 use crate::{
+    Error, PeerID, Result,
     access_control::{Action, PeerCandidate, Subject},
     config::Config,
     conn_queue::{ConnQueue, QueuedConn},
-    handshake::{handshake, HandshakeParams},
+    handshake::{HandshakeParams, handshake},
     monitor::{Monitor, PoolEvent},
     peer::Peer,
     protocol::{Protocol, ProtocolConstructor, ProtocolID, ProtocolMeta},
-    Error, PeerID, Result,
 };
 
 /// Topic key for the peer-lifecycle event emitter.
@@ -325,10 +325,10 @@ impl PeerPool {
             let this = self.clone();
             let pid = pid.clone();
             |result| async move {
-                if let TaskResult::Completed(_) = result {
-                    if let Err(err) = this.remove_peer(&pid).await {
-                        error!("Failed to remove peer {pid}: {err}");
-                    }
+                if let TaskResult::Completed(_) = result
+                    && let Err(err) = this.remove_peer(&pid).await
+                {
+                    error!("Failed to remove peer {pid}: {err}");
                 }
             }
         };

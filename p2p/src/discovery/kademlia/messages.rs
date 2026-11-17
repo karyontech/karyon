@@ -8,16 +8,16 @@
 use bincode::{Decode, Encode};
 
 use karyon_net::{
-    codec::{Codec, LengthCodec},
     ByteBuffer,
+    codec::{Codec, LengthCodec},
 };
 
 use crate::{
+    PeerID, Result,
     discovery::kademlia::bloom::Bloom,
     message::PeerAddr,
     util::{decode, encode},
     version::VersionInt,
-    PeerID, Result,
 };
 
 // ---------- Lookup-plane wire envelope ----------

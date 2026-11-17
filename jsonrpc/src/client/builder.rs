@@ -13,8 +13,8 @@ use karyon_net::tcp::TcpConfig;
 
 use crate::{
     client::{
-        subscriptions::{default_notification_decoder, NotificationDecoder},
         WsCodec,
+        subscriptions::{NotificationDecoder, default_notification_decoder},
     },
     codec::{JsonCodec, JsonRpcCodec},
     error::Result,

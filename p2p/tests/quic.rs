@@ -11,13 +11,13 @@ use karyon_core::async_runtime::Executor;
 use karyon_core::async_util::sleep;
 use karyon_core::testing::{run_test, run_test_with_executor};
 use karyon_net::{
-    quic::{self, ClientQuicConfig, ServerQuicConfig},
     Endpoint,
+    quic::{self, ClientQuicConfig, ServerQuicConfig},
 };
 use karyon_p2p::{
+    Config, Error, Node, Version,
     monitor::PeerPoolEvent,
     protocol::{PeerConn, Protocol, ProtocolID},
-    Config, Error, Node, Version,
 };
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 

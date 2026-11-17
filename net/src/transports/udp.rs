@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use karyon_core::async_runtime::net::UdpSocket;
 
-use crate::{endpoint::resolve_endpoint, Endpoint, Result};
+use crate::{Endpoint, Result, endpoint::resolve_endpoint};
 
 /// UDP config.
 #[derive(Default)]

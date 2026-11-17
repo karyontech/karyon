@@ -7,9 +7,9 @@ use log::debug;
 use crate::{
     message,
     server::{
-        channel::Channel, pubsub_service::PubSubRPCMethod, service::RPCMethod, Server,
-        FAILED_TO_PARSE_ERROR_MSG, INVALID_REQUEST_ERROR_MSG, METHOD_NOT_FOUND_ERROR_MSG,
-        UNSUPPORTED_JSONRPC_VERSION,
+        FAILED_TO_PARSE_ERROR_MSG, INVALID_REQUEST_ERROR_MSG, METHOD_NOT_FOUND_ERROR_MSG, Server,
+        UNSUPPORTED_JSONRPC_VERSION, channel::Channel, pubsub_service::PubSubRPCMethod,
+        service::RPCMethod,
     },
 };
 
@@ -99,15 +99,14 @@ impl Server {
         method_name: &str,
         allow_pubsub: bool,
     ) -> Handler<'_> {
-        if allow_pubsub {
-            if let Some(method) = self
+        if allow_pubsub
+            && let Some(method) = self
                 .config
                 .pubsub_services
                 .get(srvc_name)
                 .and_then(|s| s.get_pubsub_method(method_name))
-            {
-                return Handler::Pubsub(method);
-            }
+        {
+            return Handler::Pubsub(method);
         }
         if let Some(method) = self
             .config

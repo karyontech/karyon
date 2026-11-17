@@ -5,12 +5,11 @@ use std::sync::Arc;
 
 use log::{debug, error};
 
-use karyon_core::async_util::{select, Either, TaskResult};
+use karyon_core::async_util::{Either, TaskResult, select};
 
 use karyon_net::{
-    framed,
+    Endpoint, FramedConn, StreamMux, framed,
     quic::{QuicConn, QuicIncoming},
-    Endpoint, FramedConn, StreamMux,
 };
 
 use crate::{
@@ -18,9 +17,9 @@ use crate::{
     error::Result,
     message,
     server::{
+        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server,
         channel::Channel,
-        dispatch::{sanity_check, Handler, NewRequest, SanityCheckResult},
-        Server, CHANNEL_SUBSCRIPTION_BUFFER_SIZE,
+        dispatch::{Handler, NewRequest, SanityCheckResult, sanity_check},
     },
 };
 

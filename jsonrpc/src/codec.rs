@@ -12,8 +12,8 @@ use bytes::Bytes;
 #[cfg(feature = "http")]
 use serde_json::Value;
 
-pub use karyon_net::codec::Codec;
 pub use karyon_net::ByteBuffer;
+pub use karyon_net::codec::Codec;
 
 #[cfg(feature = "ws")]
 use karyon_net::layers::ws::Message as WsMessage;

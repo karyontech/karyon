@@ -1,7 +1,7 @@
 //! Tests for direct transport + framed usage (replaces old builder tests).
 
 use karyon_core::testing::run_test;
-use karyon_net::{codec::LengthCodec, framed, tcp, Endpoint};
+use karyon_net::{Endpoint, codec::LengthCodec, framed, tcp};
 
 #[test]
 fn tcp_framed_roundtrip() {

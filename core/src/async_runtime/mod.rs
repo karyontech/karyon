@@ -5,7 +5,7 @@ pub mod net;
 mod spawn;
 mod task;
 
-pub use executor::{global_executor, Executor};
+pub use executor::{Executor, global_executor};
 pub use spawn::spawn;
 pub use task::Task;
 

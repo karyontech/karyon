@@ -12,7 +12,7 @@ use karyon_jsonrpc::{client::ClientBuilder, error::Error, server::ServerBuilder}
 use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-use shared::{generate_test_certs, MathService};
+use shared::{MathService, generate_test_certs};
 
 fn test_quic_configs() -> (ServerQuicConfig, ClientQuicConfig) {
     let (cert_chain, private_key): (Vec<CertificateDer>, std::sync::Arc<PrivateKeyDer>) =

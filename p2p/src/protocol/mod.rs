@@ -9,7 +9,7 @@ use async_trait::async_trait;
 
 use karyon_eventemitter::EventValue;
 
-use crate::{version::Version, Result};
+use crate::{Result, version::Version};
 
 pub use peer_conn::PeerConn;
 

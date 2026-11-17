@@ -6,10 +6,10 @@ use clap::Parser;
 use tokio::{runtime::Runtime, spawn, sync::mpsc::unbounded_channel};
 
 use karyon_p2p::{
+    Config, Error, Node, Version,
     endpoint::Endpoint,
     keypair::{KeyPair, KeyPairType},
     protocol::{PeerConn, Protocol, ProtocolID},
-    Config, Error, Node, Version,
 };
 
 async fn read_line_async() -> Result<String, io::Error> {

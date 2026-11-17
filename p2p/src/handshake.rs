@@ -9,12 +9,12 @@ use karyon_core::async_util::timeout;
 use karyon_net::{FramedReader, FramedWriter};
 
 use crate::{
+    Error, PeerID, Result, Version,
     codec::PeerNetMsgCodec,
     message::{PeerNetCmd, PeerNetMsg},
     protocol::{ProtocolFlags, ProtocolID, ProtocolMeta},
     util::decode,
-    version::{version_match, VersionInt},
-    Error, PeerID, Result, Version,
+    version::{VersionInt, version_match},
 };
 
 /// Negotiated protocol set from a successful handshake.
@@ -156,10 +156,10 @@ fn validate_version_msg(
 
     // Bind the claimed PeerID to the secure transport's identity. A peer
     // with a valid TLS cert for keypair X cannot claim PeerID Y.
-    if let Some(vpid) = p.verified_peer_id {
-        if vpid != &vermsg.peer_id {
-            return Err(Error::IncompatiblePeer);
-        }
+    if let Some(vpid) = p.verified_peer_id
+        && vpid != &vermsg.peer_id
+    {
+        return Err(Error::IncompatiblePeer);
     }
 
     let shared = protocols_intersection(p.protocols, &vermsg.protocols);
@@ -200,10 +200,10 @@ fn protocols_intersection(
 ) -> NegotiatedProtocols {
     let mut shared = Vec::new();
     for (name, theirs) in their_protocols.iter() {
-        if let Some(our_meta) = our_protocols.get(name) {
-            if mutual_match(&our_meta.version, theirs) {
-                shared.push(name.clone());
-            }
+        if let Some(our_meta) = our_protocols.get(name)
+            && mutual_match(&our_meta.version, theirs)
+        {
+            shared.push(name.clone());
         }
     }
     shared

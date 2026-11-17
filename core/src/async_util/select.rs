@@ -79,7 +79,7 @@ mod tests {
 
     use crate::{async_runtime::block_on, async_util::sleep};
 
-    use super::{select, Either};
+    use super::{Either, select};
 
     #[test]
     fn test_async_select() {

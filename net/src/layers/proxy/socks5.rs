@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::{layer::ClientLayer, ByteStream, Error, Result};
+use crate::{ByteStream, Error, Result, layer::ClientLayer};
 
 const SOCKS5_VERSION: u8 = 0x05;
 const NO_AUTH: u8 = 0x00;

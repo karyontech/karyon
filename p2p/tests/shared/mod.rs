@@ -3,8 +3,8 @@ use std::sync::Arc;
 use karyon_core::async_runtime::Executor;
 
 use karyon_p2p::{
-    keypair::{KeyPair, KeyPairType},
     Config, Node,
+    keypair::{KeyPair, KeyPairType},
 };
 
 /// Find a free TCP port by binding to port 0 and returning the assigned port.

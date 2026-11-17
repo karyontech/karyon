@@ -10,12 +10,12 @@ mod quic_stream;
 
 use std::{
     marker::PhantomData,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use async_channel::{Receiver, Sender};
 use log::info;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 use karyon_core::{async_runtime::Executor, async_util::TaskGroup, util::random_32};

@@ -79,8 +79,8 @@ impl Default for CondWait {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
 
     use crate::async_runtime::{block_on, spawn};

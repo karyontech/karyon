@@ -13,7 +13,7 @@ use karyon_jsonrpc::{
     error::RPCError,
     message::SubscriptionID,
     rpc_impl, rpc_method, rpc_pubsub_impl,
-    server::{channel::Channel, ServerBuilder},
+    server::{ServerBuilder, channel::Channel},
 };
 
 // Service with default (struct-name-derived) name and mix of

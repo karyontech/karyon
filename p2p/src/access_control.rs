@@ -1,6 +1,6 @@
 use karyon_net::Endpoint;
 
-use crate::{conn_direction::ConnDirection, protocol::ProtocolID, PeerID};
+use crate::{PeerID, conn_direction::ConnDirection, protocol::ProtocolID};
 
 /// A peer that has completed the handshake but has not joined the pool yet.
 pub struct PeerCandidate<'a> {

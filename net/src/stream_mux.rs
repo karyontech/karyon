@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::{stream::ByteStream, Endpoint, Result};
+use crate::{Endpoint, Result, stream::ByteStream};
 
 /// Multiplexed connection that yields multiple independent streams
 /// from a single underlying connection (e.g., QUIC).

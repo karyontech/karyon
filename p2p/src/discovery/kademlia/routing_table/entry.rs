@@ -1,9 +1,9 @@
 use bincode::{Decode, Encode};
 
 use crate::{
+    PeerID,
     discovery::kademlia::{bloom::Bloom, messages::PeerMsg},
     message::PeerAddr,
-    PeerID,
 };
 
 /// Specifies the size of the key, in bytes.

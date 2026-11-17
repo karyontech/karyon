@@ -24,8 +24,8 @@ use tokio::io::{AsyncWrite as TokioAsyncWrite, ReadBuf};
 use futures_util::io::{AsyncRead as FutAsyncRead, AsyncWrite as FutAsyncWrite};
 
 use crate::{
-    endpoint::resolve_endpoint, stream::ByteStream, stream_mux::StreamMux, Bytes, Endpoint, Error,
-    Result, ACCEPT_HANDSHAKE_TIMEOUT,
+    ACCEPT_HANDSHAKE_TIMEOUT, Bytes, Endpoint, Error, Result, endpoint::resolve_endpoint,
+    stream::ByteStream, stream_mux::StreamMux,
 };
 
 /// Default read chunk size for QUIC streams.
@@ -247,10 +247,10 @@ fn build_transport_config(config: &QuicConfig) -> quinn::TransportConfig {
     if let Some(interval) = config.keep_alive_interval {
         transport.keep_alive_interval(Some(interval));
     }
-    if let Some(timeout) = config.idle_timeout {
-        if let Ok(idle) = quinn::IdleTimeout::try_from(timeout) {
-            transport.max_idle_timeout(Some(idle));
-        }
+    if let Some(timeout) = config.idle_timeout
+        && let Ok(idle) = quinn::IdleTimeout::try_from(timeout)
+    {
+        transport.max_idle_timeout(Some(idle));
     }
     // Disable datagrams explicitly when the caller opts out.
     if !config.enable_datagrams {

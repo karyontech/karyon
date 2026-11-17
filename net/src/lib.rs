@@ -25,7 +25,7 @@ mod stream_mux;
 mod framed;
 
 #[cfg(feature = "framing")]
-pub use framed::{framed, FramedConn, FramedReader, FramedWriter};
+pub use framed::{FramedConn, FramedReader, FramedWriter, framed};
 
 // Byte containers
 pub use buffer::{Buffer, ByteBuffer, Bytes};

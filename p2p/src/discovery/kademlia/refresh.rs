@@ -6,26 +6,26 @@ use std::{
 };
 
 use log::{error, info, trace};
-use rand::{rngs::SysRng, TryRng};
+use rand::{TryRng, rngs::SysRng};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{sleep, timeout, Backoff, TaskGroup, TaskResult},
+    async_util::{Backoff, TaskGroup, TaskResult, sleep, timeout},
 };
 
-use karyon_net::{udp, Endpoint};
+use karyon_net::{Endpoint, udp};
 
 use crate::{
+    Config, Error, Result,
     access_control::{Action, Subject},
     conn_direction::ConnDirection,
     discovery::kademlia::{
         messages::RefreshMsg,
-        routing_table::{BucketEntry, Entry, RoutingTable, PENDING_ENTRY, UNREACHABLE_ENTRY},
+        routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY},
     },
-    message::{pick_endpoint, Protocol},
+    message::{Protocol, pick_endpoint},
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
     util::{decode, encode},
-    Config, Error, Result,
 };
 
 /// Maximum failures for an entry before removing it from the routing table.

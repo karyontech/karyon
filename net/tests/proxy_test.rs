@@ -2,7 +2,7 @@
 
 use karyon_core::async_runtime::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use karyon_core::testing::run_test;
-use karyon_net::{layers::proxy::Socks5Layer, tcp, ClientLayer, Endpoint};
+use karyon_net::{ClientLayer, Endpoint, layers::proxy::Socks5Layer, tcp};
 
 /// Copy bytes from reader to writer until EOF or error.
 async fn relay<R, W>(mut r: R, mut w: W)

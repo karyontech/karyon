@@ -1,5 +1,53 @@
 # Changelog
 
+## karyon_core 1.1.0, karyon_net 1.1.0, karyon_async_rustls 1.1.0, karyon_jsonrpc 1.1.0, karyon_jsonrpc_macro 1.1.0, karyon_p2p 1.2.0, karyon_swarm 1.2.0, karyon_stun 0.2.0, karyon_eventemitter 1.0.3, karyon_eventemitter_macro 1.0.2
+
+### Breaking changes
+
+- **tokio is the default runtime** (`karyon_core`, `karyon_net`,
+  `karyon_async_rustls`, `karyon_jsonrpc`, `karyon_jsonrpc_macro`,
+  `karyon_p2p`, `karyon_swarm`, `karyon_stun`): the default feature is now
+  `tokio`, it was `smol`. To keep smol, use
+  `default-features = false, features = ["smol"]`. `features = ["smol"]`
+  alone turns on both runtimes and fails to compile.
+- **Rust 2024 edition** (all crates): building karyon now needs Rust 1.85
+  or newer.
+- **Request limit per connection** (`karyon_jsonrpc`): a server handles at
+  most 64 requests of one TCP, TLS, WebSocket or Unix connection at the
+  same time; the connection is not read further until one finishes.
+
+### Added
+
+- **Client `HttpConfig`** (`karyon_jsonrpc`): `ClientBuilder::http_config`
+  sets `http2` (HTTP/2 over plain TCP with prior knowledge), `host` (the
+  `Host` header of HTTP/1.1 requests) and `content_type`.
+- **Server `HttpConfig`** (`karyon_jsonrpc`): `ServerBuilder::http_config`
+  sets the `content_type` of the responses.
+- **`ClientBuilder::with_notification_decoder`** (`karyon_jsonrpc`): reads
+  notifications sent in a custom shape by a server that uses
+  `ServerBuilder::with_notification_encoder`.
+- **HTTP examples** (`karyon_jsonrpc`): `examples/http_server.rs` and
+  `examples/http_client.py`.
+
+### Changed
+
+- **Caret versions between karyon crates**: karyon crates no longer pin
+  each other to an exact version, so a patch release of one crate can be
+  used without new releases of the crates that depend on it.
+- **`Host` header** (`karyon_jsonrpc`): the HTTP/1.1 client sends it only
+  when `HttpConfig::host` is set.
+
+### Fixes
+
+- **Error responses on multiplexed clients** (`karyon_jsonrpc`): a failed
+  `call` returns `Error::CallError` and a failed `subscribe` or
+  `unsubscribe` returns `Error::SubscribeError`.
+- **HTTP/3 pub/sub** (`karyon_jsonrpc`): each subscription has its own
+  stream, as on QUIC, and `unsubscribe` finds the subscription.
+- **Server connection handling** (`karyon_jsonrpc`): the HTTP/1.1 header
+  read timeout now applies, request tasks stop when the connection writer
+  stops, and accept loops back off on errors.
+
 ## karyon_core 1.0.4, karyon_net 1.0.4, karyon_jsonrpc 1.0.6, karyon_p2p 1.1.6, karyon_swarm 1.1.6, karyon_stun 0.1.3
 
 ### Breaking changes

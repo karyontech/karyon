@@ -4,7 +4,7 @@ use std::mem::replace;
 
 use karyon_core::{async_runtime::spawn, testing::run_test};
 use karyon_net::{
-    codec::Codec, layers::ws::Message, tcp, ClientLayer, Endpoint, Error, ServerLayer, WsLayer,
+    ClientLayer, Endpoint, Error, ServerLayer, WsLayer, codec::Codec, layers::ws::Message, tcp,
 };
 
 /// Sends and receives raw bytes as binary WS messages.

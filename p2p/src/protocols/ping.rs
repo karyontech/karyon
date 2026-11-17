@@ -6,15 +6,15 @@ use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use bincode::{Decode, Encode};
 use log::trace;
-use rand::{rngs::SysRng, TryRng};
+use rand::{TryRng, rngs::SysRng};
 
-use karyon_core::async_util::{select, sleep, timeout, Either, TaskGroup, TaskResult};
+use karyon_core::async_util::{Either, TaskGroup, TaskResult, select, sleep, timeout};
 
 use crate::{
+    Error, Result,
     protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
     util::{decode, encode},
     version::Version,
-    Error, Result,
 };
 
 const MAX_FAILURES: u32 = 3;

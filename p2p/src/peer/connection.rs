@@ -11,18 +11,18 @@ use karyon_net::{FramedReader, FramedWriter};
 #[cfg(feature = "quic")]
 use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt};
 #[cfg(feature = "quic")]
-use karyon_net::{framed, quic::QuicConn, StreamMux};
+use karyon_net::{StreamMux, framed, quic::QuicConn};
 
 #[cfg(feature = "quic")]
 use crate::{conn_direction::ConnDirection, message::StreamInit, util::encode};
 
 use crate::{
+    Error, Result,
     codec::PeerNetMsgCodec,
     conn_queue::QueuedConn,
     message::{PeerNetCmd, PeerNetMsg, ProtocolMsg, ShutdownMsg},
     protocol::{ProtocolEvent, ProtocolID},
     util::decode,
-    Error, Result,
 };
 
 const SEND_QUEUE_SIZE: usize = 128;

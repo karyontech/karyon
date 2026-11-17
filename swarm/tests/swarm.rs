@@ -7,13 +7,13 @@ use async_trait::async_trait;
 use karyon_core::testing::run_test_with_executor;
 
 use karyon_p2p::{
+    Config, Error, Version,
     endpoint::Endpoint,
     monitor::PeerPoolEvent,
     protocol::{PeerConn, Protocol, ProtocolID},
-    Config, Error, Version,
 };
 
-use karyon_swarm::{compute_swarm_key, Swarm};
+use karyon_swarm::{Swarm, compute_swarm_key};
 
 use shared::{create_node, fast_config, free_port};
 
@@ -236,9 +236,11 @@ fn bloom_filters_kademlia_dial() {
         let bootstrap_disc = free_port();
         let bootstrap = create_node(
             Config {
-                listen_endpoints: vec![format!("tcp://127.0.0.1:{bootstrap_listen}")
-                    .parse()
-                    .unwrap()],
+                listen_endpoints: vec![
+                    format!("tcp://127.0.0.1:{bootstrap_listen}")
+                        .parse()
+                        .unwrap(),
+                ],
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{bootstrap_disc}").parse().unwrap(),
                     format!("udp://127.0.0.1:{bootstrap_disc}").parse().unwrap(),

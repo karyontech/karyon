@@ -8,10 +8,10 @@ pub use smol::net::unix::{SocketAddr as UnixSocketAddr, UnixListener, UnixStream
 #[cfg(feature = "smol")]
 pub use smol::net::{TcpListener, TcpStream, UdpSocket};
 
-#[cfg(all(feature = "tokio", target_family = "unix"))]
-pub use tokio::net::{unix::SocketAddr as UnixSocketAddr, UnixListener, UnixStream};
 #[cfg(feature = "tokio")]
 pub use tokio::net::{TcpListener, TcpStream, UdpSocket};
+#[cfg(all(feature = "tokio", target_family = "unix"))]
+pub use tokio::net::{UnixListener, UnixStream, unix::SocketAddr as UnixSocketAddr};
 
 /// Resolves a host name on a blocking thread pool, so a slow DNS server
 /// does not block the executor.

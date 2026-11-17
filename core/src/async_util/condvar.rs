@@ -235,8 +235,8 @@ mod tests {
     use std::{
         collections::VecDeque,
         sync::{
-            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
         },
         task::Wake,
     };

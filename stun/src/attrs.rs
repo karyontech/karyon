@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 use crate::error::{Error, Result};
-use crate::msg::{TransactionId, MAGIC_COOKIE};
+use crate::msg::{MAGIC_COOKIE, TransactionId};
 
 pub const ATTR_MAPPED_ADDRESS: u16 = 0x0001;
 pub const ATTR_ERROR_CODE: u16 = 0x0009;

@@ -1,7 +1,7 @@
 use ed25519_dalek::{SignatureError, Signer as _, SigningKey, VerifyingKey};
 use rand::rng;
 
-use crate::{error::Error, Result};
+use crate::{Result, error::Error};
 
 /// key cryptography type
 pub enum KeyPairType {
