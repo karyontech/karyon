@@ -1,5 +1,15 @@
 # Changelog
 
+## karyon_p2p 1.2.2
+
+### Fixes
+
+- **Decode limit** (`karyon_p2p`): decoding a message now fails when a
+  length prefix inside it claims more than 4 MB. Before, one small frame
+  with a huge length prefix made the node allocate that much memory and
+  abort, before any authentication. It affected peer connections and the
+  discovery lookup listener.
+
 ## karyon_core 1.1.1, karyon_net 1.1.1, karyon_jsonrpc 1.1.1, karyon_p2p 1.2.1, karyon_swarm 1.2.1, karyon_stun 0.2.1
 
 ### Fixes
