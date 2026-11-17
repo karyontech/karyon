@@ -28,9 +28,6 @@ use crate::{
     stream::ByteStream, stream_mux::StreamMux,
 };
 
-/// Default read chunk size for QUIC streams.
-const DEFAULT_READ_CHUNK_SIZE: usize = 1024 * 1024; // 1MB
-
 /// Default max unacked bytes a peer may send on one stream.
 const DEFAULT_STREAM_RECEIVE_WINDOW: u32 = 1024 * 1024; // 1MB
 
@@ -57,8 +54,6 @@ pub struct QuicConfig {
     pub idle_timeout: Option<Duration>,
     /// Enable datagrams.
     pub enable_datagrams: bool,
-    /// Read chunk size for stream reads (bytes).
-    pub read_chunk_size: usize,
     /// Max unacked bytes a peer may send on one stream.
     pub stream_receive_window: u64,
     /// Max unacked bytes a peer may send on all streams of one connection.
@@ -73,7 +68,6 @@ impl Default for QuicConfig {
             keep_alive_interval: Some(Duration::from_secs(5)),
             idle_timeout: Some(Duration::from_secs(30)),
             enable_datagrams: false,
-            read_chunk_size: DEFAULT_READ_CHUNK_SIZE,
             stream_receive_window: DEFAULT_STREAM_RECEIVE_WINDOW.into(),
             receive_window: DEFAULT_RECEIVE_WINDOW.into(),
         }

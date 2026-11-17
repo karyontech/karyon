@@ -1,5 +1,21 @@
 # Changelog
 
+## karyon_net 1.1.2
+
+### Breaking changes
+
+- **`QuicConfig::read_chunk_size` removed** (`karyon_net`): the field was
+  never used. Code that sets it must drop it.
+
+### Fixes
+
+- **IPv6 endpoints** (`karyon_net`): `tcp://[::1]:3000` now parses to an IP
+  address, it was read as the domain `[::1]` and failed to resolve. An IPv6
+  endpoint also prints with brackets, so it parses back.
+- **Unix endpoints** (`karyon_net`): `Endpoint::Unix` prints as
+  `unix:/path`. Before, it printed `unix://path`, which parsed back with
+  the first path segment as the host.
+
 ## karyon_p2p 1.2.2
 
 ### Fixes

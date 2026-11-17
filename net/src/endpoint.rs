@@ -1,4 +1,5 @@
 use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
     str::FromStr,
@@ -10,7 +11,7 @@ use std::os::unix::net::SocketAddr as UnixSocketAddr;
 
 use bincode::{Decode, Encode};
 use karyon_core::{async_runtime::net::lookup_host, async_util::timeout};
-use url::Url;
+use url::{Host, Url};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -171,25 +172,45 @@ impl Endpoint {
 
 fn url_to_addr(url: &Url) -> Result<Addr> {
     let host = url
-        .host_str()
+        .host()
         .ok_or_else(|| Error::ParseEndpoint(format!("host missing: {url}")))?;
-    match host.parse::<IpAddr>() {
-        Ok(ip) => Ok(Addr::Ip(ip)),
-        Err(_) => Ok(Addr::Domain(host.to_string())),
+    match host {
+        Host::Ipv4(ip) => Ok(Addr::Ip(IpAddr::V4(ip))),
+        Host::Ipv6(ip) => Ok(Addr::Ip(IpAddr::V6(ip))),
+        // The url crate only returns `Host::Ipv4` for its special schemes
+        // (http, https, ws, wss). For tcp, udp, tls and quic the host is
+        // opaque text, so `tcp://127.0.0.1:3000` arrives here as
+        // `Host::Domain("127.0.0.1")`. Parse it, or it would be treated as
+        // a domain name and sent to DNS.
+        Host::Domain(host) => match host.parse::<IpAddr>() {
+            Ok(ip) => Ok(Addr::Ip(ip)),
+            Err(_) => Ok(Addr::Domain(host.to_string())),
+        },
     }
 }
 
-impl std::fmt::Display for Endpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+/// Writes `scheme://addr:port`. An IPv6 address goes inside brackets, so
+/// the output parses back to the same endpoint.
+fn write_addr(f: &mut Formatter, scheme: &str, addr: &Addr, port: Port) -> FmtResult {
+    match addr {
+        Addr::Ip(IpAddr::V6(ip)) => write!(f, "{scheme}://[{ip}]:{port}"),
+        _ => write!(f, "{scheme}://{addr}:{port}"),
+    }
+}
+
+impl Display for Endpoint {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
-            Endpoint::Udp(ip, port) => write!(f, "udp://{ip}:{port}"),
-            Endpoint::Tcp(ip, port) => write!(f, "tcp://{ip}:{port}"),
-            Endpoint::Tls(ip, port) => write!(f, "tls://{ip}:{port}"),
-            Endpoint::Quic(ip, port) => write!(f, "quic://{ip}:{port}"),
+            Endpoint::Udp(addr, port) => write_addr(f, "udp", addr, *port),
+            Endpoint::Tcp(addr, port) => write_addr(f, "tcp", addr, *port),
+            Endpoint::Tls(addr, port) => write_addr(f, "tls", addr, *port),
+            Endpoint::Quic(addr, port) => write_addr(f, "quic", addr, *port),
             Endpoint::Http(url) | Endpoint::Https(url) | Endpoint::Ws(url) | Endpoint::Wss(url) => {
                 write!(f, "{url}")
             }
-            Endpoint::Unix(path) => write!(f, "unix:/{}", path.to_string_lossy()),
+            // No `//` after the scheme: `unix://home/x` would parse `home`
+            // as the host.
+            Endpoint::Unix(path) => write!(f, "unix:{}", path.to_string_lossy()),
         }
     }
 }
@@ -428,6 +449,33 @@ mod tests {
         let endpoint_str = "unix:/home/x/s.socket".parse::<Endpoint>().unwrap();
         let endpoint = Endpoint::Unix(PathBuf::from_str("/home/x/s.socket").unwrap());
         assert_eq!(endpoint_str, endpoint);
+    }
+
+    #[test]
+    fn test_endpoint_display_roundtrip() {
+        for s in [
+            "tcp://127.0.0.1:3000",
+            "tcp://[::1]:3000",
+            "udp://[2001:db8::1]:4000",
+            "tls://example.com:3000",
+            "quic://[::1]:3000",
+            "unix:/home/x/s.socket",
+        ] {
+            let endpoint: Endpoint = s.parse().unwrap();
+            assert_eq!(endpoint.to_string(), s);
+            assert_eq!(endpoint.to_string().parse::<Endpoint>().unwrap(), endpoint);
+        }
+    }
+
+    #[test]
+    fn test_endpoint_ipv6() {
+        let ip: IpAddr = "::1".parse().unwrap();
+
+        let endpoint: Endpoint = "tcp://[::1]:3000".parse().unwrap();
+        assert_eq!(endpoint, Endpoint::Tcp(Addr::Ip(ip), 3000));
+
+        let endpoint: Endpoint = "http://[::1]:8080/rpc".parse().unwrap();
+        assert_eq!(endpoint.addr().unwrap(), Addr::Ip(ip));
     }
 
     #[test]
