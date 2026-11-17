@@ -1,5 +1,14 @@
 # Changelog
 
+## karyon_core 1.1.1, karyon_net 1.1.1, karyon_jsonrpc 1.1.1, karyon_p2p 1.2.1, karyon_swarm 1.2.1, karyon_stun 0.2.1
+
+### Fixes
+
+- **Yanked `async-executor`**: the packaged `Cargo.lock` used
+  `async-executor` 1.14.0, which is yanked on crates.io. It now uses 1.14.1.
+  This only matters for builds that use the lock file, such as
+  `cargo install --locked`.
+
 ## karyon_core 1.1.0, karyon_net 1.1.0, karyon_async_rustls 1.1.0, karyon_jsonrpc 1.1.0, karyon_jsonrpc_macro 1.1.0, karyon_p2p 1.2.0, karyon_swarm 1.2.0, karyon_stun 0.2.0, karyon_eventemitter 1.0.3, karyon_eventemitter_macro 1.0.2
 
 ### Breaking changes
