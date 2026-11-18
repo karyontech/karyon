@@ -26,8 +26,8 @@ authors = ["hozan23 <hozan23@karyontech.net>"]
 [workspace.dependencies]
 karyon_core = { path = "core", version = "1.0.4", default-features = false }
 
-karyon_net = { path = "net", version = "1.0.4", default-features = false }
-karyon_async_rustls = { path = "net/async_rustls", version = "1.0.1", default-features = false }
+karyon_net = { path = "net", version = "1.2.0", default-features = false }
+karyon_async_rustls = { path = "net/async_rustls", version = "1.2.0", default-features = false }
 
 karyon_jsonrpc = { path = "jsonrpc", version = "1.0.6", default-features = false }
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "1.0.1", default-features = false }
@@ -94,8 +94,10 @@ smol-hyper = { version = "0.1", default-features = false }
 
 # tls
 rustls-pki-types = "1.13"
-futures-rustls = "0.26"
-tokio-rustls = "0.26"
+# No default features: they pull the aws-lc-rs provider. Each crate picks
+# its provider with a feature.
+futures-rustls = { version = "0.26", default-features = false }
+tokio-rustls = { version = "0.26", default-features = false }
 rcgen = "0.14"
 yasna = "0.6"
 x509-parser = "0.18"

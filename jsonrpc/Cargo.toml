@@ -44,7 +44,8 @@ tokio = [
 
 [dependencies]
 karyon_core = { workspace = true }
-karyon_net = { workspace = true }
+# The rustls provider is fixed to aws-lc-rs for now.
+karyon_net = { workspace = true, features = ["aws-lc-rs"] }
 karyon_jsonrpc_macro = { workspace = true }
 
 log = { workspace = true }

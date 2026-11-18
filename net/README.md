@@ -59,6 +59,12 @@ have another layer added on top.
 | `framing` | FramedConn codec framing (auto-enabled by `tcp`, `quic`, `unix`) |
 | `tokio` | Use tokio async runtime (default) |
 | `smol` | Use smol async runtime |
+| `aws-lc-rs` | rustls crypto provider aws-lc-rs (default) |
+| `ring` | rustls crypto provider ring |
+
+`quic` needs one crypto provider. `tls` builds without one, but then every
+rustls config passed to karyon_net must be built with an explicit provider
+(`ClientConfig::builder_with_provider`).
 
 ```toml
 # Default (tokio + all protocols)
@@ -68,7 +74,10 @@ karyon_net = "1.0"
 karyon_net = { version = "1.0", features = ["quic", "proxy"] }
 
 # Smol runtime
-karyon_net = { version = "1.0", default-features = false, features = ["smol", "tcp", "tls"] }
+karyon_net = { version = "1.2", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
+
+# ring instead of aws-lc-rs
+karyon_net = { version = "1.2", default-features = false, features = ["tokio", "all-protocols", "ring"] }
 ```
 
 ## Core Traits and Types

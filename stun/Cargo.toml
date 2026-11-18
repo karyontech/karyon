@@ -1,7 +1,7 @@
 [package]
 name = "karyon_stun"
 description = "Minimal async STUN (RFC 5389) server and client over UDP, TCP, TLS and QUIC (karyon extension), built on karyon_net."
-version = "0.2.1"
+version = "0.2.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -21,7 +21,8 @@ tokio = ["karyon_core/tokio", "karyon_net/tokio"]
 
 [dependencies]
 karyon_core = { workspace = true }
-karyon_net = { workspace = true }
+# The rustls provider is fixed to aws-lc-rs for now.
+karyon_net = { workspace = true, features = ["aws-lc-rs"] }
 
 log = { workspace = true }
 rand = { workspace = true }

@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(all(feature = "quic", not(any(feature = "aws-lc-rs", feature = "ring"))))]
+compile_error!("The `quic` feature needs a rustls crypto provider: enable `aws-lc-rs` or `ring`.");
+
 #[cfg(any(feature = "tls", feature = "quic"))]
 use std::time::Duration;
 
