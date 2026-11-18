@@ -2,11 +2,11 @@
 mod positional;
 mod shared;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serde_json::Value;
 
-use karyon_core::testing::run_test;
+use karyon_core::{async_util::timeout, testing::run_test};
 
 use karyon_jsonrpc::{client::ClientBuilder, error::Error, server::ServerBuilder};
 use karyon_net::quic::{ClientQuicConfig, ServerQuicConfig};
@@ -279,5 +279,52 @@ fn custom_notification_format() {
 
         client.stop().await;
         server.shutdown().await;
+    });
+}
+
+/// When the server ends the subscription stream, `recv()` returns an
+/// error instead of waiting forever.
+#[test]
+fn subscription_closes_when_stream_ends() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let (srv_cfg, cli_cfg) = test_quic_configs();
+
+        let server = ServerBuilder::new("quic://127.0.0.1:0")
+            .expect("Create server builder")
+            .pubsub_service(service)
+            .quic_config(srv_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build client");
+
+        let sub = client
+            .subscribe("MathService.counter_subscribe", ())
+            .await
+            .expect("Subscribe");
+        sub.recv().await.expect("Recv notification");
+
+        server.shutdown().await;
+
+        // Buffered notifications may come first, then `recv()` fails.
+        let closed = timeout(Duration::from_secs(2), async {
+            while sub.recv().await.is_ok() {}
+        })
+        .await;
+        assert!(closed.is_ok(), "subscription did not close");
+
+        client.stop().await;
     });
 }

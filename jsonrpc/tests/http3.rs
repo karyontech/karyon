@@ -492,3 +492,34 @@ fn custom_notification_format() {
         server.shutdown().await;
     });
 }
+
+/// When the server ends the subscription stream, `recv()` returns an
+/// error instead of waiting forever.
+#[test]
+fn subscription_closes_when_stream_ends() {
+    run_test(10, async {
+        let (server, endpoint, cli_cfg) = start_server().await;
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build client");
+
+        let sub = client
+            .subscribe("MathService.counter_subscribe", ())
+            .await
+            .expect("Subscribe");
+        sub.recv().await.expect("Recv notification");
+
+        server.shutdown().await;
+
+        // Buffered notifications may come first, then `recv()` fails.
+        let closed = timeout(RECV_TIMEOUT, async { while sub.recv().await.is_ok() {} }).await;
+        assert!(closed.is_ok(), "subscription did not close");
+
+        client.stop().await;
+    });
+}

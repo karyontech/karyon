@@ -33,10 +33,6 @@ use crate::{
 
 #[cfg(feature = "quic")]
 use karyon_net::quic::ClientQuicConfig;
-#[cfg(feature = "quic")]
-use parking_lot::Mutex;
-#[cfg(feature = "quic")]
-use std::collections::HashMap;
 
 #[cfg(feature = "ws")]
 use crate::codec::JsonRpcWsCodec;
@@ -96,11 +92,6 @@ pub(crate) enum ClientBackend {
     QuicStream {
         quic_conn: Arc<karyon_net::quic::QuicConn>,
         subscriptions: Arc<Subscriptions>,
-        /// Per-subscription unsubscribe signal: send the unsubscribe
-        /// JSON; the reader task forwards it and exits.
-        // TODO why not using async queue here ?
-        // TODO: move this map; entries leak when the stream ends.
-        unsub_chans: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
     },
     #[cfg(feature = "http")]
     Http {
@@ -109,10 +100,6 @@ pub(crate) enum ClientBackend {
         http_backend: Box<http::HttpClientBackend>,
         #[cfg(feature = "http3")]
         subscriptions: Arc<Subscriptions>,
-        /// Unsubscribe requests, sent on each subscription's own stream.
-        // TODO: move this map, same as `QuicStream::unsub_chans`.
-        #[cfg(feature = "http3")]
-        unsub_chans: Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
     },
 }
 
@@ -185,11 +172,7 @@ where
             ClientBackend::QuicStream {
                 quic_conn,
                 subscriptions,
-                unsub_chans,
-            } => {
-                quic_stream::subscribe(self, quic_conn, subscriptions, unsub_chans, method, params)
-                    .await
-            }
+            } => quic_stream::subscribe(self, quic_conn, subscriptions, method, params).await,
             ClientBackend::Multiplexed { subscriptions, .. } => {
                 let response = multiplexed::send_request(self, method, params).await?;
                 if let Some(error) = response.error {
@@ -213,32 +196,12 @@ where
                 "Subscriptions not supported over HTTP/1-2".to_string(),
             )),
             #[cfg(feature = "http3")]
-            ClientBackend::Http { .. } => self.h3_unsubscribe(method, sub_id).await,
+            ClientBackend::Http { subscriptions, .. } => {
+                stream_unsubscribe(subscriptions, method, sub_id).await
+            }
             #[cfg(feature = "quic")]
-            ClientBackend::QuicStream {
-                subscriptions,
-                unsub_chans,
-                ..
-            } => {
-                // The QUIC subscription stream's reader and writer halves
-                // are owned by the spawned task. We can't write directly
-                // from here, so we hand the unsubscribe message to that
-                // task via a channel; the task forwards it on the wire
-                // and exits.
-                // Bind the removed sender in its own `let` so the parking_lot
-                // MutexGuard temporary doesn't live across the `.await`.
-                let ch = unsub_chans.lock().remove(&sub_id);
-                if let Some(ch) = ch {
-                    let request = message::Request {
-                        jsonrpc: message::JSONRPC_VERSION.to_string(),
-                        id: json!(random_32()),
-                        method: method.to_string(),
-                        params: Some(json!(sub_id)),
-                    };
-                    let _ = ch.send(serde_json::to_value(request)?).await;
-                }
-                subscriptions.unsubscribe(&sub_id).await;
-                Ok(())
+            ClientBackend::QuicStream { subscriptions, .. } => {
+                stream_unsubscribe(subscriptions, method, sub_id).await
             }
             ClientBackend::Multiplexed { subscriptions, .. } => {
                 let response = multiplexed::send_request(self, method, sub_id).await?;
@@ -322,4 +285,23 @@ where
             _codecs: PhantomData,
         })
     }
+}
+
+/// Unsubscribe on a stream backend (QUIC, HTTP/3): remove the
+/// subscription and let its stream task send the request.
+#[cfg(feature = "quic")]
+async fn stream_unsubscribe(
+    subscriptions: &Subscriptions,
+    method: &str,
+    sub_id: SubscriptionID,
+) -> Result<()> {
+    let request = message::Request {
+        jsonrpc: message::JSONRPC_VERSION.to_string(),
+        id: json!(random_32()),
+        method: method.to_string(),
+        params: Some(json!(sub_id)),
+    };
+    let msg = serde_json::to_value(request)?;
+    subscriptions.unsubscribe_stream(&sub_id, msg).await;
+    Ok(())
 }

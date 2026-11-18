@@ -9,14 +9,16 @@ use h3::client::{RequestStream, SendRequest};
 use h3_quinn::{BidiStream, SendStream};
 use hyper::{Request, StatusCode, header::CONTENT_TYPE};
 use log::debug;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use karyon_core::async_util::{Either, TaskGroup, select};
 use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
     client::http::HttpConfig,
-    client::subscriptions::{NotificationDecoder, Subscription, decode_notification},
+    client::subscriptions::{
+        NotificationDecoder, Subscription, Subscriptions, decode_notification,
+    },
     codec::{JsonRpcCodec, encode_msg, extend_buf},
     error::{Error, Result},
     message,
@@ -179,40 +181,42 @@ pub(super) async fn subscribe<C: JsonRpcCodec>(
     Ok((rpc_response, send, reader))
 }
 
-/// Forward notifications to the subscription until the stream ends or
-/// an unsubscribe request arrives. The unsubscribe goes out on the same
-/// stream, so the server handles it with the subscription's channel.
-// TODO: remove the subscription when this task exits; now `recv()`
-// waits forever once the stream ends.
+/// Forward notifications until the stream ends or an unsubscribe request
+/// arrives. The request goes out on the same stream, so the server
+/// handles it with the subscription's channel. Removes the subscription
+/// when it exits.
 pub(super) async fn subscription_task<C: JsonRpcCodec>(
     mut send: H3SendStream,
     mut reader: H3Reader<C>,
     unsub_rx: Receiver<Value>,
     sub: Arc<Subscription>,
+    subscriptions: Arc<Subscriptions>,
     decoder: NotificationDecoder,
 ) -> Result<()> {
-    loop {
+    let unsub_msg = loop {
         match select(reader.next(), unsub_rx.recv()).await {
             Either::Left(Ok(Some(msg))) => {
                 let nt_res = match decode_notification(decoder, msg) {
                     Ok(r) => r,
                     Err(_) => continue,
                 };
-                let val = nt_res.result.unwrap_or(serde_json::json!(""));
+                let val = nt_res.result.unwrap_or(json!(""));
                 if sub.notify(val).await.is_err() {
-                    break;
+                    // Closed by `unsubscribe()`: its request may be waiting.
+                    break unsub_rx.try_recv().ok();
                 }
             }
-            Either::Left(_) => break,
-            Either::Right(unsub_msg) => {
-                if let Ok(msg) = unsub_msg {
-                    let body = encode_msg(&reader.codec, &msg)?;
-                    let _ = send.send_data(body).await;
-                    let _ = send.finish().await;
-                }
-                break;
-            }
+            Either::Left(_) => break None,
+            Either::Right(msg) => break msg.ok(),
         }
+    };
+    if let Some(msg) = unsub_msg
+        && let Ok(body) = encode_msg(&reader.codec, &msg)
+    {
+        let _ = send.send_data(body).await;
+        let _ = send.finish().await;
     }
+    // Remove the subscription, so `recv()` ends when the stream ends.
+    subscriptions.unsubscribe(&sub.id()).await;
     Ok(())
 }

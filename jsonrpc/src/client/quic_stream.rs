@@ -1,15 +1,11 @@
 //! QUIC client mode: one stream per call, one stream per subscription.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, atomic::Ordering},
-};
+use std::sync::{Arc, atomic::Ordering};
 
-use async_channel::Sender;
+use async_channel::Receiver;
 use log::{debug, info};
-use parking_lot::Mutex;
 use serde::{Serialize, de::DeserializeOwned};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use karyon_core::{
     async_util::{Either, TaskResult, select},
@@ -47,7 +43,6 @@ pub(super) async fn build_backend(config: &ClientConfig) -> Result<ClientBackend
     Ok(ClientBackend::QuicStream {
         quic_conn: Arc::new(quic_conn),
         subscriptions: Subscriptions::new(config.subscription_buffer_size),
-        unsub_chans: Mutex::new(HashMap::new()),
     })
 }
 
@@ -86,8 +81,7 @@ where
 pub(super) async fn subscribe<B, W, T>(
     client: &Arc<Client<B, W>>,
     quic_conn: &QuicConn,
-    subscriptions: &Subscriptions,
-    unsub_chans: &Mutex<HashMap<SubscriptionID, Sender<serde_json::Value>>>,
+    subscriptions: &Arc<Subscriptions>,
     method: &str,
     params: T,
 ) -> Result<Arc<Subscription>>
@@ -125,11 +119,7 @@ where
         None => return Err(Error::InvalidMsg("Invalid subscription id".to_string())),
     };
 
-    let (unsub_tx, unsub_rx) = async_channel::bounded::<serde_json::Value>(1);
-    unsub_chans.lock().insert(sub_id, unsub_tx);
-
-    let sub = subscriptions.subscribe(sub_id).await;
-
+    let (sub, unsub_rx) = subscriptions.subscribe_stream(sub_id).await;
     let (reader, writer) = conn.split();
 
     client.task_group.spawn_then(
@@ -138,6 +128,7 @@ where
             writer,
             unsub_rx,
             sub.clone(),
+            subscriptions.clone(),
             client.config.notification_decoder,
         ),
         |res: TaskResult<Result<()>>| async move {
@@ -148,38 +139,38 @@ where
     Ok(sub)
 }
 
-// TODO: remove the subscription and its `unsub_chans` entry when this
-// task exits; now `recv()` waits forever once the stream ends.
+/// Forward notifications until the stream ends or an unsubscribe request
+/// arrives. The request goes out on the same stream. Removes the
+/// subscription when it exits.
 async fn subscription_stream_task(
     mut reader: FramedReader<JsonCodec>,
     mut writer: FramedWriter<JsonCodec>,
-    unsub_rx: async_channel::Receiver<serde_json::Value>,
+    unsub_rx: Receiver<Value>,
     sub: Arc<Subscription>,
+    subscriptions: Arc<Subscriptions>,
     decoder: NotificationDecoder,
 ) -> Result<()> {
-    loop {
+    let unsub_msg = loop {
         match select(reader.recv_msg(), unsub_rx.recv()).await {
-            Either::Left(msg) => {
-                let msg = match msg {
-                    Ok(m) => m,
-                    Err(_) => break,
-                };
+            Either::Left(Ok(msg)) => {
                 let nt_res = match decode_notification(decoder, msg) {
                     Ok(r) => r,
                     Err(_) => continue,
                 };
-                let val = nt_res.result.unwrap_or(serde_json::json!(""));
+                let val = nt_res.result.unwrap_or(json!(""));
                 if sub.notify(val).await.is_err() {
-                    break;
+                    // Closed by `unsubscribe()`: its request may be waiting.
+                    break unsub_rx.try_recv().ok();
                 }
             }
-            Either::Right(unsub_msg) => {
-                if let Ok(msg) = unsub_msg {
-                    let _ = writer.send_msg(msg).await;
-                }
-                break;
-            }
+            Either::Left(Err(_)) => break None,
+            Either::Right(msg) => break msg.ok(),
         }
+    };
+    if let Some(msg) = unsub_msg {
+        let _ = writer.send_msg(msg).await;
     }
+    // Remove the subscription, so `recv()` ends when the stream ends.
+    subscriptions.unsubscribe(&sub.id()).await;
     Ok(())
 }
