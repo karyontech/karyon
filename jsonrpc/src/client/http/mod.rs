@@ -43,12 +43,6 @@ use crate::{
 };
 
 #[cfg(feature = "http3")]
-use std::collections::HashMap;
-
-#[cfg(feature = "http3")]
-use parking_lot::Mutex;
-
-#[cfg(feature = "http3")]
 use crate::client::subscriptions::{Subscription, Subscriptions};
 
 /// HTTP settings for `http://` endpoints, set with
@@ -265,8 +259,6 @@ fn http_client_backend(config: &ClientConfig, http_backend: HttpClientBackend) -
         http_backend: Box::new(http_backend),
         #[cfg(feature = "http3")]
         subscriptions: Subscriptions::new(config.subscription_buffer_size),
-        #[cfg(feature = "http3")]
-        unsub_chans: Mutex::new(HashMap::new()),
     }
 }
 
@@ -314,12 +306,7 @@ where
         method: &str,
         params: T,
     ) -> Result<Arc<Subscription>> {
-        let ClientBackend::Http {
-            subscriptions,
-            unsub_chans,
-            ..
-        } = &self.backend
-        else {
+        let ClientBackend::Http { subscriptions, .. } = &self.backend else {
             return Err(Error::InvalidState("not in HTTP mode".into()));
         };
 
@@ -343,10 +330,7 @@ where
             None => return Err(Error::InvalidMsg("Invalid subscription id".into())),
         };
 
-        let (unsub_tx, unsub_rx) = async_channel::bounded::<serde_json::Value>(1);
-        unsub_chans.lock().insert(sub_id, unsub_tx);
-
-        let sub = subscriptions.subscribe(sub_id).await;
+        let (sub, unsub_rx) = subscriptions.subscribe_stream(sub_id).await;
 
         self.task_group.spawn_then(
             h3::subscription_task(
@@ -354,6 +338,7 @@ where
                 reader,
                 unsub_rx,
                 sub.clone(),
+                subscriptions.clone(),
                 self.config.notification_decoder,
             ),
             |res: TaskResult<Result<()>>| async move {
@@ -362,33 +347,5 @@ where
         );
 
         Ok(sub)
-    }
-
-    /// Unsubscribe over HTTP/3. The subscription task sends the request
-    /// on the subscription's own stream.
-    #[cfg(feature = "http3")]
-    pub(super) async fn h3_unsubscribe(&self, method: &str, sub_id: SubscriptionID) -> Result<()> {
-        let ClientBackend::Http {
-            subscriptions,
-            unsub_chans,
-            ..
-        } = &self.backend
-        else {
-            return Err(Error::InvalidState("not in HTTP mode".into()));
-        };
-
-        // Own `let` so the MutexGuard is dropped before the `.await`.
-        let ch = unsub_chans.lock().remove(&sub_id);
-        if let Some(ch) = ch {
-            let request = message::Request {
-                jsonrpc: message::JSONRPC_VERSION.to_string(),
-                id: json!(random_32()),
-                method: method.to_string(),
-                params: Some(json!(sub_id)),
-            };
-            let _ = ch.send(serde_json::to_value(request)?).await;
-        }
-        subscriptions.unsubscribe(&sub_id).await;
-        Ok(())
     }
 }

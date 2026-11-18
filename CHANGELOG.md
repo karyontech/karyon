@@ -1,5 +1,14 @@
 # Changelog
 
+## karyon_jsonrpc 1.1.2
+
+### Fixes
+
+- **Subscription streams on QUIC and HTTP/3** (`karyon_jsonrpc`):
+  `Subscription::recv()` now returns an error when the server ends the
+  subscription stream. Before, it waited forever and the client kept the
+  subscription.
+
 ## karyon_net 1.1.2
 
 ### Breaking changes

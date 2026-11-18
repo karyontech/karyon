@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use async_channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender, bounded};
 #[cfg(feature = "quic")]
 use log::debug;
 use serde_json::{Value, from_value, json};
@@ -40,12 +40,22 @@ pub struct Subscription {
     id: SubscriptionID,
     rx: Receiver<Value>,
     tx: Sender<Value>,
+    /// Set when the subscription has its own stream (QUIC, HTTP/3). Hands
+    /// the unsubscribe request to the task that owns that stream.
+    #[cfg(feature = "quic")]
+    unsub: Option<Sender<Value>>,
 }
 
 impl Subscription {
-    fn new(id: SubscriptionID, buffer_size: usize) -> Arc<Self> {
-        let (tx, rx) = async_channel::bounded(buffer_size);
-        Arc::new(Self { tx, id, rx })
+    fn new(id: SubscriptionID, buffer_size: usize) -> Self {
+        let (tx, rx) = bounded(buffer_size);
+        Self {
+            tx,
+            id,
+            rx,
+            #[cfg(feature = "quic")]
+            unsub: None,
+        }
     }
 
     pub async fn recv(&self) -> Result<Value> {
@@ -86,9 +96,24 @@ impl Subscriptions {
 
     /// Returns a new [`Subscription`]
     pub(super) async fn subscribe(&self, id: SubscriptionID) -> Arc<Subscription> {
-        let sub = Subscription::new(id, self.sub_buffer_size);
+        let sub = Arc::new(Subscription::new(id, self.sub_buffer_size));
         self.subs.write().await.insert(id, sub.clone());
         sub
+    }
+
+    /// Returns a new [`Subscription`] that has its own stream, and the
+    /// receiver its stream task reads the unsubscribe request from.
+    #[cfg(feature = "quic")]
+    pub(super) async fn subscribe_stream(
+        &self,
+        id: SubscriptionID,
+    ) -> (Arc<Subscription>, Receiver<Value>) {
+        let (unsub_tx, unsub_rx) = bounded(1);
+        let mut sub = Subscription::new(id, self.sub_buffer_size);
+        sub.unsub = Some(unsub_tx);
+        let sub = Arc::new(sub);
+        self.subs.write().await.insert(id, sub.clone());
+        (sub, unsub_rx)
     }
 
     /// Closes subscription channels and clear the inner map.
@@ -105,6 +130,21 @@ impl Subscriptions {
         if let Some(sub) = self.subs.write().await.remove(id) {
             sub.close();
         }
+    }
+
+    /// Unsubscribe from a subscription that has its own stream. `msg` is
+    /// the unsubscribe request; the stream task sends it.
+    #[cfg(feature = "quic")]
+    pub(super) async fn unsubscribe_stream(&self, id: &SubscriptionID, msg: Value) {
+        let Some(sub) = self.subs.write().await.remove(id) else {
+            return;
+        };
+        // Hand over the request before closing: the task stops once the
+        // subscription is closed.
+        if let Some(unsub) = &sub.unsub {
+            let _ = unsub.send(msg).await;
+        }
+        sub.close();
     }
 
     /// Notifies the subscription about the given decoded notification.
