@@ -1501,7 +1501,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_async_rustls"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "futures-rustls",
  "tokio-rustls",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "async-tungstenite",
  "bincode",
@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_p2p"
-version = "1.2.3"
+version = "1.2.4"
 dependencies = [
  "async-channel 2.5.0",
  "async-trait",
@@ -1650,7 +1650,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_stun"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "karyon_core",
  "karyon_net",

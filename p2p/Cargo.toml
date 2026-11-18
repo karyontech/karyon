@@ -1,7 +1,7 @@
 [package]
 name = "karyon_p2p"
 description = "A lightweight, extensible, and customizable p2p network stack."
-version = "1.2.3"
+version = "1.2.4"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -22,7 +22,7 @@ quic = ["karyon_net/quic"]
 
 [dependencies]
 karyon_core = { workspace = true, features = ["crypto"] }
-karyon_net = { workspace = true, features = ["tcp", "tls", "udp"] }
+karyon_net = { workspace = true, features = ["tcp", "tls", "udp", "aws-lc-rs"] }
 karyon_eventemitter = { workspace = true, features = ["derive"] }
 
 
@@ -49,8 +49,8 @@ futures-util = { workspace = true, features = ["alloc"] }
 rcgen = { workspace = true }
 yasna = { workspace = true }
 x509-parser = { workspace = true }
-futures-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
-tokio-rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
+futures-rustls = { workspace = true, features = ["aws-lc-rs", "logging", "tls12"], optional = true }
+tokio-rustls = { workspace = true, features = ["aws-lc-rs", "logging", "tls12"], optional = true }
 rustls-pki-types = { workspace = true }
 
 [dev-dependencies]

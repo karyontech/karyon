@@ -1,7 +1,7 @@
 [package]
 name = "karyon_async_rustls"
 description = "Async rustls wrapper supporting both smol and tokio runtimes for the Karyon library."
-version = "1.1.0"
+version = "1.2.0"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -11,10 +11,14 @@ keywords = ["tls", "rustls", "async", "smol", "tokio"]
 categories = ["network-programming", "asynchronous", "cryptography"]
 
 [features]
-default = ["tokio"]
+default = ["tokio", "aws-lc-rs"]
 smol = ["futures-rustls"]
 tokio = ["tokio-rustls"]
+# rustls crypto provider. Enable one; with none, every rustls config
+# must be built with an explicit provider.
+aws-lc-rs = ["futures-rustls?/aws-lc-rs", "tokio-rustls?/aws-lc-rs"]
+ring = ["futures-rustls?/ring", "tokio-rustls?/ring"]
 
 [dependencies]
-futures-rustls = { workspace = true, optional = true }
-tokio-rustls = { workspace = true, optional = true }
+futures-rustls = { workspace = true, optional = true, features = ["logging", "tls12"] }
+tokio-rustls = { workspace = true, optional = true, features = ["logging", "tls12"] }

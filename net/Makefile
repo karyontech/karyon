@@ -1,4 +1,4 @@
-ALL_FEATURES = tcp,tls,ws,quic,udp,unix,proxy
+ALL_FEATURES = tcp,tls,ws,quic,udp,unix,proxy,aws-lc-rs
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 

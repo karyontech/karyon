@@ -1,9 +1,20 @@
 # Changelog
 
-## karyon_jsonrpc 1.1.3
+## karyon_net 1.2.0, karyon_async_rustls 1.2.0, karyon_jsonrpc 1.1.3, karyon_p2p 1.2.4, karyon_stun 0.2.2
+
+### Breaking changes
+
+- **rustls crypto provider flag** (`karyon_net`, `karyon_async_rustls`): the
+  provider is now chosen with the `aws-lc-rs` (default) or `ring` feature.
+  With `default-features = false`, add one of them; the `quic` feature
+  fails to build without one.
 
 ### Fixes
 
+- **One rustls provider per build** (`karyon_net`): a build with TLS and
+  QUIC compiled both aws-lc-rs and ring, so `rustls::ClientConfig::builder()`
+  panicked unless a provider was installed first. A default build now
+  compiles only aws-lc-rs.
 - **Idle QUIC streams** (`karyon_jsonrpc`): with `ServerBuilder::read_timeout`
   set, the server drops a QUIC stream that does not send its request in
   time. Before, such a stream held a server task as long as the connection
