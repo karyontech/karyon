@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use log::{error, trace, warn};
 
@@ -7,7 +7,7 @@ use karyon_core::{
         Executor,
         lock::{Semaphore, SemaphoreGuard},
     },
-    async_util::{Backoff, TaskGroup, TaskResult},
+    async_util::{Backoff, TaskGroup, TaskResult, timeout},
     crypto::KeyPair,
 };
 use karyon_net::{ByteBuffer, ClientLayer, Endpoint, FramedConn, codec::Codec, framed, tcp};
@@ -51,6 +51,8 @@ pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     task_group: TaskGroup,
     connection_slots: Semaphore,
     max_retries: usize,
+    /// Max time for one dial: connect plus the TLS or QUIC handshake.
+    dial_timeout: Duration,
     conn_queue: Option<Arc<ConnQueue>>,
     monitor: Arc<Monitor>,
     _codec: PhantomData<C>,
@@ -61,17 +63,19 @@ where
     C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
 {
     /// Create a new Connector without a ConnQueue (used for plain
-    /// `connect` paths like Kademlia lookup).
+    /// `connect` paths like Kademlia lookup). `dial_timeout` is in seconds.
     pub fn new(
         key_pair: &KeyPair,
         max_retries: usize,
         slots: usize,
+        dial_timeout: u64,
         monitor: Arc<Monitor>,
         ex: Executor,
     ) -> Arc<Self> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
+            dial_timeout: Duration::from_secs(dial_timeout),
             task_group: TaskGroup::with_executor(ex),
             monitor,
             connection_slots: Semaphore::new(slots),
@@ -91,7 +95,8 @@ where
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
     ) -> Result<(FramedConn<C>, SemaphoreGuard)> {
-        let (result, slot) = self.connect_internal(endpoint, peer_id).await?;
+        let slot = self.acquire_slot().await?;
+        let result = self.connect_internal(endpoint, peer_id).await?;
         match result {
             DialResult::Channel(conn, _) => Ok((conn, slot)),
             #[cfg(feature = "quic")]
@@ -99,23 +104,28 @@ where
         }
     }
 
-    /// Dial with retries.
+    /// Wait for a free connection slot.
+    pub async fn acquire_slot(&self) -> Result<SemaphoreGuard> {
+        Ok(self.connection_slots.acquire().await?)
+    }
+
+    /// Dial with retries. Each try is bounded by `dial_timeout`, so an
+    /// endpoint that accepts and then stays silent can not hang the dial.
     async fn connect_internal(
         &self,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
-    ) -> Result<(DialResult<C>, SemaphoreGuard)> {
-        let slot = self.connection_slots.acquire().await?;
-
+    ) -> Result<DialResult<C>> {
         let mut retry = 0;
         let backoff = Backoff::new(500, 2000);
         while retry < self.max_retries {
-            match self.dial(endpoint, peer_id).await {
+            let dial = async { timeout(self.dial_timeout, self.dial(endpoint, peer_id)).await? };
+            match dial.await {
                 Ok(result) => {
                     self.monitor
                         .notify(ConnectionKind::Connected(endpoint.clone()))
                         .await;
-                    return Ok((result, slot));
+                    return Ok(result);
                 }
                 Err(err) => {
                     error!("Failed to connect to {endpoint}: {err}");
@@ -187,11 +197,13 @@ where
 // `connect_and_queue` only lives on the peer-plane Connector since the
 // ConnQueue is part of the data-plane handshake pipeline.
 impl Connector<PeerNetMsgCodec> {
-    /// Create a new Connector with a ConnQueue.
+    /// Create a new Connector with a ConnQueue. `dial_timeout` is in
+    /// seconds.
     pub fn new_with_queue(
         key_pair: &KeyPair,
         max_retries: usize,
         slots: usize,
+        dial_timeout: u64,
         conn_queue: Arc<ConnQueue>,
         monitor: Arc<Monitor>,
         ex: Executor,
@@ -199,6 +211,7 @@ impl Connector<PeerNetMsgCodec> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
+            dial_timeout: Duration::from_secs(dial_timeout),
             task_group: TaskGroup::with_executor(ex),
             monitor,
             connection_slots: Semaphore::new(slots),
@@ -209,13 +222,15 @@ impl Connector<PeerNetMsgCodec> {
 
     /// Connect, queue for handshake, and run until the peer
     /// disconnects. Disconnect/handshake-failure is observable via
-    /// `PeerPool::register_peer_events`, not via this call.
+    /// `PeerPool::register_peer_events`, not via this call. `slot` comes
+    /// from `acquire_slot` and is held until the peer disconnects.
     pub async fn connect_and_queue(
         self: &Arc<Self>,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
+        slot: SemaphoreGuard,
     ) -> Result<()> {
-        let (dial_result, slot) = self.connect_internal(endpoint, peer_id).await?;
+        let dial_result = self.connect_internal(endpoint, peer_id).await?;
 
         let endpoint = endpoint.clone();
         let on_disconnect = {

@@ -234,70 +234,78 @@ impl PeerPool {
 
     async fn run(self: Arc<Self>) {
         loop {
-            let mut queued = self.conn_queue.next().await;
+            let queued = self.conn_queue.next().await;
 
-            // Snapshot the protocol metadata so we don't hold a lock
-            // across the handshake. Drives both version negotiation
-            // and the mandatory-subset check.
-            let meta = self.protocol_meta.read().await.clone();
+            // One task per connection, so a slow or silent peer does not
+            // hold back the others. Every queued connection holds a
+            // listener or connector slot, which bounds these tasks.
+            self.task_group.spawn(self.clone().admit(queued));
+        }
+    }
 
-            let params = HandshakeParams {
-                own_id: &self.id,
-                config_version: &self.config.version,
-                protocols: &meta,
-                timeout_secs: self.config.handshake_timeout,
-                verified_peer_id: queued.verified_peer_id.as_ref(),
-            };
-            let handshake = handshake(&mut queued.reader, &mut queued.writer, &params).await;
+    /// Handshake a queued connection and add it to the pool.
+    async fn admit(self: Arc<Self>, mut queued: QueuedConn) {
+        // Snapshot the protocol metadata so we don't hold a lock
+        // across the handshake. Drives both version negotiation
+        // and the mandatory-subset check.
+        let meta = self.protocol_meta.read().await.clone();
 
-            let (pid, negotiated) = match handshake {
-                Ok(v) => v,
-                Err(err) => {
-                    let pid = queued.verified_peer_id.clone();
-                    self.monitor
-                        .notify(PoolEvent::HandshakeFailed(pid.clone()))
-                        .await;
-                    let _ = self
-                        .peer_emitter
-                        .emit(&PeerEvent::HandshakeFailed(pid))
-                        .await;
-                    let _ = queued.conn_closed_tx.send(Err(err)).await;
-                    continue;
-                }
-            };
+        let params = HandshakeParams {
+            own_id: &self.id,
+            config_version: &self.config.version,
+            protocols: &meta,
+            timeout_secs: self.config.handshake_timeout,
+            verified_peer_id: queued.verified_peer_id.as_ref(),
+        };
+        let handshake = handshake(&mut queued.reader, &mut queued.writer, &params).await;
 
-            // Admission gate. Runs before the Peer is built, so a denied
-            // peer never gets tasks spawned or QUIC streams opened.
-            let candidate = PeerCandidate {
-                peer_id: &pid,
-                remote_endpoint: &queued.remote_endpoint,
-                negotiated_protocols: &negotiated,
-            };
-            let allowed = self.config.access_control.allow(
-                &Subject::Peer(&candidate),
-                Action::Connect(queued.direction.clone()),
-            );
-
-            if !allowed {
-                warn!("Access denied for peer {pid}");
+        let (pid, negotiated) = match handshake {
+            Ok(v) => v,
+            Err(err) => {
+                let pid = queued.verified_peer_id.clone();
                 self.monitor
-                    .notify(PoolEvent::HandshakeFailed(Some(pid.clone())))
+                    .notify(PoolEvent::HandshakeFailed(pid.clone()))
                     .await;
                 let _ = self
                     .peer_emitter
-                    .emit(&PeerEvent::HandshakeFailed(Some(pid)))
+                    .emit(&PeerEvent::HandshakeFailed(pid))
                     .await;
-                let _ = queued.conn_closed_tx.send(Err(Error::AccessDenied)).await;
-                continue;
+                let _ = queued.conn_closed_tx.send(Err(err)).await;
+                return;
             }
+        };
 
-            // Wake the task waiting in `ConnQueue::handle`, or it keeps
-            // its connection slot forever.
-            let conn_closed_tx = queued.conn_closed_tx.clone();
-            if let Err(err) = self.new_peer(queued, pid, negotiated).await {
-                error!("new_peer failed: {err}");
-                let _ = conn_closed_tx.send(Err(err)).await;
-            }
+        // Admission gate. Runs before the Peer is built, so a denied
+        // peer never gets tasks spawned or QUIC streams opened.
+        let candidate = PeerCandidate {
+            peer_id: &pid,
+            remote_endpoint: &queued.remote_endpoint,
+            negotiated_protocols: &negotiated,
+        };
+        let allowed = self.config.access_control.allow(
+            &Subject::Peer(&candidate),
+            Action::Connect(queued.direction.clone()),
+        );
+
+        if !allowed {
+            warn!("Access denied for peer {pid}");
+            self.monitor
+                .notify(PoolEvent::HandshakeFailed(Some(pid.clone())))
+                .await;
+            let _ = self
+                .peer_emitter
+                .emit(&PeerEvent::HandshakeFailed(Some(pid)))
+                .await;
+            let _ = queued.conn_closed_tx.send(Err(Error::AccessDenied)).await;
+            return;
+        }
+
+        // Wake the task waiting in `ConnQueue::handle`, or it keeps
+        // its connection slot forever.
+        let conn_closed_tx = queued.conn_closed_tx.clone();
+        if let Err(err) = self.new_peer(queued, pid, negotiated).await {
+            error!("new_peer failed: {err}");
+            let _ = conn_closed_tx.send(Err(err)).await;
         }
     }
 
@@ -308,18 +316,15 @@ impl PeerPool {
         pid: PeerID,
         negotiated: Vec<ProtocolID>,
     ) -> Result<()> {
-        if self.contains_peer(&pid).await {
+        let negotiated: HashSet<ProtocolID> = negotiated.into_iter().collect();
+
+        let res = self.insert_peer(queued, &pid, negotiated).await;
+        if matches!(res, Err(Error::PeerAlreadyConnected)) {
             self.monitor
                 .notify(PoolEvent::PeerAlreadyConnected(pid.clone()))
                 .await;
-            return Err(Error::PeerAlreadyConnected);
         }
-
-        let negotiated: HashSet<ProtocolID> = negotiated.into_iter().collect();
-
-        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated).await?;
-
-        self.peers.write().await.insert(pid.clone(), peer.clone());
+        let peer = res?;
 
         let on_disconnect = {
             let this = self.clone();
@@ -341,6 +346,25 @@ impl PeerPool {
         let _ = self.peer_emitter.emit(&PeerEvent::Added(pid)).await;
 
         Ok(())
+    }
+
+    /// Builds the peer and adds it, unless a peer with this id is already
+    /// in the pool. Connections are admitted in parallel, so the check and
+    /// the insert run under one write lock. `Peer::new` does not wait for
+    /// the remote, so the lock is held only briefly.
+    async fn insert_peer(
+        self: &Arc<Self>,
+        queued: QueuedConn,
+        pid: &PeerID,
+        negotiated: HashSet<ProtocolID>,
+    ) -> Result<Arc<Peer>> {
+        let mut peers = self.peers.write().await;
+        if peers.contains_key(pid) {
+            return Err(Error::PeerAlreadyConnected);
+        }
+        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated)?;
+        peers.insert(pid.clone(), peer.clone());
+        Ok(peer)
     }
 
     /// Shuts down the peer and remove it from the peer list.

@@ -53,7 +53,9 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub(crate) async fn new(
+    /// Builds the peer and its wire. Does not wait for the remote, so the
+    /// pool can call it while holding its peers lock.
+    pub(crate) fn new(
         peer_pool: Arc<PeerPool>,
         queued: QueuedConn,
         id: PeerID,
@@ -68,19 +70,12 @@ impl Peer {
         let direction = queued.direction.clone();
         let conn_closed_tx = queued.conn_closed_tx.clone();
 
-        // QUIC waits here for the remote to open its protocol streams.
-        // Bound it so a peer that never does can not stall the pool.
-        let setup_timeout = Duration::from_secs(config.handshake_timeout);
-        let connection = timeout(
-            setup_timeout,
-            connection::from_queued(
-                queued,
-                &negotiated_protocols,
-                &task_group,
-                stop_reason_tx.clone(),
-            ),
-        )
-        .await??;
+        let connection = connection::from_queued(
+            queued,
+            &negotiated_protocols,
+            &task_group,
+            stop_reason_tx.clone(),
+        )?;
 
         let peer_pool_weak = Arc::downgrade(&peer_pool);
         Ok(Arc::new(Peer {
@@ -140,6 +135,14 @@ impl Peer {
     }
 
     pub(crate) async fn run(self: Arc<Self>) -> Result<()> {
+        // QUIC opens its protocol streams here. A peer that does not open
+        // them in time is stopped, like on any other connection error.
+        let setup_timeout = Duration::from_secs(self.config.handshake_timeout);
+        let setup = self
+            .connection
+            .setup(&self.task_group, self.stop_reason_tx.clone());
+        timeout(setup_timeout, setup).await??;
+
         self.run_connect_protocols().await;
 
         self.stop_reason_rx.recv().await?

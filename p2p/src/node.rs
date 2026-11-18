@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use log::{debug, info};
+use log::{debug, error, info};
 
 use karyon_core::{
     async_runtime::Executor,
@@ -113,6 +113,7 @@ impl Node {
             key_pair,
             config.max_connect_retries,
             config.outbound_slots,
+            config.handshake_timeout,
             conn_queue.clone(),
             monitor.clone(),
             ex.clone(),
@@ -169,6 +170,7 @@ impl Node {
             key_pair,
             config.max_connect_retries,
             config.outbound_slots,
+            config.handshake_timeout,
             conn_queue.clone(),
             monitor.clone(),
             ex.clone(),
@@ -278,20 +280,32 @@ impl Node {
                 continue;
             }
 
-            let peer_id = discovered.peer_id.clone();
+            // Take the slot here, so this loop waits when all slots are
+            // busy. The dial runs in its own task, so one slow endpoint
+            // does not hold back the next dial.
+            let slot = match self.connector.acquire_slot().await {
+                Ok(slot) => slot,
+                Err(err) => {
+                    error!("Acquire outbound slot: {err}");
+                    break;
+                }
+            };
 
-            if self
-                .connector
-                .connect_and_queue(&endpoint, &peer_id)
-                .await
-                .is_err()
-            {
-                self.monitor
-                    .notify(PoolEvent::ConnectFailed(peer_id.clone(), endpoint))
+            let peer_id = discovered.peer_id.clone();
+            let this = self.clone();
+            self.task_group.spawn(async move {
+                let res = this
+                    .connector
+                    .connect_and_queue(&endpoint, &peer_id, slot)
                     .await;
-                self.discovery
-                    .on_event(PeerConnectionEvent::ConnectFailed(peer_id));
-            }
+                if res.is_err() {
+                    this.monitor
+                        .notify(PoolEvent::ConnectFailed(peer_id.clone(), endpoint))
+                        .await;
+                    this.discovery
+                        .on_event(PeerConnectionEvent::ConnectFailed(peer_id));
+                }
+            });
         }
     }
 

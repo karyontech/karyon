@@ -101,6 +101,7 @@ impl LookupService {
             key_pair,
             config.lookup_connect_retries,
             config.lookup_outbound_slots,
+            config.handshake_timeout,
             monitor.clone(),
             ex,
         );

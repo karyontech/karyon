@@ -1,5 +1,23 @@
 # Changelog
 
+## karyon_p2p 1.2.3
+
+### Fixes
+
+- **Handshake stalls** (`karyon_p2p`): every queued connection is now
+  handshaked in its own task. Before, connections were handshaked one at a
+  time, so a few connections that stayed silent kept honest peers from
+  joining.
+- **Dial stalls** (`karyon_p2p`): an outbound dial now fails after
+  `handshake_timeout`, and discovered peers are dialed in their own tasks.
+  Before, one endpoint that never answered the TLS handshake stopped all
+  outbound dials.
+- **QUIC stream setup** (`karyon_p2p`): a QUIC peer is added to the pool
+  right after the handshake, and opens its protocol streams when it starts.
+  A peer whose streams are not up within `handshake_timeout` is removed
+  again, so `PeerEvent::Added` can be followed by `PeerEvent::Removed`.
+  Before, the pool waited for the streams first.
+
 ## karyon_jsonrpc 1.1.2
 
 ### Fixes
