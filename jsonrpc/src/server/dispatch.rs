@@ -130,31 +130,32 @@ impl Server {
             SanityCheckResult::NewReq(req) => req,
             SanityCheckResult::ErrRes(res) => return res,
         };
+        let handler = self.resolve_handler(&req.srvc_name, &req.method_name, channel.is_some());
+        run_handler(handler, req.msg, channel).await
+    }
+}
 
-        let id = Some(req.msg.id.clone());
-        let params = req.msg.params.unwrap_or(serde_json::json!(()));
+/// Run a resolved handler. A pubsub handler needs a `channel`.
+pub(super) async fn run_handler(
+    handler: Handler<'_>,
+    req: message::Request,
+    channel: Option<Arc<Channel>>,
+) -> message::Response {
+    let id = Some(req.id);
+    let params = req.params.unwrap_or(serde_json::json!(()));
 
-        match self.resolve_handler(&req.srvc_name, &req.method_name, channel.is_some()) {
-            Handler::Pubsub(method) => {
-                let chan = channel.expect("channel required for pubsub");
-                match method(chan, req.msg.method, params).await {
-                    Ok(res) => message::Response {
-                        result: Some(res),
-                        id,
-                        ..Default::default()
-                    },
-                    Err(err) => err.to_response(id, None),
-                }
-            }
-            Handler::Rpc(method) => match method(params).await {
-                Ok(res) => message::Response {
-                    result: Some(res),
-                    id,
-                    ..Default::default()
-                },
-                Err(err) => err.to_response(id, None),
-            },
-            Handler::None => method_not_found(id),
-        }
+    let result = match (handler, channel) {
+        (Handler::Pubsub(method), Some(chan)) => method(chan, req.method, params).await,
+        (Handler::Rpc(method), _) => method(params).await,
+        _ => return method_not_found(id),
+    };
+
+    match result {
+        Ok(res) => message::Response {
+            result: Some(res),
+            id,
+            ..Default::default()
+        },
+        Err(err) => err.to_response(id, None),
     }
 }

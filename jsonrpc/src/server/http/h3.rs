@@ -12,7 +12,7 @@ use h3::server::{Connection as H3Connection, RequestResolver, RequestStream};
 use h3_quinn::{Connection, RecvStream, SendStream};
 use hyper::{Method, Request, Response, StatusCode, header::CONTENT_TYPE};
 use log::{debug, error};
-use serde_json::{Value, json, to_value};
+use serde_json::{Value, json};
 
 use karyon_core::async_util::{Backoff, Either, select};
 
@@ -28,7 +28,7 @@ use crate::{
     server::{
         CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server,
         channel::Channel,
-        dispatch::{Handler, NewRequest, SanityCheckResult, sanity_check},
+        dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
         http::{
             ERR_BODY_TOO_LARGE, ERR_METHOD_NOT_ALLOWED, MAX_HTTP_BODY_SIZE, encode_response,
             parse_error_response,
@@ -203,19 +203,12 @@ async fn handle_h3_request<C: JsonRpcCodec>(
     };
 
     // Pubsub is detected by the resolved handler, not the method name.
-    // TODO: match on the handler and pass it on. Now it is resolved here,
-    // then the request is re-encoded, checked and resolved again in
-    // `handle_request`.
-    let is_pubsub = matches!(
-        server.resolve_handler(&req.srvc_name, &req.method_name, true),
-        Handler::Pubsub(_)
-    );
-    if is_pubsub {
-        return handle_h3_subscription(server, req, send, reader, peer, codec).await;
+    let handler = server.resolve_handler(&req.srvc_name, &req.method_name, true);
+    if let Handler::Pubsub(_) = handler {
+        return handle_h3_subscription(&server, handler, req.msg, send, reader, peer, codec).await;
     }
 
-    let msg = to_value(&req.msg)?;
-    let response = server.handle_request(None, msg).await;
+    let response = run_handler(handler, req.msg, None).await;
     debug!("--> {response}");
     let body = encode_response(&codec, &response)?;
     h3_send(&mut send, StatusCode::OK, &content_type, &body).await
@@ -225,8 +218,9 @@ async fn handle_h3_request<C: JsonRpcCodec>(
 /// Notifications stream on the response while the request body waits
 /// for the unsubscribe request.
 async fn handle_h3_subscription<C: JsonRpcCodec>(
-    server: Arc<Server>,
-    req: NewRequest,
+    server: &Server,
+    handler: Handler<'_>,
+    req: message::Request,
     mut send: H3Send,
     mut reader: BodyReader<C>,
     peer: Option<Endpoint>,
@@ -236,24 +230,11 @@ async fn handle_h3_subscription<C: JsonRpcCodec>(
     let (ch_tx, ch_rx) = bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
     let channel = Channel::new(ch_tx, peer);
 
-    let method = match server.resolve_handler(&req.srvc_name, &req.method_name, true) {
-        Handler::Pubsub(m) => m,
-        _ => unreachable!("pubsub method presence checked by caller"),
-    };
-
-    let params = req.msg.params.unwrap_or(json!(()));
-    let response = match method(channel.clone(), req.msg.method, params).await {
-        Ok(res) => message::Response {
-            result: Some(res),
-            id: Some(req.msg.id),
-            ..Default::default()
-        },
-        Err(err) => {
-            let response = err.to_response(Some(req.msg.id), None);
-            let body = encode_response(&codec, &response)?;
-            return h3_send(&mut send, StatusCode::OK, &content_type, &body).await;
-        }
-    };
+    let response = run_handler(handler, req, Some(channel.clone())).await;
+    if response.error.is_some() {
+        let body = encode_response(&codec, &response)?;
+        return h3_send(&mut send, StatusCode::OK, &content_type, &body).await;
+    }
 
     debug!("--> {response}");
     send.send_response(ok_response(&content_type)?)
