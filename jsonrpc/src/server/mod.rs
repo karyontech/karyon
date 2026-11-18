@@ -46,6 +46,8 @@ use crate::{
 
 #[cfg(feature = "http")]
 use crate::server::http::{HttpAcceptor, HttpServer};
+#[cfg(feature = "quic")]
+use crate::server::quic::{QuicAcceptor, QuicServer};
 #[cfg(feature = "ws")]
 use crate::{codec::JsonRpcWsCodec, server::acceptor::WsAcceptor};
 
@@ -108,7 +110,7 @@ pub(crate) struct ServerConfig {
 enum ServerBackend {
     StreamAcceptor(Arc<dyn AsyncAcceptor>),
     #[cfg(feature = "quic")]
-    QuicEndpoint(karyon_net::quic::QuicEndpoint),
+    Quic(Arc<dyn QuicAcceptor>),
     #[cfg(feature = "http")]
     Http(Arc<dyn HttpAcceptor>),
 }
@@ -156,18 +158,10 @@ impl Server {
                 }
             },
             #[cfg(feature = "quic")]
-            ServerBackend::QuicEndpoint(endpoint) => loop {
-                match endpoint.accept_incoming().await {
-                    Ok(incoming) => {
-                        backoff.reset();
-                        self.handle_quic_incoming(incoming);
-                    }
-                    Err(err) => {
-                        error!("Accept QUIC conn: {err}");
-                        backoff.sleep().await;
-                    }
-                }
-            },
+            ServerBackend::Quic(quic_server) => {
+                quic_server.accept_loop(self.clone()).await?;
+                Ok(())
+            }
             #[cfg(feature = "http")]
             ServerBackend::Http(http_server) => {
                 http_server.accept_loop(self.clone()).await?;
@@ -180,7 +174,7 @@ impl Server {
         match &self.backend {
             ServerBackend::StreamAcceptor(acceptor) => acceptor.local_endpoint(),
             #[cfg(feature = "quic")]
-            ServerBackend::QuicEndpoint(endpoint) => endpoint.local_endpoint().map_err(Error::from),
+            ServerBackend::Quic(quic_server) => quic_server.local_endpoint(),
             #[cfg(feature = "http")]
             ServerBackend::Http(http_server) => http_server.local_endpoint(),
         }
@@ -331,7 +325,10 @@ where
             Some(conf) => {
                 let quic_endpoint =
                     karyon_net::quic::QuicEndpoint::listen(&endpoint, conf.clone()).await?;
-                Ok(ServerBackend::QuicEndpoint(quic_endpoint))
+                Ok(ServerBackend::Quic(Arc::new(QuicServer {
+                    endpoint: quic_endpoint,
+                    codec: byte_codec,
+                })))
             }
             None => Err(Error::QUICConfigRequired),
         },

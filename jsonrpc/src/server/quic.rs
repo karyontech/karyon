@@ -3,61 +3,102 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use log::{debug, error};
 
-use karyon_core::async_util::{Either, TaskResult, select};
+use karyon_core::async_util::{Either, TaskResult, select, timeout};
 
 use karyon_net::{
     Endpoint, FramedConn, StreamMux, framed,
-    quic::{QuicConn, QuicIncoming},
+    quic::{QuicConn, QuicEndpoint, QuicIncoming},
 };
 
 use crate::{
-    codec::JsonCodec,
-    error::Result,
+    codec::JsonRpcCodec,
+    error::{Error, Result},
     message,
     server::{
-        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server,
+        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, accept_backoff,
         channel::Channel,
         dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
     },
 };
 
-impl Server {
-    /// Run the handshake off the accept loop, then serve the connection.
-    pub(super) fn handle_quic_incoming(self: &Arc<Self>, incoming: QuicIncoming) {
-        let peer = incoming.peer_endpoint();
-        let server = self.clone();
-        self.task_group.spawn(async move {
-            // Bounded by the QUIC idle timeout (QuicConfig::idle_timeout).
-            match incoming.handshake().await {
-                Ok(quic_conn) => server.handle_quic_conn(quic_conn),
-                Err(err) => debug!("QUIC handshake with {peer} failed: {err}"),
+/// Runs a QUIC server. Hides the codec type, like `HttpAcceptor` does
+/// for HTTP.
+#[async_trait]
+pub(crate) trait QuicAcceptor: Send + Sync {
+    /// Run the accept loop.
+    async fn accept_loop(&self, server: Arc<Server>) -> Result<()>;
+    fn local_endpoint(&self) -> Result<Endpoint>;
+}
+
+/// QUIC server. Every stream is framed with `codec`.
+pub(crate) struct QuicServer<C> {
+    pub(super) endpoint: QuicEndpoint,
+    pub(super) codec: C,
+}
+
+#[async_trait]
+impl<C: JsonRpcCodec> QuicAcceptor for QuicServer<C> {
+    async fn accept_loop(&self, server: Arc<Server>) -> Result<()> {
+        // Back off on accept errors, so the loop does not spin.
+        let backoff = accept_backoff();
+        loop {
+            match self.endpoint.accept_incoming().await {
+                Ok(incoming) => {
+                    backoff.reset();
+                    handle_quic_incoming(&server, incoming, self.codec.clone());
+                }
+                Err(err) => {
+                    error!("Accept QUIC conn: {err}");
+                    backoff.sleep().await;
+                }
             }
-        });
+        }
     }
 
-    /// Serve a QUIC connection; each incoming stream is handled
-    /// as an independent request.
-    fn handle_quic_conn(self: &Arc<Self>, quic_conn: QuicConn) {
-        let peer = quic_conn.peer_endpoint().ok();
-        debug!("Handle QUIC connection {peer:?}");
-
-        self.task_group.spawn_then(
-            quic_accept_streams_task(self.clone(), Arc::new(quic_conn)),
-            move |result: TaskResult<Result<()>>| async move {
-                if let TaskResult::Completed(Err(err)) = result {
-                    debug!("QUIC conn {peer:?} dropped: {err}");
-                } else {
-                    debug!("QUIC conn {peer:?} dropped");
-                }
-            },
-        );
+    fn local_endpoint(&self) -> Result<Endpoint> {
+        self.endpoint.local_endpoint().map_err(Error::from)
     }
 }
 
-async fn quic_accept_streams_task(server: Arc<Server>, quic_conn: Arc<QuicConn>) -> Result<()> {
-    let codec = JsonCodec::default();
+/// Run the handshake off the accept loop, then serve the connection.
+fn handle_quic_incoming<C: JsonRpcCodec>(server: &Arc<Server>, incoming: QuicIncoming, codec: C) {
+    let peer = incoming.peer_endpoint();
+    let srv = server.clone();
+    server.task_group.spawn(async move {
+        // Bounded by the QUIC idle timeout (QuicConfig::idle_timeout).
+        match incoming.handshake().await {
+            Ok(quic_conn) => handle_quic_conn(&srv, quic_conn, codec),
+            Err(err) => debug!("QUIC handshake with {peer} failed: {err}"),
+        }
+    });
+}
+
+/// Serve a QUIC connection; each incoming stream is handled
+/// as an independent request.
+fn handle_quic_conn<C: JsonRpcCodec>(server: &Arc<Server>, quic_conn: QuicConn, codec: C) {
+    let peer = quic_conn.peer_endpoint().ok();
+    debug!("Handle QUIC connection {peer:?}");
+
+    server.task_group.spawn_then(
+        quic_accept_streams_task(server.clone(), Arc::new(quic_conn), codec),
+        move |result: TaskResult<Result<()>>| async move {
+            if let TaskResult::Completed(Err(err)) = result {
+                debug!("QUIC conn {peer:?} dropped: {err}");
+            } else {
+                debug!("QUIC conn {peer:?} dropped");
+            }
+        },
+    );
+}
+
+async fn quic_accept_streams_task<C: JsonRpcCodec>(
+    server: Arc<Server>,
+    quic_conn: Arc<QuicConn>,
+    codec: C,
+) -> Result<()> {
     let peer = quic_conn.peer_endpoint().ok();
     loop {
         let stream = quic_conn.accept_stream().await?;
@@ -68,9 +109,9 @@ async fn quic_accept_streams_task(server: Arc<Server>, quic_conn: Arc<QuicConn>)
     }
 }
 
-async fn quic_handle_stream_task(
+async fn quic_handle_stream_task<C: JsonRpcCodec>(
     server: Arc<Server>,
-    conn: FramedConn<JsonCodec>,
+    conn: FramedConn<C>,
     peer: Option<Endpoint>,
 ) -> Result<()> {
     if let Err(err) = handle_quic_stream(server, conn, peer).await {
@@ -81,12 +122,18 @@ async fn quic_handle_stream_task(
 
 /// Handle a single QUIC stream: one request, one response.
 /// Upgrades to pubsub notification streaming if the method matches.
-async fn handle_quic_stream(
+async fn handle_quic_stream<C: JsonRpcCodec>(
     server: Arc<Server>,
-    mut conn: FramedConn<JsonCodec>,
+    mut conn: FramedConn<C>,
     peer: Option<Endpoint>,
 ) -> Result<()> {
-    let msg = conn.recv_msg().await?;
+    // A stream that never sends its request is dropped after
+    // `read_timeout`. Only this first read: after it, a pubsub stream
+    // waits for its unsubscribe, which is idle by design.
+    let msg = match server.config.read_timeout {
+        Some(t) => timeout(t, conn.recv_msg()).await??,
+        None => conn.recv_msg().await?,
+    };
 
     let req = match sanity_check(msg) {
         SanityCheckResult::NewReq(req) => req,
@@ -110,9 +157,9 @@ async fn handle_quic_stream(
 
 /// Pubsub over QUIC: split the stream so notifications stream
 /// from the writer while the reader waits for an unsubscribe.
-async fn handle_quic_subscription(
+async fn handle_quic_subscription<C: JsonRpcCodec>(
     server: &Server,
-    mut conn: FramedConn<JsonCodec>,
+    mut conn: FramedConn<C>,
     handler: Handler<'_>,
     req: message::Request,
     peer: Option<Endpoint>,
