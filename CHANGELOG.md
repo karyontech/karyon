@@ -1,5 +1,20 @@
 # Changelog
 
+## karyon_jsonrpc 1.1.3
+
+### Fixes
+
+- **Idle QUIC streams** (`karyon_jsonrpc`): with `ServerBuilder::read_timeout`
+  set, the server drops a QUIC stream that does not send its request in
+  time. Before, such a stream held a server task as long as the connection
+  lived. Subscription streams waiting for their unsubscribe are not
+  affected.
+- **Codec on QUIC** (`karyon_jsonrpc`): QUIC now uses the codec given to
+  `ServerBuilder::new_with_codec` / `ClientBuilder::new_with_codec`, and
+  its size limit (`JsonCodec::new(max_size)`). Before, QUIC always used the
+  default `JsonCodec`. A peer with a custom codec that relied on plain
+  JSON over QUIC must now use the same codec on both sides.
+
 ## karyon_p2p 1.2.3
 
 ### Fixes

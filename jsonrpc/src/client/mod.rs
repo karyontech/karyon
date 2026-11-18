@@ -113,9 +113,9 @@ pub struct Client<B = JsonCodec, W = JsonCodec> {
     pub(crate) task_group: Arc<TaskGroup>,
     pub(crate) config: ClientConfig,
     pub(crate) backend: ClientBackend,
-    /// Encodes and decodes HTTP bodies and HTTP/3 streams. The other
-    /// backends own their codec inside the connection.
-    #[cfg(feature = "http")]
+    /// Encodes and decodes HTTP bodies, HTTP/3 and QUIC streams. The
+    /// other backends own their codec inside the connection.
+    #[cfg(any(feature = "http", feature = "quic"))]
     pub(crate) codec: B,
     _codecs: PhantomData<(B, W)>,
 }
@@ -272,15 +272,15 @@ where
         backend: ClientBackend,
         codec: B,
     ) -> Arc<Self> {
-        // Only the HTTP backend reads the codec from the client.
-        #[cfg(not(feature = "http"))]
+        // Only the HTTP and QUIC backends read the codec from the client.
+        #[cfg(not(any(feature = "http", feature = "quic")))]
         drop(codec);
         Arc::new(Client {
             disconnect: AtomicBool::new(false),
             task_group,
             config,
             backend,
-            #[cfg(feature = "http")]
+            #[cfg(any(feature = "http", feature = "quic"))]
             codec,
             _codecs: PhantomData,
         })

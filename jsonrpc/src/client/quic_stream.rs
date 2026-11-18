@@ -22,7 +22,7 @@ use crate::{
         Client, ClientBackend, ClientConfig, RequestID, WsCodec,
         subscriptions::{NotificationDecoder, Subscription, Subscriptions, decode_notification},
     },
-    codec::{JsonCodec, JsonRpcCodec},
+    codec::JsonRpcCodec,
     error::{Error, Result},
     message::{self, SubscriptionID},
 };
@@ -62,7 +62,7 @@ where
     }
 
     let stream = quic_conn.open_stream().await?;
-    let mut conn = framed(stream, JsonCodec::default());
+    let mut conn = framed(stream, client.codec.clone());
 
     let id: RequestID = random_32();
     let request = message::Request {
@@ -95,7 +95,7 @@ where
     }
 
     let stream = quic_conn.open_stream().await?;
-    let mut conn = framed(stream, JsonCodec::default());
+    let mut conn = framed(stream, client.codec.clone());
 
     let id: RequestID = random_32();
     let request = message::Request {
@@ -142,9 +142,9 @@ where
 /// Forward notifications until the stream ends or an unsubscribe request
 /// arrives. The request goes out on the same stream. Removes the
 /// subscription when it exits.
-async fn subscription_stream_task(
-    mut reader: FramedReader<JsonCodec>,
-    mut writer: FramedWriter<JsonCodec>,
+async fn subscription_stream_task<B: JsonRpcCodec>(
+    mut reader: FramedReader<B>,
+    mut writer: FramedWriter<B>,
     unsub_rx: Receiver<Value>,
     sub: Arc<Subscription>,
     subscriptions: Arc<Subscriptions>,
