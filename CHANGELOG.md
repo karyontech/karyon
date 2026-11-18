@@ -1,6 +1,6 @@
 # Changelog
 
-## karyon_net 1.2.0, karyon_async_rustls 1.2.0, karyon_jsonrpc 1.1.3, karyon_p2p 1.2.4, karyon_stun 0.2.2
+## karyon_net 1.2.0, karyon_async_rustls 1.2.0, karyon_jsonrpc 1.1.4, karyon_p2p 1.2.4, karyon_stun 0.2.2
 
 ### Breaking changes
 
@@ -15,6 +15,11 @@
   QUIC compiled both aws-lc-rs and ring, so `rustls::ClientConfig::builder()`
   panicked unless a provider was installed first. A default build now
   compiles only aws-lc-rs.
+
+## karyon_jsonrpc 1.1.3
+
+### Fixes
+
 - **Idle QUIC streams** (`karyon_jsonrpc`): with `ServerBuilder::read_timeout`
   set, the server drops a QUIC stream that does not send its request in
   time. Before, such a stream held a server task as long as the connection
