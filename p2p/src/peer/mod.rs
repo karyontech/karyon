@@ -32,6 +32,9 @@ use connection::Wire;
 /// (single framed pipe vs. per-protocol streams).
 pub struct Peer {
     id: PeerID,
+    /// Unique per connection in the pool. A peer that reconnects or whose
+    /// connection is replaced gets a new one, while `id` stays the same.
+    conn_id: u64,
     peer_pool: Weak<PeerPool>,
 
     direction: ConnDirection,
@@ -59,6 +62,7 @@ impl Peer {
         peer_pool: Arc<PeerPool>,
         queued: QueuedConn,
         id: PeerID,
+        conn_id: u64,
         negotiated_protocols: HashSet<ProtocolID>,
     ) -> Result<Arc<Self>> {
         let config = peer_pool.config.clone();
@@ -80,6 +84,7 @@ impl Peer {
         let peer_pool_weak = Arc::downgrade(&peer_pool);
         Ok(Arc::new(Peer {
             id,
+            conn_id,
             peer_pool: peer_pool_weak,
             direction,
             remote_endpoint,
@@ -108,6 +113,11 @@ impl Peer {
 
     pub fn id(&self) -> &PeerID {
         &self.id
+    }
+
+    /// Identifies this connection to the peer, see the field.
+    pub(crate) fn conn_id(&self) -> u64 {
+        self.conn_id
     }
 
     pub fn config(&self) -> Arc<Config> {
