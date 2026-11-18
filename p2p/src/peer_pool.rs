@@ -1,9 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 use karyon_core::{
     async_runtime::{Executor, lock::RwLock},
@@ -18,6 +21,7 @@ use crate::{
     Error, PeerID, Result,
     access_control::{Action, PeerCandidate, Subject},
     config::Config,
+    conn_direction::ConnDirection,
     conn_queue::{ConnQueue, QueuedConn},
     handshake::{HandshakeParams, handshake},
     monitor::{Monitor, PoolEvent},
@@ -63,6 +67,9 @@ pub struct PeerPool {
     /// Holds the running peers.
     peers: RwLock<HashMap<PeerID, Arc<Peer>>>,
 
+    /// Next connection id, see `Peer::conn_id`.
+    next_conn_id: AtomicU64,
+
     /// Hashmap contains protocol constructors.
     pub(crate) protocols: RwLock<HashMap<ProtocolID, Box<ProtocolConstructor>>>,
 
@@ -101,6 +108,7 @@ impl PeerPool {
             id: id.clone(),
             conn_queue,
             peers: RwLock::new(HashMap::new()),
+            next_conn_id: AtomicU64::new(0),
             protocols: RwLock::new(HashMap::new()),
             protocol_meta: RwLock::new(HashMap::new()),
             peer_emitter: EventEmitter::new(),
@@ -324,22 +332,30 @@ impl PeerPool {
                 .notify(PoolEvent::PeerAlreadyConnected(pid.clone()))
                 .await;
         }
-        let peer = res?;
+        let (peer, replaced) = res?;
 
         let on_disconnect = {
             let this = self.clone();
-            let pid = pid.clone();
+            let peer = peer.clone();
             |result| async move {
                 if let TaskResult::Completed(_) = result
-                    && let Err(err) = this.remove_peer(&pid).await
+                    && let Err(err) = this.remove_peer(&peer).await
                 {
-                    error!("Failed to remove peer {pid}: {err}");
+                    error!("Failed to remove peer {}: {err}", peer.id());
                 }
             }
         };
 
         self.task_group
             .spawn_then(peer.clone().run(), on_disconnect);
+
+        // Same peer, now on the connection both nodes keep. It stays in
+        // the pool, so no `Removed`/`Added` events.
+        if let Some(old) = replaced {
+            debug!("Replace the connection of peer {pid}");
+            let _ = old.shutdown().await;
+            return Ok(());
+        }
 
         info!("Add new peer {pid}");
         self.monitor.notify(PoolEvent::NewPeer(pid.clone())).await;
@@ -348,33 +364,42 @@ impl PeerPool {
         Ok(())
     }
 
-    /// Builds the peer and adds it, unless a peer with this id is already
-    /// in the pool. Connections are admitted in parallel, so the check and
-    /// the insert run under one write lock. `Peer::new` does not wait for
-    /// the remote, so the lock is held only briefly.
+    /// Builds the peer and adds it. If a peer with this id is already in
+    /// the pool, the new connection either replaces it (returned as the
+    /// second value, for the caller to shut down) or is rejected; see
+    /// `new_conn_wins`. Connections are admitted in parallel, so the check
+    /// and the insert run under one write lock. `Peer::new` does not wait
+    /// for the remote, so the lock is held only briefly.
     async fn insert_peer(
         self: &Arc<Self>,
         queued: QueuedConn,
         pid: &PeerID,
         negotiated: HashSet<ProtocolID>,
-    ) -> Result<Arc<Peer>> {
+    ) -> Result<(Arc<Peer>, Option<Arc<Peer>>)> {
         let mut peers = self.peers.write().await;
-        if peers.contains_key(pid) {
+        if let Some(old) = peers.get(pid)
+            && !new_conn_wins(&self.id, pid, old.direction(), &queued.direction)
+        {
             return Err(Error::PeerAlreadyConnected);
         }
-        let peer = Peer::new(self.clone(), queued, pid.clone(), negotiated)?;
-        peers.insert(pid.clone(), peer.clone());
-        Ok(peer)
+        let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
+        let peer = Peer::new(self.clone(), queued, pid.clone(), conn_id, negotiated)?;
+        let replaced = peers.insert(pid.clone(), peer.clone());
+        Ok((peer, replaced))
     }
 
-    /// Shuts down the peer and remove it from the peer list.
-    async fn remove_peer(&self, pid: &PeerID) -> Result<()> {
-        let result = self.peers.write().await.remove(pid);
-
-        let peer = match result {
-            Some(p) => p,
-            None => return Ok(()),
-        };
+    /// Shuts down the peer and removes it from the peer list. Does nothing
+    /// if the pool holds another peer under this id (the connection was
+    /// replaced) or none.
+    async fn remove_peer(&self, peer: &Arc<Peer>) -> Result<()> {
+        let pid = peer.id();
+        {
+            let mut peers = self.peers.write().await;
+            match peers.get(pid) {
+                Some(p) if p.conn_id() == peer.conn_id() => peers.remove(pid),
+                _ => return Ok(()),
+            };
+        }
 
         let _ = peer.shutdown().await;
 
@@ -388,5 +413,43 @@ impl PeerPool {
 
         warn!("Peer {pid} removed",);
         Ok(())
+    }
+}
+
+/// Decides whether a new connection to a peer replaces the one already in
+/// the pool. When two nodes dial each other at the same time, each sees
+/// both connections in opposite directions. Both keep the one dialed by
+/// the node with the smaller PeerID, so they keep the same connection.
+/// Two connections in the same direction keep the first.
+fn new_conn_wins(own: &PeerID, remote: &PeerID, old: &ConnDirection, new: &ConnDirection) -> bool {
+    match (old, new) {
+        // The new one was dialed by us.
+        (ConnDirection::Inbound, ConnDirection::Outbound) => own.0 < remote.0,
+        // The new one was dialed by the remote.
+        (ConnDirection::Outbound, ConnDirection::Inbound) => remote.0 < own.0,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_nodes_keep_the_same_connection() {
+        let a = PeerID([1; 32]);
+        let b = PeerID([2; 32]);
+        let (inb, outb) = (ConnDirection::Inbound, ConnDirection::Outbound);
+
+        // A has the smaller id, so both keep the connection A dialed:
+        // outbound on A, inbound on B. The other one never wins.
+        assert!(new_conn_wins(&a, &b, &inb, &outb));
+        assert!(!new_conn_wins(&a, &b, &outb, &inb));
+        assert!(new_conn_wins(&b, &a, &outb, &inb));
+        assert!(!new_conn_wins(&b, &a, &inb, &outb));
+
+        // Same direction: the first one stays.
+        assert!(!new_conn_wins(&a, &b, &outb, &outb));
+        assert!(!new_conn_wins(&a, &b, &inb, &inb));
     }
 }

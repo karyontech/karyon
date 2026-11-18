@@ -1,5 +1,16 @@
 # Changelog
 
+## karyon_p2p 1.2.5
+
+### Fixes
+
+- **Two nodes dialing each other** (`karyon_p2p`): when two nodes connect
+  to each other at the same time, both now keep the same one of the two
+  connections (the one dialed by the node with the smaller PeerID).
+  Before, each could keep a different one and close the other's, so both
+  lost the peer right after `PeerEvent::Added`. The node also no longer
+  dials a discovered peer that is already connected.
+
 ## karyon_net 1.2.0, karyon_async_rustls 1.2.0, karyon_jsonrpc 1.1.4, karyon_p2p 1.2.4, karyon_stun 0.2.2
 
 ### Breaking changes

@@ -280,6 +280,14 @@ impl Node {
                 continue;
             }
 
+            // Already connected: a second connection would only be
+            // rejected or replace the first.
+            if let Some(pid) = &discovered.peer_id
+                && self.peer_pool.contains_peer(pid).await
+            {
+                continue;
+            }
+
             // Take the slot here, so this loop waits when all slots are
             // busy. The dial runs in its own task, so one slow endpoint
             // does not hold back the next dial.
