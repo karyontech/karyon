@@ -40,13 +40,25 @@ pub(crate) trait Wire: Send + Sync {
     /// Graceful close. Pushes Shutdown to every recv queue and signals
     /// the wire (transport-specific).
     async fn shutdown(&self) -> Result<()>;
+    /// Opens what must be opened with the remote before the protocols
+    /// run, and starts its reader and writer tasks. Called once by
+    /// `Peer::run`. Only QUIC has such a step.
+    async fn setup(
+        &self,
+        _task_group: &TaskGroup,
+        _stop_reason_tx: Sender<Result<()>>,
+    ) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Build the right `Wire` for the post-handshake `QueuedConn`.
 /// Picks `MuxConnection` when QUIC is in use, `SingleConnection` otherwise.
 /// Only negotiated protocols get a recv queue, so a message for any other
 /// protocol is a protocol violation.
-pub(crate) async fn from_queued(
+///
+/// Never waits for the remote; see `Wire::setup`.
+pub(crate) fn from_queued(
     queued: QueuedConn,
     negotiated: &HashSet<ProtocolID>,
     task_group: &TaskGroup,
@@ -54,8 +66,7 @@ pub(crate) async fn from_queued(
 ) -> Result<Arc<dyn Wire>> {
     #[cfg(feature = "quic")]
     if queued.quic_conn.is_some() {
-        let conn =
-            MuxConnection::from_queued(queued, negotiated, task_group, stop_reason_tx).await?;
+        let conn = MuxConnection::from_queued(queued, negotiated)?;
         return Ok(Arc::new(conn) as Arc<dyn Wire>);
     }
 
@@ -130,43 +141,31 @@ pub(crate) struct MuxConnection {
     send_queues: HashMap<ProtocolID, Arc<AsyncQueue<PeerNetMsg>>>,
     recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
     quic_conn: QuicConn,
+    direction: ConnDirection,
 }
 
 #[cfg(feature = "quic")]
 impl MuxConnection {
-    /// Open / accept one QUIC stream per negotiated protocol and spawn
-    /// a reader + writer task for each.
-    pub(crate) async fn from_queued(
+    /// Create the queues of every negotiated protocol. The streams are
+    /// opened later by `setup`; until then messages wait in the queues.
+    pub(crate) fn from_queued(
         queued: QueuedConn,
         negotiated: &HashSet<ProtocolID>,
-        task_group: &TaskGroup,
-        stop_reason_tx: Sender<Result<()>>,
     ) -> Result<Self> {
         let quic_conn = queued
             .quic_conn
             .ok_or_else(|| Error::InvalidMsg("MuxConnection requires a QUIC conn".into()))?;
 
-        let recv_queues = build_recv_queues(negotiated);
-        let (send_queues, streams) =
-            setup_quic_streams(&quic_conn, &queued.direction, negotiated).await?;
-
-        for stream in streams {
-            let q_send = send_queues
-                .get(&stream.proto_id)
-                .expect("send queue installed in setup_quic_streams")
-                .clone();
-            let q_recv = recv_queues
-                .get(&stream.proto_id)
-                .expect("recv queue installed in build_recv_queues")
-                .clone();
-            spawn_writer_task(task_group, stream.writer, q_send);
-            spawn_quic_reader(task_group, stream.reader, q_recv, stop_reason_tx.clone());
-        }
+        let send_queues = negotiated
+            .iter()
+            .map(|id| (id.clone(), AsyncQueue::new(SEND_QUEUE_SIZE)))
+            .collect();
 
         Ok(Self {
             send_queues,
-            recv_queues,
+            recv_queues: build_recv_queues(negotiated),
             quic_conn,
+            direction: queued.direction,
         })
     }
 }
@@ -199,6 +198,36 @@ impl Wire for MuxConnection {
     async fn shutdown(&self) -> Result<()> {
         self.quic_conn.close(0, b"shutdown");
         broadcast_shutdown(&self.recv_queues).await;
+        Ok(())
+    }
+
+    /// Open / accept one QUIC stream per negotiated protocol and spawn a
+    /// reader and a writer task for each.
+    async fn setup(
+        &self,
+        task_group: &TaskGroup,
+        stop_reason_tx: Sender<Result<()>>,
+    ) -> Result<()> {
+        let negotiated: HashSet<ProtocolID> = self.send_queues.keys().cloned().collect();
+        let streams = setup_quic_streams(&self.quic_conn, &self.direction, &negotiated).await?;
+
+        for stream in streams {
+            let queues = (
+                self.send_queues.get(&stream.proto_id),
+                self.recv_queues.get(&stream.proto_id),
+            );
+            // `setup_quic_streams` only returns negotiated protocols.
+            let (Some(q_send), Some(q_recv)) = queues else {
+                continue;
+            };
+            spawn_writer_task(task_group, stream.writer, q_send.clone());
+            spawn_quic_reader(
+                task_group,
+                stream.reader,
+                q_recv.clone(),
+                stop_reason_tx.clone(),
+            );
+        }
         Ok(())
     }
 }
@@ -349,18 +378,14 @@ fn spawn_quic_reader(
 }
 
 /// Open / accept one QUIC stream per negotiated protocol and return
-/// the per-stream send queues plus the reader/writer halves.
+/// the reader/writer halves of each.
 #[cfg(feature = "quic")]
 async fn setup_quic_streams(
     quic_conn: &QuicConn,
     direction: &ConnDirection,
     negotiated: &HashSet<ProtocolID>,
-) -> Result<(
-    HashMap<ProtocolID, Arc<AsyncQueue<PeerNetMsg>>>,
-    Vec<MuxStream>,
-)> {
-    let mut queues = HashMap::new();
-    let mut streams = Vec::new();
+) -> Result<Vec<MuxStream>> {
+    let mut streams: Vec<MuxStream> = Vec::new();
 
     match direction {
         ConnDirection::Outbound => {
@@ -382,8 +407,6 @@ async fn setup_quic_streams(
                 let conn = framed(stream, PeerNetMsgCodec::new());
                 let (reader, writer) = conn.split();
 
-                let q = AsyncQueue::new(SEND_QUEUE_SIZE);
-                queues.insert(proto_id.clone(), q);
                 streams.push(MuxStream {
                     proto_id: proto_id.clone(),
                     reader,
@@ -410,12 +433,15 @@ async fn setup_quic_streams(
                 if !negotiated.contains(&init.protocol_id) {
                     return Err(Error::UnsupportedProtocol(init.protocol_id));
                 }
+                // One stream per protocol: a second one would get a second
+                // writer on the same queue.
+                if streams.iter().any(|s| s.proto_id == init.protocol_id) {
+                    return Err(Error::InvalidMsg("Duplicate protocol stream".into()));
+                }
 
                 let conn = framed(stream, PeerNetMsgCodec::new());
                 let (reader, writer) = conn.split();
 
-                let q = AsyncQueue::new(SEND_QUEUE_SIZE);
-                queues.insert(init.protocol_id.clone(), q);
                 streams.push(MuxStream {
                     proto_id: init.protocol_id,
                     reader,
@@ -427,7 +453,7 @@ async fn setup_quic_streams(
         }
     }
 
-    Ok((queues, streams))
+    Ok(streams)
 }
 
 /// One bounded recv queue per protocol id.

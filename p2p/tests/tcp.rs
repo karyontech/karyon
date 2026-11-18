@@ -1,11 +1,14 @@
 mod shared;
 
-use std::{sync::Arc, time::Duration};
+use std::{net::TcpStream, sync::Arc, time::Duration};
 
 use async_channel::Sender;
 use async_trait::async_trait;
 
-use karyon_core::{async_util::sleep, testing::run_test_with_executor};
+use karyon_core::{
+    async_util::{sleep, timeout},
+    testing::run_test_with_executor,
+};
 
 use karyon_p2p::{
     Config, Error, Version,
@@ -514,6 +517,55 @@ fn dialer_extra_protocol_not_run() {
         assert_eq!(node_a.peers().await, 1);
         assert_eq!(node_b.peers().await, 1);
 
+        node_b.shutdown().await;
+        node_a.shutdown().await;
+    });
+}
+
+/// Connections that never send a handshake message must not hold back an
+/// honest peer: each connection is handshaked in its own task.
+#[test]
+fn silent_conns_do_not_block_handshake() {
+    run_test_with_executor(30, |ex| async move {
+        let listen_port = free_port();
+
+        let node_a = create_node(
+            Config {
+                listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                ..fast_config()
+            },
+            ex.clone(),
+        );
+
+        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
+        node_a.run().await.expect("node_a run");
+
+        // Open connections that stay silent, and give node_a time to
+        // queue them before the honest peer dials.
+        let silent: Vec<TcpStream> = (0..3)
+            .map(|_| TcpStream::connect(("127.0.0.1", listen_port)).expect("silent connect"))
+            .collect();
+        sleep(Duration::from_millis(300)).await;
+
+        let node_b = create_node(
+            Config {
+                dial_peers: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
+                ..fast_config()
+            },
+            ex.clone(),
+        );
+        node_b.run().await.expect("node_b run");
+
+        // One at a time, the three silent connections would take up to
+        // 30s (two reads of `handshake_timeout` each).
+        let new_peer = timeout(Duration::from_secs(4), async {
+            while pool_a.recv().await.unwrap().event != "NewPeer" {}
+        })
+        .await;
+        assert!(new_peer.is_ok(), "silent connections blocked the handshake");
+        assert_eq!(node_a.peers().await, 1);
+
+        drop(silent);
         node_b.shutdown().await;
         node_a.shutdown().await;
     });
