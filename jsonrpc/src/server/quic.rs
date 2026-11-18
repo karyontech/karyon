@@ -19,7 +19,7 @@ use crate::{
     server::{
         CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server,
         channel::Channel,
-        dispatch::{Handler, NewRequest, SanityCheckResult, sanity_check},
+        dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
     },
 };
 
@@ -97,21 +97,12 @@ async fn handle_quic_stream(
     };
 
     // Pubsub handlers need a dedicated stream for streaming notifications.
-    // Everything else (regular RPC, method not found) can reuse the
-    // shared dispatch path.
-    // TODO: match on the handler and pass it on. Now it is resolved three
-    // times (here, `handle_quic_subscription`, `handle_request`).
-    let is_pubsub = matches!(
-        server.resolve_handler(&req.srvc_name, &req.method_name, true),
-        Handler::Pubsub(_)
-    );
-
-    if is_pubsub {
-        return handle_quic_subscription(server, conn, req, peer).await;
+    let handler = server.resolve_handler(&req.srvc_name, &req.method_name, true);
+    if let Handler::Pubsub(_) = handler {
+        return handle_quic_subscription(&server, conn, handler, req.msg, peer).await;
     }
 
-    let msg = serde_json::to_value(&req.msg).expect("serializable request");
-    let response = server.handle_request(None, msg).await;
+    let response = run_handler(handler, req.msg, None).await;
     debug!("--> {response}");
     conn.send_msg(serde_json::json!(response)).await?;
     Ok(())
@@ -120,35 +111,20 @@ async fn handle_quic_stream(
 /// Pubsub over QUIC: split the stream so notifications stream
 /// from the writer while the reader waits for an unsubscribe.
 async fn handle_quic_subscription(
-    server: Arc<Server>,
-    conn: FramedConn<JsonCodec>,
-    req: NewRequest,
+    server: &Server,
+    mut conn: FramedConn<JsonCodec>,
+    handler: Handler<'_>,
+    req: message::Request,
     peer: Option<Endpoint>,
 ) -> Result<()> {
     let (ch_tx, ch_rx) = async_channel::bounded(CHANNEL_SUBSCRIPTION_BUFFER_SIZE);
     let channel = Channel::new(ch_tx, peer);
 
-    let method = match server.resolve_handler(&req.srvc_name, &req.method_name, true) {
-        Handler::Pubsub(m) => m,
-        _ => unreachable!("pubsub method presence checked by caller"),
-    };
-
-    let params = req.msg.params.unwrap_or(serde_json::json!(()));
-    let result = method(channel.clone(), req.msg.method, params).await;
-
-    let response = match result {
-        Ok(res) => message::Response {
-            result: Some(res),
-            id: Some(req.msg.id),
-            ..Default::default()
-        },
-        Err(err) => {
-            let mut conn = conn;
-            let response = err.to_response(Some(req.msg.id), None);
-            conn.send_msg(serde_json::json!(response)).await?;
-            return Ok(());
-        }
-    };
+    let response = run_handler(handler, req, Some(channel.clone())).await;
+    if response.error.is_some() {
+        conn.send_msg(serde_json::json!(response)).await?;
+        return Ok(());
+    }
 
     debug!("--> {response}");
 
