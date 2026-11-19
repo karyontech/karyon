@@ -13,7 +13,7 @@ use karyon_jsonrpc::{
     error::RPCError,
     message::SubscriptionID,
     rpc_impl, rpc_method, rpc_pubsub_impl,
-    server::{ServerBuilder, channel::Channel},
+    server::{ChannelRef, ServerBuilder},
 };
 
 // Service with default (struct-name-derived) name and mix of
@@ -76,7 +76,7 @@ impl PubSubDefault {
     #[rpc_method(name = "counter.sub")]
     async fn counter_subscribe(
         &self,
-        chan: Arc<Channel>,
+        chan: ChannelRef,
         method: String,
         _params: Value,
     ) -> Result<Value, RPCError> {
@@ -102,7 +102,7 @@ impl PubSubDefault {
     #[rpc_method(name = "counter.unsub")]
     async fn counter_unsubscribe(
         &self,
-        chan: Arc<Channel>,
+        chan: ChannelRef,
         _method: String,
         params: Value,
     ) -> Result<Value, RPCError> {

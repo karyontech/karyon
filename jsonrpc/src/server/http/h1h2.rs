@@ -1,6 +1,6 @@
 //! HTTP/1.1 and HTTP/2 over TCP via hyper.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
@@ -27,7 +27,7 @@ use crate::{
     error::Result,
     message,
     server::{
-        Server,
+        ServerRef,
         http::{
             ERR_BODY_TOO_LARGE, ERR_ENCODE_RESPONSE, ERR_METHOD_NOT_ALLOWED, ERR_READ_BODY,
             HyperExecutor, MAX_HTTP_BODY_SIZE, encode_response, json_response, json_response_bytes,
@@ -37,7 +37,7 @@ use crate::{
 };
 
 pub(super) async fn accept_tcp<C: JsonRpcCodec>(
-    server: &Arc<Server>,
+    server: &ServerRef,
     listener: &TcpListener,
     codec: &C,
     backoff: &Backoff,
@@ -57,7 +57,7 @@ pub(super) async fn accept_tcp<C: JsonRpcCodec>(
 }
 
 async fn serve_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     stream: TcpStream,
     peer_addr: SocketAddr,
     codec: C,
@@ -69,7 +69,7 @@ async fn serve_task<C: JsonRpcCodec>(
 }
 
 async fn serve_conn<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     stream: TcpStream,
     peer_addr: SocketAddr,
     codec: C,
@@ -103,7 +103,7 @@ async fn serve_conn<C: JsonRpcCodec>(
 }
 
 async fn handle_hyper_request<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     req: Request<Incoming>,
     codec: C,
 ) -> std::result::Result<Response<Full<Bytes>>, hyper::Error> {

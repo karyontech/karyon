@@ -18,13 +18,13 @@ use karyon_p2p::{
 };
 
 use crate::{
-    KademliaConfig, SUPPORTED_LOOKUP_PROTOCOLS,
+    KademliaConfigRef, SUPPORTED_LOOKUP_PROTOCOLS,
     bloom::BloomRef,
     event::DiscoveryKind,
     messages::{
         FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
     },
-    routing_table::RoutingTable,
+    routing_table::RoutingTableRef,
 };
 
 /// Framed lookup-plane connection.
@@ -56,7 +56,7 @@ pub struct LookupService {
     id: PeerID,
 
     /// Routing Table
-    table: Arc<RoutingTable>,
+    table: RoutingTableRef,
 
     /// Listener
     listener: Arc<Listener<KadNetMsgCodec>>,
@@ -70,7 +70,7 @@ pub struct LookupService {
     config: Arc<Config>,
 
     /// The Kademlia configuration.
-    kconfig: Arc<KademliaConfig>,
+    kconfig: KademliaConfigRef,
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
@@ -79,12 +79,15 @@ pub struct LookupService {
     bloom: BloomRef,
 }
 
+/// Shared handle to a `LookupService`.
+pub(crate) type LookupServiceRef = Arc<LookupService>;
+
 impl LookupService {
     /// Creates a new lookup service.
     pub fn new(
         ctx: &DiscoveryContext,
-        table: Arc<RoutingTable>,
-        kconfig: Arc<KademliaConfig>,
+        table: RoutingTableRef,
+        kconfig: KademliaConfigRef,
         bloom: BloomRef,
         endpoints: LookupEndpoints,
     ) -> Self {

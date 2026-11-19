@@ -53,9 +53,12 @@ pub struct Swarm {
     task_group: TaskGroup,
 }
 
+/// Shared handle to a `Swarm`.
+pub type SwarmRef = Arc<Swarm>;
+
 impl Swarm {
     /// Wraps the given Node.
-    pub fn new(node: Arc<Node>, executor: Executor) -> Arc<Self> {
+    pub fn new(node: Arc<Node>, executor: Executor) -> SwarmRef {
         Arc::new(Self {
             node,
             swarms: RwLock::new(HashMap::new()),

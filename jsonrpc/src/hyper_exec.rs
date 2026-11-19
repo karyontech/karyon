@@ -2,17 +2,15 @@
 //! tokio HTTP/1+2 client. Spawns hyper's internal tasks via the
 //! owning Server/Client task_group so they get cancelled on stop.
 
-use std::sync::Arc;
-
-use karyon_core::async_util::TaskGroup;
+use karyon_core::async_util::TaskGroupRef;
 
 #[derive(Clone)]
 pub(crate) struct HyperExecutor {
-    task_group: Arc<TaskGroup>,
+    task_group: TaskGroupRef,
 }
 
 impl HyperExecutor {
-    pub(crate) fn new(task_group: Arc<TaskGroup>) -> Self {
+    pub(crate) fn new(task_group: TaskGroupRef) -> Self {
         Self { task_group }
     }
 }

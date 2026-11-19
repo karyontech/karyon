@@ -12,7 +12,7 @@ use parking_lot::Mutex;
 
 use crate::async_runtime::{Executor, Task, global_executor};
 
-use super::{CondWait, Either, select};
+use super::{CondWait, CondWaitRef, Either, select};
 
 /// Identifies a spawned task within a [`TaskGroup`].
 pub type TaskID = usize;
@@ -38,8 +38,11 @@ pub type TaskID = usize;
 ///
 /// ```
 pub struct TaskGroup {
-    inner: Arc<Inner>,
+    inner: InnerRef,
 }
+
+/// Shared handle to a `TaskGroup`.
+pub type TaskGroupRef = Arc<TaskGroup>;
 
 /// Shared state of a [`TaskGroup`]. Held behind an `Arc` so each task can
 /// keep a `Weak` reference back to the group and remove itself on
@@ -49,6 +52,9 @@ struct Inner {
     next_id: AtomicUsize,
     executor: Executor,
 }
+
+/// Shared handle to the `Inner` state.
+type InnerRef = Arc<Inner>;
 
 impl Inner {
     /// Removes a task by id, returning its handler if still present.
@@ -188,7 +194,7 @@ fn remove_from_group(group: &Weak<Inner>, id: TaskID) {
 /// does not wait forever.
 struct PanicGuard {
     ex: Executor,
-    cancel_flag: Arc<CondWait>,
+    cancel_flag: CondWaitRef,
     group: Weak<Inner>,
     id: TaskID,
 }
@@ -214,9 +220,9 @@ pub struct TaskHandler {
     task: Task<()>,
     /// Per-task stop signal. Signaling it makes the task stop and run its
     /// callback with `Cancelled`.
-    stop_signal: Arc<CondWait>,
+    stop_signal: CondWaitRef,
     /// Set once the task has finished running its callback.
-    cancel_flag: Arc<CondWait>,
+    cancel_flag: CondWaitRef,
 }
 
 impl TaskHandler {

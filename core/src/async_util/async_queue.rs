@@ -27,10 +27,13 @@ pub struct AsyncQueue<T> {
     not_full: CondVar,
 }
 
+/// Shared handle to an `AsyncQueue`.
+pub type AsyncQueueRef<T> = Arc<AsyncQueue<T>>;
+
 impl<T> AsyncQueue<T> {
     /// Create an `AsyncQueue` with the given capacity. Panics if
     /// `capacity` is zero.
-    pub fn new(capacity: usize) -> Arc<Self> {
+    pub fn new(capacity: usize) -> AsyncQueueRef<T> {
         assert!(capacity > 0, "AsyncQueue capacity must be > 0");
         Arc::new(Self {
             queue: Mutex::new(VecDeque::with_capacity(capacity)),

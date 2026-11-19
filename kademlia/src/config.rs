@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::{net::IpAddr, sync::Arc};
 
 use karyon_net::Endpoint;
 
@@ -85,6 +85,9 @@ pub struct KademliaConfig {
     /// during the refresh process.
     pub refresh_connect_retries: usize,
 }
+
+/// Shared handle to a `KademliaConfig`.
+pub type KademliaConfigRef = Arc<KademliaConfig>;
 
 impl Default for KademliaConfig {
     fn default() -> Self {

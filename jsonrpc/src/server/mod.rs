@@ -13,6 +13,8 @@ mod http;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use serde_json::Value;
+
 use log::{debug, error, info};
 
 use karyon_core::{
@@ -20,7 +22,10 @@ use karyon_core::{
         Executor,
         lock::{Semaphore, SemaphoreGuard},
     },
-    async_util::{AsyncQueue, Backoff, CondWait, Either, TaskGroup, TaskResult, select, timeout},
+    async_util::{
+        AsyncQueue, AsyncQueueRef, Backoff, CondWait, CondWaitRef, Either, TaskGroup, TaskGroupRef,
+        TaskResult, select, timeout,
+    },
 };
 
 use karyon_net::{Endpoint, MessageRx, MessageTx};
@@ -39,24 +44,24 @@ use crate::{
     error::{Error, Result},
     message,
     server::{
-        acceptor::{AsyncAcceptor, StreamAcceptor},
+        acceptor::{AsyncAcceptorRef, StreamAcceptor},
         channel::NewNotification,
     },
 };
 
 #[cfg(feature = "http")]
-use crate::server::http::{HttpAcceptor, HttpServer};
+use crate::server::http::{HttpAcceptorRef, HttpServer};
 #[cfg(feature = "quic")]
-use crate::server::quic::{QuicAcceptor, QuicServer};
+use crate::server::quic::{QuicAcceptorRef, QuicServer};
 #[cfg(feature = "ws")]
 use crate::{codec::JsonRpcWsCodec, server::acceptor::WsAcceptor};
 
 pub use builder::ServerBuilder;
-pub use channel::Channel;
+pub use channel::{Channel, ChannelRef};
 #[cfg(feature = "http")]
 pub use http::HttpConfig;
-pub use pubsub_service::{PubSubRPCMethod, PubSubRPCService};
-pub use service::{RPCMethod, RPCService};
+pub use pubsub_service::{PubSubRPCMethod, PubSubRPCService, PubSubRPCServiceRef};
+pub use service::{RPCMethod, RPCService, RPCServiceRef};
 
 pub const INVALID_REQUEST_ERROR_MSG: &str = "Invalid request";
 pub const FAILED_TO_PARSE_ERROR_MSG: &str = "Failed to parse";
@@ -89,8 +94,8 @@ pub(crate) struct ServerConfig {
     pub tls_config: Option<karyon_net::tls::ServerTlsConfig>,
     #[cfg(feature = "quic")]
     pub quic_config: Option<karyon_net::quic::ServerQuicConfig>,
-    pub services: HashMap<String, Arc<dyn RPCService + 'static>>,
-    pub pubsub_services: HashMap<String, Arc<dyn PubSubRPCService + 'static>>,
+    pub services: HashMap<String, RPCServiceRef>,
+    pub pubsub_services: HashMap<String, PubSubRPCServiceRef>,
     /// `None` (the default) means never. Set via
     /// `ServerBuilder::read_timeout`.
     pub read_timeout: Option<Duration>,
@@ -108,19 +113,22 @@ pub(crate) struct ServerConfig {
 /// One variant per backend family. Stream-based transports share
 /// a single `AsyncAcceptor`; QUIC and HTTP have their own loops.
 enum ServerBackend {
-    StreamAcceptor(Arc<dyn AsyncAcceptor>),
+    StreamAcceptor(AsyncAcceptorRef),
     #[cfg(feature = "quic")]
-    Quic(Arc<dyn QuicAcceptor>),
+    Quic(QuicAcceptorRef),
     #[cfg(feature = "http")]
-    Http(Arc<dyn HttpAcceptor>),
+    Http(HttpAcceptorRef),
 }
 
 /// A JSON-RPC 2.0 server.
 pub struct Server {
     backend: ServerBackend,
-    pub(crate) task_group: Arc<TaskGroup>,
+    pub(crate) task_group: TaskGroupRef,
     pub(crate) config: ServerConfig,
 }
+
+/// Shared handle to a `Server`.
+pub type ServerRef = Arc<Server>;
 
 impl Server {
     pub fn start(self: Arc<Self>) {
@@ -264,7 +272,7 @@ impl Server {
         ex: Option<Executor>,
         byte_codec: B,
         ws_codec: W,
-    ) -> Result<Arc<Self>>
+    ) -> Result<ServerRef>
     where
         B: JsonRpcCodec,
         W: WsCodec,
@@ -399,7 +407,7 @@ where
 
 async fn stream_writer_task<W>(
     mut writer: W,
-    queue: Arc<AsyncQueue<serde_json::Value>>,
+    queue: AsyncQueueRef<Value>,
     ch_rx: async_channel::Receiver<NewNotification>,
     notification_encoder: fn(NewNotification) -> message::Notification,
 ) -> Result<()>
@@ -424,13 +432,13 @@ where
 /// Shared state of one message connection, cloned into each request.
 #[derive(Clone)]
 struct ConnState {
-    queue: Arc<AsyncQueue<serde_json::Value>>,
-    channel: Arc<Channel>,
-    writer_done: Arc<CondWait>,
+    queue: AsyncQueueRef<Value>,
+    channel: ChannelRef,
+    writer_done: CondWaitRef,
 }
 
 async fn stream_reader_task<R>(
-    server: Arc<Server>,
+    server: ServerRef,
     mut reader: R,
     conn: ConnState,
     read_timeout: Option<Duration>,
@@ -462,7 +470,7 @@ where
 }
 
 async fn request_task(
-    server: Arc<Server>,
+    server: ServerRef,
     conn: ConnState,
     _permit: SemaphoreGuard,
     msg: serde_json::Value,

@@ -40,7 +40,7 @@ pub use stream::ByteStream;
 pub use message::{MessageRx, MessageTx};
 
 #[cfg(feature = "ws")]
-pub use layers::ws::{WsConn, WsLayer, WsReader, WsWriter};
+pub use layers::ws::{WsConn, WsLayer, WsLayerRef, WsReader, WsWriter};
 
 // Layer traits
 pub use layer::{ClientLayer, ServerLayer};

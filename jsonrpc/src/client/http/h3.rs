@@ -1,7 +1,6 @@
 //! HTTP/3 client over QUIC via h3 / h3-quinn.
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use async_channel::Receiver;
 use bytes::Bytes;
@@ -11,13 +10,13 @@ use hyper::{Request, StatusCode, header::CONTENT_TYPE};
 use log::debug;
 use serde_json::{Value, json};
 
-use karyon_core::async_util::{Either, TaskGroup, select};
+use karyon_core::async_util::{Either, TaskGroupRef, select};
 use karyon_net::{ByteBuffer, Endpoint};
 
 use crate::{
     client::http::HttpConfig,
     client::subscriptions::{
-        NotificationDecoder, Subscription, Subscriptions, decode_notification,
+        NotificationDecoder, SubscriptionRef, SubscriptionsRef, decode_notification,
     },
     codec::{JsonRpcCodec, encode_msg, extend_buf},
     error::{Error, Result},
@@ -34,7 +33,7 @@ type H3Stream = RequestStream<BidiStream<Bytes>, Bytes>;
 pub(super) async fn connect(
     endpoint: &Endpoint,
     quic_config: &karyon_net::quic::ClientQuicConfig,
-    task_group: Arc<TaskGroup>,
+    task_group: TaskGroupRef,
 ) -> Result<H3SendRequest> {
     let quic_ep = Endpoint::new_quic_addr(SocketAddr::try_from(endpoint.clone())?);
     let quic_conn = karyon_net::quic::QuicEndpoint::dial(&quic_ep, quic_config.clone()).await?;
@@ -189,8 +188,8 @@ pub(super) async fn subscription_task<C: JsonRpcCodec>(
     mut send: H3SendStream,
     mut reader: H3Reader<C>,
     unsub_rx: Receiver<Value>,
-    sub: Arc<Subscription>,
-    subscriptions: Arc<Subscriptions>,
+    sub: SubscriptionRef,
+    subscriptions: SubscriptionsRef,
     decoder: NotificationDecoder,
 ) -> Result<()> {
     let unsub_msg = loop {

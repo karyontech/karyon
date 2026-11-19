@@ -16,7 +16,7 @@ use karyon_core::{async_runtime::spawn, async_util::timeout, testing::run_test};
 
 use karyon_jsonrpc::{
     client::ClientBuilder,
-    server::{Server, ServerBuilder},
+    server::{ServerBuilder, ServerRef},
 };
 use karyon_net::{
     Endpoint,
@@ -43,7 +43,7 @@ fn test_quic_configs() -> (ServerQuicConfig, ClientQuicConfig) {
 type H3Stream = RequestStream<BidiStream<Bytes>, Bytes>;
 
 /// Start an HTTP/3 server with `MathService` as RPC and pubsub service.
-async fn start_server() -> (Arc<Server>, Endpoint, ClientQuicConfig) {
+async fn start_server() -> (ServerRef, Endpoint, ClientQuicConfig) {
     let service = Arc::new(MathService {});
     let (srv_cfg, cli_cfg) = test_quic_configs();
 

@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use log::error;
 use rand::seq::IndexedRandom;
 
-use karyon_core::async_util::{AsyncQueue, Backoff, TaskGroup, TaskResult};
+use karyon_core::async_util::{AsyncQueue, AsyncQueueRef, Backoff, TaskGroup, TaskResult};
 
 use karyon_net::Endpoint;
 
@@ -23,14 +23,14 @@ use karyon_p2p::{
     pick_endpoint, protocol::ProtocolFlags,
 };
 
-pub use config::KademliaConfig;
+pub use config::{KademliaConfig, KademliaConfigRef};
 
 use bloom::BloomRef;
-use lookup::{LookupEndpoints, LookupService};
-use refresh::RefreshService;
+use lookup::{LookupEndpoints, LookupService, LookupServiceRef};
+use refresh::{RefreshService, RefreshServiceRef};
 use routing_table::{
-    CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY,
-    UNSTABLE_ENTRY,
+    CONNECTED_ENTRY, DISCONNECTED_ENTRY, PENDING_ENTRY, RoutingTable, RoutingTableRef,
+    UNREACHABLE_ENTRY, UNSTABLE_ENTRY,
 };
 
 /// Bound on the discovered-peer queue between Kademlia and the Node.
@@ -45,24 +45,24 @@ pub(crate) const SUPPORTED_LOOKUP_PROTOCOLS: &[Protocol] = &[Protocol::Tcp];
 
 pub struct KademliaDiscovery {
     /// Routing table
-    table: Arc<RoutingTable>,
+    table: RoutingTableRef,
 
     /// Lookup Service
-    lookup_service: Arc<LookupService>,
+    lookup_service: LookupServiceRef,
 
     /// Refresh Service
-    refresh_service: Arc<RefreshService>,
+    refresh_service: RefreshServiceRef,
 
     /// Discovered peers queued for the Node to dial. `connect_loop`
     /// pushes; the Node's connect_discovered_peers task drains via
     /// `recv()`.
-    peer_queue: Arc<AsyncQueue<DiscoveredPeer>>,
+    peer_queue: AsyncQueueRef<DiscoveredPeer>,
 
     /// Managing spawned tasks.
     task_group: TaskGroup,
 
     /// The Kademlia configuration.
-    kconfig: Arc<KademliaConfig>,
+    kconfig: KademliaConfigRef,
 
     /// Local bloom of advertised items. Written by `advertise`,
     /// snapshotted on every connect-loop iteration to filter
@@ -70,6 +70,9 @@ pub struct KademliaDiscovery {
     /// the lookup service.
     bloom: BloomRef,
 }
+
+/// Shared handle to a `KademliaDiscovery`.
+pub type KademliaDiscoveryRef = Arc<KademliaDiscovery>;
 
 impl KademliaDiscovery {
     /// Creates a new KademliaDiscovery. Pass it to `Node::with_discovery`:
@@ -79,7 +82,7 @@ impl KademliaDiscovery {
     ///     KademliaDiscovery::new(ctx, KademliaConfig::default())
     /// }, ex);
     /// ```
-    pub fn new(ctx: &DiscoveryContext, kconfig: KademliaConfig) -> Arc<Self> {
+    pub fn new(ctx: &DiscoveryContext, kconfig: KademliaConfig) -> KademliaDiscoveryRef {
         let config = ctx.config.clone();
         let kconfig = Arc::new(kconfig);
         let monitor = ctx.monitor.clone();

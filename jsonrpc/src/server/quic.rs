@@ -10,7 +10,7 @@ use karyon_core::async_util::{Either, TaskResult, select, timeout};
 
 use karyon_net::{
     Endpoint, FramedConn, StreamMux, framed,
-    quic::{QuicConn, QuicEndpoint, QuicIncoming},
+    quic::{QuicConn, QuicConnRef, QuicEndpoint, QuicIncoming},
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
     error::{Error, Result},
     message,
     server::{
-        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, accept_backoff,
+        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, ServerRef, accept_backoff,
         channel::Channel,
         dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
     },
@@ -32,6 +32,9 @@ pub(crate) trait QuicAcceptor: Send + Sync {
     async fn accept_loop(&self, server: Arc<Server>) -> Result<()>;
     fn local_endpoint(&self) -> Result<Endpoint>;
 }
+
+/// Shared handle to a `QuicAcceptor`.
+pub(crate) type QuicAcceptorRef = Arc<dyn QuicAcceptor>;
 
 /// QUIC server. Every stream is framed with `codec`.
 pub(crate) struct QuicServer<C> {
@@ -64,7 +67,7 @@ impl<C: JsonRpcCodec> QuicAcceptor for QuicServer<C> {
 }
 
 /// Run the handshake off the accept loop, then serve the connection.
-fn handle_quic_incoming<C: JsonRpcCodec>(server: &Arc<Server>, incoming: QuicIncoming, codec: C) {
+fn handle_quic_incoming<C: JsonRpcCodec>(server: &ServerRef, incoming: QuicIncoming, codec: C) {
     let peer = incoming.peer_endpoint();
     let srv = server.clone();
     server.task_group.spawn(async move {
@@ -78,7 +81,7 @@ fn handle_quic_incoming<C: JsonRpcCodec>(server: &Arc<Server>, incoming: QuicInc
 
 /// Serve a QUIC connection; each incoming stream is handled
 /// as an independent request.
-fn handle_quic_conn<C: JsonRpcCodec>(server: &Arc<Server>, quic_conn: QuicConn, codec: C) {
+fn handle_quic_conn<C: JsonRpcCodec>(server: &ServerRef, quic_conn: QuicConn, codec: C) {
     let peer = quic_conn.peer_endpoint().ok();
     debug!("Handle QUIC connection {peer:?}");
 
@@ -95,8 +98,8 @@ fn handle_quic_conn<C: JsonRpcCodec>(server: &Arc<Server>, quic_conn: QuicConn, 
 }
 
 async fn quic_accept_streams_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
-    quic_conn: Arc<QuicConn>,
+    server: ServerRef,
+    quic_conn: QuicConnRef,
     codec: C,
 ) -> Result<()> {
     let peer = quic_conn.peer_endpoint().ok();
@@ -110,7 +113,7 @@ async fn quic_accept_streams_task<C: JsonRpcCodec>(
 }
 
 async fn quic_handle_stream_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     conn: FramedConn<C>,
     peer: Option<Endpoint>,
 ) -> Result<()> {
@@ -123,7 +126,7 @@ async fn quic_handle_stream_task<C: JsonRpcCodec>(
 /// Handle a single QUIC stream: one request, one response.
 /// Upgrades to pubsub notification streaming if the method matches.
 async fn handle_quic_stream<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     mut conn: FramedConn<C>,
     peer: Option<Endpoint>,
 ) -> Result<()> {

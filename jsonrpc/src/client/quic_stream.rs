@@ -19,8 +19,11 @@ use karyon_net::{
 
 use crate::{
     client::{
-        Client, ClientBackend, ClientConfig, RequestID, WsCodec,
-        subscriptions::{NotificationDecoder, Subscription, Subscriptions, decode_notification},
+        Client, ClientBackend, ClientConfig, ClientRef, RequestID, WsCodec,
+        subscriptions::{
+            NotificationDecoder, SubscriptionRef, Subscriptions, SubscriptionsRef,
+            decode_notification,
+        },
     },
     codec::JsonRpcCodec,
     error::{Error, Result},
@@ -79,12 +82,12 @@ where
 }
 
 pub(super) async fn subscribe<B, W, T>(
-    client: &Arc<Client<B, W>>,
+    client: &ClientRef<B, W>,
     quic_conn: &QuicConn,
-    subscriptions: &Arc<Subscriptions>,
+    subscriptions: &SubscriptionsRef,
     method: &str,
     params: T,
-) -> Result<Arc<Subscription>>
+) -> Result<SubscriptionRef>
 where
     B: JsonRpcCodec,
     W: WsCodec,
@@ -146,8 +149,8 @@ async fn subscription_stream_task<B: JsonRpcCodec>(
     mut reader: FramedReader<B>,
     mut writer: FramedWriter<B>,
     unsub_rx: Receiver<Value>,
-    sub: Arc<Subscription>,
-    subscriptions: Arc<Subscriptions>,
+    sub: SubscriptionRef,
+    subscriptions: SubscriptionsRef,
     decoder: NotificationDecoder,
 ) -> Result<()> {
     let unsub_msg = loop {

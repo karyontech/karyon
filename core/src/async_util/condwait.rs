@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::CondVar;
 use crate::async_runtime::lock::Mutex;
 
@@ -32,6 +34,9 @@ pub struct CondWait {
     /// Boolean flag
     w: Mutex<bool>,
 }
+
+/// Shared handle to a `CondWait`.
+pub type CondWaitRef = Arc<CondWait>;
 
 impl CondWait {
     /// Creates a new CondWait.

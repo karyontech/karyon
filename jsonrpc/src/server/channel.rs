@@ -77,12 +77,15 @@ pub struct Channel {
     peer: Option<Endpoint>,
 }
 
+/// Shared handle to a `Channel`.
+pub type ChannelRef = Arc<Channel>;
+
 impl Channel {
     /// Creates a new [`Channel`]
     pub(crate) fn new(
         chan: async_channel::Sender<NewNotification>,
         peer: Option<Endpoint>,
-    ) -> Arc<Channel> {
+    ) -> ChannelRef {
         Arc::new(Self {
             chan,
             subs: RwLock::new(HashSet::new()),
