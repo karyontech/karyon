@@ -4,7 +4,7 @@ use bincode::{Decode, Encode};
 use parking_lot::Mutex;
 use siphasher::sip::SipHasher13;
 
-use crate::protocol::ProtocolFlags;
+use karyon_p2p::protocol::ProtocolFlags;
 
 /// 128-bit bloom filter (k=2 hashes) of items a peer supports.
 ///

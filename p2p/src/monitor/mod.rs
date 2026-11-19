@@ -8,7 +8,8 @@ use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic,
 
 use karyon_net::Endpoint;
 
-pub(crate) use event::{ConnectionKind, DiscoveryKind, PoolEvent};
+pub(crate) use event::PoolEvent;
+pub use event::{ConnectionKind, DiscoveryKind};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -52,7 +53,7 @@ impl Monitor {
     }
 
     /// Sends a new monitor event to subscribers.
-    pub(crate) async fn notify<E: ToEvent>(&self, event: E) {
+    pub async fn notify<E: ToEvent>(&self, event: E) {
         if !self.config.enable_monitor {
             return;
         }
@@ -85,7 +86,8 @@ pub enum MonitorTopic {
     Discovery,
 }
 
-pub(super) trait ToEvent: Sized {
+/// An event kind the monitor can post: `ConnectionKind`, `DiscoveryKind`.
+pub trait ToEvent: Sized {
     type Event: From<Self>
         + Clone
         + EventTopic<Topic = MonitorTopic>

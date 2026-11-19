@@ -2,7 +2,8 @@
 
 A lightweight, extensible, and customizable peer-to-peer network stack.
 Multi-transport (TCP, TCP/TLS, QUIC) with pluggable custom protocols via the
-`Protocol` trait, pluggable discovery with a built-in Kademlia DHT.
+`Protocol` trait, and pluggable discovery. A Kademlia DHT discovery is in
+[karyon_kademlia](https://crates.io/crates/karyon_kademlia).
 
 ## Install
 
@@ -64,13 +65,11 @@ async {
 
     let config = Config {
         listen_endpoints: vec!["tcp://0.0.0.0:8000".parse().unwrap()],
-        discovery_endpoints: vec![
-            "tcp://0.0.0.0:7000".parse().unwrap(),
-            "udp://0.0.0.0:7000".parse().unwrap(),
-        ],
+        dial_peers: vec!["tcp://203.0.113.1:8000".parse().unwrap()],
         ..Default::default()
     };
 
+    // Dials `dial_peers`; see karyon_kademlia to find more peers.
     let node = Node::new(&key_pair, config, global_executor());
 
     node.attach_protocol(EchoProtocol::new)
@@ -121,8 +120,9 @@ table           |                       |
 
 - **Node**: top-level lifecycle. Creates the discovery, pool, connector,
   and listener; wires them together; exposes the public API.
-- **Discovery**: finds peers and yields them as `DiscoveredPeer`. Default
-  is Kademlia DHT; custom implementations of the `Discovery` trait plug in.
+- **Discovery**: finds peers and yields them as `DiscoveredPeer`. The
+  default only dials `dial_peers`; karyon_kademlia and custom
+  implementations of the `Discovery` trait plug in.
 - **Connector / Listener**: dial and accept connections over the
   configured transports, then hand them to `ConnQueue`.
 - **ConnQueue**: short-lived bridge between accept/dial and handshake.
@@ -143,8 +143,11 @@ multiplexes one stream per protocol.
 ### Discovery
 
 Implementations of the `Discovery` trait yield candidate peers; the
-Node dials them. The default is a Kademlia DHT; plug in your own (mDNS,
-static, ...) by implementing the trait.
+Node dials them. `Node::new` only dials `Config::dial_peers`. For a
+Kademlia DHT use [karyon_kademlia](../kademlia) through
+`Node::with_discovery`, or plug in your own (mDNS, ...) by implementing the
+trait. The closure given to `with_discovery` gets a `DiscoveryContext`:
+the node's key pair, PeerID, config, monitor and executor.
 
 ### Protocols
 
@@ -184,4 +187,5 @@ for mutual authentication.
 
 ## Examples
 
-See [examples/](./examples) for a basic peer node and a chat application.
+See [karyon_kademlia's examples](../kademlia/examples) for a basic peer
+node and a chat application.

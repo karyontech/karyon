@@ -1,8 +1,11 @@
+#![doc = include_str!("../README.md")]
+
 mod bloom;
+mod config;
 mod lookup;
 mod messages;
 mod refresh;
-pub mod routing_table;
+mod routing_table;
 
 use std::sync::Arc;
 
@@ -10,22 +13,16 @@ use async_trait::async_trait;
 use log::error;
 use rand::seq::IndexedRandom;
 
-use karyon_core::{
-    async_runtime::Executor,
-    async_util::{AsyncQueue, Backoff, TaskGroup, TaskResult},
-    crypto::KeyPair,
-};
+use karyon_core::async_util::{AsyncQueue, Backoff, TaskGroup, TaskResult};
 
 use karyon_net::Endpoint;
 
-use crate::{
-    PeerID, Result,
-    config::Config,
-    discovery::{DiscoveredPeer, Discovery, PeerConnectionEvent},
-    message::{PeerAddr, Protocol, pick_endpoint},
-    monitor::Monitor,
-    protocol::ProtocolFlags,
+use karyon_p2p::{
+    Config, DiscoveredPeer, Discovery, DiscoveryContext, PeerAddr, PeerConnectionEvent, Protocol,
+    Result, pick_endpoint, protocol::ProtocolFlags,
 };
+
+pub use config::KademliaConfig;
 
 use bloom::BloomRef;
 use lookup::{LookupEndpoints, LookupService};
@@ -63,8 +60,11 @@ pub struct KademliaDiscovery {
     /// Managing spawned tasks.
     task_group: TaskGroup,
 
-    /// Holds the configuration for the P2P network.
+    /// The node's configuration.
     config: Arc<Config>,
+
+    /// The Kademlia configuration.
+    kconfig: Arc<KademliaConfig>,
 
     /// Local bloom of advertised items. Written by `advertise`,
     /// snapshotted on every connect-loop iteration to filter
@@ -74,25 +74,29 @@ pub struct KademliaDiscovery {
 }
 
 impl KademliaDiscovery {
-    /// Creates a new KademliaDiscovery
-    pub fn new(
-        key_pair: &KeyPair,
-        peer_id: &PeerID,
-        config: Arc<Config>,
-        monitor: Arc<Monitor>,
-        ex: Executor,
-    ) -> Arc<Self> {
-        let table = Arc::new(RoutingTable::new(peer_id.0));
+    /// Creates a new KademliaDiscovery. Pass it to `Node::with_discovery`:
+    ///
+    /// ```ignore
+    /// let node = Node::with_discovery(&key_pair, config, |ctx| {
+    ///     KademliaDiscovery::new(ctx, KademliaConfig::default())
+    /// }, ex);
+    /// ```
+    pub fn new(ctx: &DiscoveryContext, kconfig: KademliaConfig) -> Arc<Self> {
+        let config = ctx.config.clone();
+        let kconfig = Arc::new(kconfig);
+        let monitor = ctx.monitor.clone();
+        let ex = ctx.executor.clone();
+        let table = Arc::new(RoutingTable::new(ctx.peer_id.0));
         let bloom = BloomRef::new();
 
         // Pick the lookup endpoint (tcp/tls/quic) and the refresh
         // endpoint (udp) from `discovery_endpoints` (any order).
-        let lookup_ep = config
+        let lookup_ep = kconfig
             .discovery_endpoints
             .iter()
             .find(|e| is_lookup_proto(e))
             .cloned();
-        let refresh_ep = config
+        let refresh_ep = kconfig
             .discovery_endpoints
             .iter()
             .find(|e| e.is_udp())
@@ -100,6 +104,7 @@ impl KademliaDiscovery {
 
         let refresh_service = Arc::new(RefreshService::new(
             config.clone(),
+            kconfig.clone(),
             table.clone(),
             monitor.clone(),
             refresh_ep.clone(),
@@ -112,13 +117,11 @@ impl KademliaDiscovery {
             refresh: refresh_ep,
         };
         let lookup_service = Arc::new(LookupService::new(
-            key_pair,
+            ctx,
             table.clone(),
-            config.clone(),
-            monitor.clone(),
+            kconfig.clone(),
             bloom.clone(),
             lookup_endpoints,
-            ex.clone(),
         ));
 
         let task_group = TaskGroup::with_executor(ex);
@@ -132,6 +135,7 @@ impl KademliaDiscovery {
             peer_queue,
             task_group,
             config,
+            kconfig,
             bloom,
         })
     }
@@ -140,7 +144,7 @@ impl KademliaDiscovery {
     /// send it as a DiscoveredPeer for the Node to connect to.
     /// If the routing table is empty, it will start the seeding process.
     async fn connect_loop(self: Arc<Self>) -> Result<()> {
-        let backoff = Backoff::new(500, self.config.seeding_interval * 1000);
+        let backoff = Backoff::new(500, self.kconfig.seeding_interval * 1000);
         loop {
             let local = self.bloom.snapshot();
             match self.table.random_entry_filtered(PENDING_ENTRY, &local) {
@@ -186,7 +190,7 @@ impl KademliaDiscovery {
                 }
             }
             None => {
-                let peers = &self.config.bootstrap_peers;
+                let peers = &self.kconfig.bootstrap_peers;
                 let shuffled: Vec<_> = peers.sample(&mut rand::rng(), peers.len()).collect();
                 for endpoint in shuffled {
                     if let Err(err) = self.lookup_service.start_lookup(endpoint, None).await {

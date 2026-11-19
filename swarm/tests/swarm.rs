@@ -13,9 +13,10 @@ use karyon_p2p::{
     protocol::{PeerConn, Protocol, ProtocolID},
 };
 
+use karyon_kademlia::KademliaConfig;
 use karyon_swarm::{Swarm, compute_swarm_key};
 
-use shared::{create_node, fast_config, free_port};
+use shared::{create_kad_node, create_node, fast_config, free_port};
 
 // -- Test protocols ----------------------------------------------------------
 
@@ -91,16 +92,11 @@ impl Protocol for FileProtocol {
 fn heterogeneous_protocols_connect() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         // Node A: ChatProto + FileProto
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -147,16 +143,11 @@ fn heterogeneous_protocols_connect() {
 fn swarm_membership() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         // Node A: Chat + File, wrapped in Swarm
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -234,19 +225,22 @@ fn bloom_filters_kademlia_dial() {
         // Bootstrap node: only the core Ping protocol.
         let bootstrap_listen = free_port();
         let bootstrap_disc = free_port();
-        let bootstrap = create_node(
+        let bootstrap = create_kad_node(
             Config {
                 listen_endpoints: vec![
                     format!("tcp://127.0.0.1:{bootstrap_listen}")
                         .parse()
                         .unwrap(),
                 ],
+                ..fast_config()
+            },
+            KademliaConfig {
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{bootstrap_disc}").parse().unwrap(),
                     format!("udp://127.0.0.1:{bootstrap_disc}").parse().unwrap(),
                 ],
                 seeding_interval: 1,
-                ..fast_config()
+                ..Default::default()
             },
             ex.clone(),
         );
@@ -257,16 +251,19 @@ fn bloom_filters_kademlia_dial() {
         // Node A speaks ChatProto.
         let a_listen = free_port();
         let a_disc = free_port();
-        let node_a = create_node(
+        let node_a = create_kad_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{a_listen}").parse().unwrap()],
+                ..fast_config()
+            },
+            KademliaConfig {
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{a_disc}").parse().unwrap(),
                     format!("udp://127.0.0.1:{a_disc}").parse().unwrap(),
                 ],
                 bootstrap_peers: vec![bootstrap_ep.clone()],
                 seeding_interval: 1,
-                ..fast_config()
+                ..Default::default()
             },
             ex.clone(),
         );
@@ -276,16 +273,19 @@ fn bloom_filters_kademlia_dial() {
         // Node C speaks FileProto.
         let c_listen = free_port();
         let c_disc = free_port();
-        let node_c = create_node(
+        let node_c = create_kad_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{c_listen}").parse().unwrap()],
+                ..fast_config()
+            },
+            KademliaConfig {
                 discovery_endpoints: vec![
                     format!("tcp://127.0.0.1:{c_disc}").parse().unwrap(),
                     format!("udp://127.0.0.1:{c_disc}").parse().unwrap(),
                 ],
                 bootstrap_peers: vec![bootstrap_ep],
                 seeding_interval: 1,
-                ..fast_config()
+                ..Default::default()
             },
             ex.clone(),
         );
@@ -323,15 +323,10 @@ fn bloom_filters_kademlia_dial() {
 fn swarm_peer_removal() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),

@@ -12,13 +12,12 @@ use karyon_net::{
     codec::{Codec, LengthCodec},
 };
 
-use crate::{
-    PeerID, Result,
-    discovery::kademlia::bloom::Bloom,
-    message::PeerAddr,
+use karyon_p2p::{
+    PeerAddr, PeerID, Result, VersionInt,
     util::{decode, encode},
-    version::VersionInt,
 };
+
+use crate::bloom::Bloom;
 
 // ---------- Lookup-plane wire envelope ----------
 
@@ -158,7 +157,7 @@ mod tests {
 
     use bincode::error::DecodeError;
 
-    use crate::{Error, message::ShutdownMsg};
+    use karyon_p2p::{Error, ShutdownMsg};
 
     #[test]
     fn decode_rejects_huge_length_prefix() {

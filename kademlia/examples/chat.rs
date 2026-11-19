@@ -5,6 +5,7 @@ use blocking::unblock;
 use clap::Parser;
 use tokio::{runtime::Runtime, spawn, sync::mpsc::unbounded_channel};
 
+use karyon_kademlia::{KademliaConfig, KademliaDiscovery};
 use karyon_p2p::{
     Config, Error, Node, Version,
     endpoint::Endpoint,
@@ -107,8 +108,13 @@ fn main() {
     // Create the configuration for the node.
     let config = Config {
         listen_endpoints: cli.listen_endpoints,
-        discovery_endpoints: cli.discovery_endpoints,
         dial_peers: cli.dial_peers,
+        ..Default::default()
+    };
+
+    // Create the configuration for the Kademlia discovery.
+    let kconfig = KademliaConfig {
+        discovery_endpoints: cli.discovery_endpoints,
         bootstrap_peers: cli.bootstrap_peers,
         ..Default::default()
     };
@@ -116,8 +122,13 @@ fn main() {
     // Create a new tokio runtime
     let rt = Arc::new(Runtime::new().expect("Create tokio runtime"));
 
-    // Create a new Node
-    let node = Node::new(&key_pair, config, rt.clone().into());
+    // Create a new Node that finds peers with Kademlia.
+    let node = Node::with_discovery(
+        &key_pair,
+        config,
+        |ctx| KademliaDiscovery::new(ctx, kconfig),
+        rt.clone().into(),
+    );
 
     let (ctrlc_s, mut ctrlc_r) = unbounded_channel();
     let handle = move || ctrlc_s.send(()).expect("Send ctrlc signal");

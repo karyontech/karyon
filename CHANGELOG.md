@@ -1,5 +1,34 @@
 # Changelog
 
+## karyon_p2p 1.3.0, karyon_kademlia 0.1.0, karyon_swarm 1.2.2
+
+### Breaking changes
+
+- **Kademlia moved to `karyon_kademlia`** (`karyon_p2p`): the Kademlia DHT
+  discovery is now its own crate. `karyon_p2p::KademliaDiscovery` is now
+  `karyon_kademlia::KademliaDiscovery`.
+- **Kademlia settings moved to `KademliaConfig`** (`karyon_p2p`,
+  `karyon_kademlia`): `discovery_endpoints`, `bootstrap_peers`,
+  `public_ip`, `seeding_interval`, `lookup_*` and `refresh_*` are no
+  longer `Config` fields; set them on `karyon_kademlia::KademliaConfig`.
+- **`Node::new` no longer runs Kademlia** (`karyon_p2p`): it only dials
+  `Config::dial_peers`. To find peers with Kademlia, use
+  `Node::with_discovery(&key_pair, config, |ctx| KademliaDiscovery::new(ctx,
+  kconfig), ex)`.
+- **`Node::with_discovery` takes a constructor** (`karyon_p2p`): a closure
+  that gets a `DiscoveryContext` (key pair, PeerID, config, monitor,
+  executor) and returns the discovery, instead of a ready discovery.
+
+### Added
+
+- **Building blocks for discovery crates** (`karyon_p2p`): `Connector`,
+  `Listener`, `DiscoveryContext`, `PeerConnectionEvent` (needed to
+  implement `Discovery` outside the crate), `pick_endpoint`, `ShutdownMsg`,
+  `VersionInt`, `version_match`, and `Monitor::notify` with
+  `monitor::{ConnectionKind, DiscoveryKind}`.
+- **`karyon_kademlia`**: the Kademlia DHT discovery, with the peer and chat
+  examples.
+
 ## karyon_p2p 1.2.5
 
 ### Fixes

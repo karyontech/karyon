@@ -1,0 +1,44 @@
+[package]
+name = "karyon_kademlia"
+description = "Kademlia DHT discovery for karyon_p2p: finds peers with a routing table, lookups and liveness refreshes."
+version = "0.1.0"
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+keywords = ["p2p", "kademlia", "dht", "discovery", "karyon"]
+categories = ["network-programming", "asynchronous"]
+
+[features]
+default = ["tokio", "quic"]
+smol = ["karyon_core/smol", "karyon_net/smol", "karyon_p2p/smol"]
+tokio = ["karyon_core/tokio", "karyon_net/tokio", "karyon_p2p/tokio"]
+quic = ["karyon_net/quic", "karyon_p2p/quic"]
+
+[dependencies]
+karyon_core = { workspace = true, features = ["crypto"] }
+karyon_net = { workspace = true, features = ["tcp", "tls", "udp", "aws-lc-rs"] }
+karyon_p2p = { workspace = true }
+
+log = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+siphasher = { workspace = true }
+parking_lot = { workspace = true }
+
+# encode/decode
+bincode = { workspace = true, features = ["derive"] }
+
+# async
+async-trait = { workspace = true }
+futures-util = { workspace = true, features = ["alloc"] }
+
+[dev-dependencies]
+karyon_core = { workspace = true, features = ["crypto", "testing"] }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+blocking = "1.6"
+clap = { version = "4.5", features = ["derive"] }
+ctrlc = "3.4"
+env_logger = "0.11"

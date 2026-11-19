@@ -15,17 +15,17 @@ use karyon_core::{
 
 use karyon_net::{Endpoint, udp};
 
-use crate::{
-    Config, Error, Result,
-    access_control::{Action, Subject},
-    conn_direction::ConnDirection,
-    discovery::kademlia::{
-        messages::RefreshMsg,
-        routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY},
-    },
-    message::{Protocol, pick_endpoint},
+use karyon_p2p::{
+    Action, Config, ConnDirection, Error, Protocol, Result, Subject,
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    pick_endpoint,
     util::{decode, encode},
+};
+
+use crate::{
+    KademliaConfig,
+    messages::RefreshMsg,
+    routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY},
 };
 
 /// Maximum failures for an entry before removing it from the routing table.
@@ -81,8 +81,11 @@ pub struct RefreshService {
     /// Managing spawned tasks.
     task_group: TaskGroup,
 
-    /// Holds the configuration for the P2P network.
+    /// The node's configuration.
     config: Arc<Config>,
+
+    /// The Kademlia configuration.
+    kconfig: Arc<KademliaConfig>,
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
@@ -92,6 +95,7 @@ impl RefreshService {
     /// Creates a new refresh service
     pub fn new(
         config: Arc<Config>,
+        kconfig: Arc<KademliaConfig>,
         table: Arc<RoutingTable>,
         monitor: Arc<Monitor>,
         listen_endpoint: Option<Endpoint>,
@@ -102,6 +106,7 @@ impl RefreshService {
             listen_endpoint,
             task_group: TaskGroup::with_executor(executor.clone()),
             config,
+            kconfig,
             monitor,
         }
     }
@@ -145,7 +150,7 @@ impl RefreshService {
     /// Periodically refresh the routing table by pinging the oldest entries.
     async fn refresh_loop(self: Arc<Self>) -> Result<()> {
         loop {
-            sleep(Duration::from_secs(self.config.refresh_interval)).await;
+            sleep(Duration::from_secs(self.kconfig.refresh_interval)).await;
             trace!("Start refreshing the routing table...");
 
             self.monitor.notify(DiscoveryKind::RefreshStarted).await;
@@ -230,7 +235,7 @@ impl RefreshService {
         let conn = udp::dial(&endpoint, Default::default()).await?;
         let peer_addr = SocketAddr::try_from(endpoint.clone())?;
         let backoff = Backoff::new(100, 5000);
-        while retry < self.config.refresh_connect_retries {
+        while retry < self.kconfig.refresh_connect_retries {
             match self.send_ping_msg(&conn, peer_addr).await {
                 Ok(()) => return Ok(()),
                 Err(Error::Timeout) => {
@@ -341,7 +346,7 @@ impl RefreshService {
         let encoded = encode(&ping)?;
         conn.send_to(&encoded, peer_addr).await?;
 
-        let t = Duration::from_secs(self.config.refresh_response_timeout);
+        let t = Duration::from_secs(self.kconfig.refresh_response_timeout);
         let mut buf = vec![0u8; MAX_UDP_BUF];
         let (n, _) = timeout(t, conn.recv_from(&mut buf)).await??;
         let (msg, _) = decode::<RefreshMsg>(&buf[..n])?;

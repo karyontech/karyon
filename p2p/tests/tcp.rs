@@ -23,15 +23,10 @@ use shared::{create_node, fast_config, free_port};
 fn two_nodes_direct_connect() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -68,129 +63,13 @@ fn two_nodes_direct_connect() {
 }
 
 #[test]
-fn four_node_discovery_network() {
-    run_test_with_executor(60, |ex| async move {
-        let n1_listen_port = free_port();
-        let n1_discovery_port = free_port();
-
-        let node1 = create_node(
-            Config {
-                listen_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n1_listen_port}").parse().unwrap(),
-                ],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n1_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                    format!("udp://127.0.0.1:{n1_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                ],
-                ..fast_config()
-            },
-            ex.clone(),
-        );
-
-        let pool1 = node1.monitor().register::<PeerPoolEvent>();
-        node1.run().await.expect("node1 run");
-
-        let bootstrap_ep: Endpoint = format!("tcp://127.0.0.1:{n1_discovery_port}")
-            .parse()
-            .unwrap();
-
-        let n2_listen_port = free_port();
-        let n2_discovery_port = free_port();
-        let node2 = create_node(
-            Config {
-                listen_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n2_listen_port}").parse().unwrap(),
-                ],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n2_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                    format!("udp://127.0.0.1:{n2_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                ],
-                bootstrap_peers: vec![bootstrap_ep.clone()],
-                ..fast_config()
-            },
-            ex.clone(),
-        );
-
-        let n3_listen_port = free_port();
-        let n3_discovery_port = free_port();
-        let node3 = create_node(
-            Config {
-                listen_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n3_listen_port}").parse().unwrap(),
-                ],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{n3_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                    format!("udp://127.0.0.1:{n3_discovery_port}")
-                        .parse()
-                        .unwrap(),
-                ],
-                bootstrap_peers: vec![bootstrap_ep.clone()],
-                ..fast_config()
-            },
-            ex.clone(),
-        );
-
-        let node4 = create_node(
-            Config {
-                bootstrap_peers: vec![bootstrap_ep],
-                ..fast_config()
-            },
-            ex.clone(),
-        );
-
-        let pool4 = node4.monitor().register::<PeerPoolEvent>();
-
-        node2.run().await.expect("node2 run");
-        node3.run().await.expect("node3 run");
-        node4.run().await.expect("node4 run");
-
-        loop {
-            let ev = pool4.recv().await.unwrap();
-            if ev.event == "NewPeer" {
-                break;
-            }
-        }
-
-        assert!(node4.peers().await >= 1);
-
-        loop {
-            let ev = pool1.recv().await.unwrap();
-            if ev.event == "NewPeer" {
-                break;
-            }
-        }
-        assert!(node1.peers().await >= 1);
-
-        node4.shutdown().await;
-        node3.shutdown().await;
-        node2.shutdown().await;
-        node1.shutdown().await;
-    });
-}
-
-#[test]
 fn peer_disconnect_detection() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -235,15 +114,10 @@ fn peer_disconnect_detection() {
 fn multiple_peers_connect() {
     run_test_with_executor(30, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         let server = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -387,16 +261,11 @@ impl Protocol for BetaSmuggler {
 fn non_negotiated_protocol_msg_disconnects_peer() {
     run_test_with_executor(15, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
 
         // A has Beta attached, but only Alpha is negotiated with B.
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..no_ping_config()
             },
             ex.clone(),
@@ -466,16 +335,11 @@ impl Protocol for Chatty {
 fn dialer_extra_protocol_not_run() {
     run_test_with_executor(15, |ex| async move {
         let listen_port = free_port();
-        let discovery_port = free_port();
         let (started, started_rx) = async_channel::unbounded();
 
         let node_a = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{listen_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                ],
                 ..no_ping_config()
             },
             ex.clone(),

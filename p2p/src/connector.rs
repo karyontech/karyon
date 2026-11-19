@@ -105,7 +105,7 @@ where
     }
 
     /// Wait for a free connection slot.
-    pub async fn acquire_slot(&self) -> Result<SemaphoreGuard> {
+    pub(crate) async fn acquire_slot(&self) -> Result<SemaphoreGuard> {
         Ok(self.connection_slots.acquire().await?)
     }
 
@@ -199,7 +199,7 @@ where
 impl Connector<PeerNetMsgCodec> {
     /// Create a new Connector with a ConnQueue. `dial_timeout` is in
     /// seconds.
-    pub fn new_with_queue(
+    pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
         max_retries: usize,
         slots: usize,
@@ -224,7 +224,7 @@ impl Connector<PeerNetMsgCodec> {
     /// disconnects. Disconnect/handshake-failure is observable via
     /// `PeerPool::register_peer_events`, not via this call. `slot` comes
     /// from `acquire_slot` and is held until the peer disconnects.
-    pub async fn connect_and_queue(
+    pub(crate) async fn connect_and_queue(
         self: &Arc<Self>,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,

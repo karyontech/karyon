@@ -36,6 +36,9 @@ use karyon_swarm::Swarm;
 async {
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
+    // `find_peers` needs a discovery with a routing table, such as
+    // karyon_kademlia (`Node::with_discovery`); `Node::new` only dials
+    // `Config::dial_peers`.
     let node = Node::new(&key_pair, Config::default(), global_executor());
     let swarm = Swarm::new(node, global_executor());
 
