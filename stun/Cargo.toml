@@ -1,7 +1,7 @@
 [package]
 name = "karyon_stun"
 description = "Minimal async STUN (RFC 5389) server and client over UDP, TCP, TLS and QUIC (karyon extension), built on karyon_net."
-version = "0.2.3"
+version = "0.2.4"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -11,18 +11,20 @@ keywords = ["stun", "nat", "quic", "networking", "karyon"]
 categories = ["network-programming", "asynchronous"]
 
 [features]
-default = ["tokio", "udp", "tcp", "tls", "quic"]
+default = ["tokio", "udp", "tcp", "tls", "quic", "aws-lc-rs"]
 udp = ["karyon_net/udp"]
 tcp = ["karyon_net/tcp"]
 tls = ["tcp", "karyon_net/tls"]
 quic = ["karyon_net/quic"]
 smol = ["karyon_core/smol", "karyon_net/smol"]
 tokio = ["karyon_core/tokio", "karyon_net/tokio"]
+# rustls crypto provider for TLS and QUIC. Enable one; `quic` needs it.
+aws-lc-rs = ["karyon_net/aws-lc-rs"]
+ring = ["karyon_net/ring"]
 
 [dependencies]
 karyon_core = { workspace = true }
-# The rustls provider is fixed to aws-lc-rs for now.
-karyon_net = { workspace = true, features = ["aws-lc-rs"] }
+karyon_net = { workspace = true }
 
 log = { workspace = true }
 rand = { workspace = true }

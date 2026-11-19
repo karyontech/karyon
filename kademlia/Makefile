@@ -1,4 +1,4 @@
-ALL_FEATURES = quic
+ALL_FEATURES = quic,aws-lc-rs
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 

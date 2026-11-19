@@ -89,6 +89,8 @@ async {
 | `smol` | Use smol async runtime |
 | `quic` | Enable QUIC transport |
 | `serde` | Enable serde support for p2p types |
+| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
+| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
 # Default (tokio + TCP/TLS)
@@ -98,7 +100,10 @@ karyon_p2p = "1.0"
 karyon_p2p = { version = "1.0", features = ["quic"] }
 
 # With smol
-karyon_p2p = { version = "1.0", default-features = false, features = ["smol", "quic"] }
+karyon_p2p = { version = "1.4.1", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
+
+# With the ring provider instead of aws-lc-rs
+karyon_p2p = { version = "1.4.1", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
 ## Architecture

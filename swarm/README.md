@@ -21,6 +21,8 @@ $ cargo add karyon_swarm
 |---------|-------------|
 | `tokio` | Use tokio async runtime (default) |
 | `smol` | Use smol async runtime |
+| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
+| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
 karyon_swarm = "1"

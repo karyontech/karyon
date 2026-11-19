@@ -1,5 +1,5 @@
-SMOL_ALL  = smol
-TOKIO_ALL = tokio
+SMOL_ALL  = smol,aws-lc-rs
+TOKIO_ALL = tokio,aws-lc-rs
 
 .PHONY: check fmt clippy unit-test integration-test test
 

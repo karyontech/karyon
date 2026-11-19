@@ -5,8 +5,10 @@ use std::net::{
 use std::sync::Arc;
 use std::time::Duration;
 
-#[cfg(feature = "tls")]
+#[cfg(all(feature = "tls", feature = "aws-lc-rs"))]
 use karyon_net::async_rustls::rustls::crypto::aws_lc_rs::default_provider;
+#[cfg(all(feature = "tls", feature = "ring", not(feature = "aws-lc-rs")))]
+use karyon_net::async_rustls::rustls::crypto::ring::default_provider;
 #[cfg(feature = "tls")]
 use karyon_net::async_rustls::rustls::{ClientConfig, RootCertStore, ServerConfig};
 #[cfg(any(feature = "tls", feature = "quic"))]
