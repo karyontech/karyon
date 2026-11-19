@@ -25,9 +25,9 @@ license = "MIT"
 authors = ["hozan23 <hozan23@karyontech.net>"]
 
 [workspace.dependencies]
-karyon_core = { path = "core", version = "1.0.4", default-features = false }
+karyon_core = { path = "core", version = "1.1.2", default-features = false }
 
-karyon_net = { path = "net", version = "1.2.0", default-features = false }
+karyon_net = { path = "net", version = "1.2.1", default-features = false }
 karyon_async_rustls = { path = "net/async_rustls", version = "1.2.0", default-features = false }
 
 karyon_jsonrpc = { path = "jsonrpc", version = "1.0.6", default-features = false }

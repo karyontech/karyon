@@ -23,10 +23,10 @@ use karyon_p2p::{
 };
 
 use crate::{
-    KademliaConfig,
+    KademliaConfigRef,
     event::DiscoveryKind,
     messages::RefreshMsg,
-    routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY},
+    routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTableRef, UNREACHABLE_ENTRY},
 };
 
 /// Maximum failures for an entry before removing it from the routing table.
@@ -74,7 +74,7 @@ impl RateBucket {
 
 pub struct RefreshService {
     /// Routing table
-    table: Arc<RoutingTable>,
+    table: RoutingTableRef,
 
     /// UDP listen endpoint (None when no udp discovery endpoint is configured).
     listen_endpoint: Option<Endpoint>,
@@ -86,18 +86,21 @@ pub struct RefreshService {
     config: Arc<Config>,
 
     /// The Kademlia configuration.
-    kconfig: Arc<KademliaConfig>,
+    kconfig: KademliaConfigRef,
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
 }
 
+/// Shared handle to a `RefreshService`.
+pub(crate) type RefreshServiceRef = Arc<RefreshService>;
+
 impl RefreshService {
     /// Creates a new refresh service
     pub fn new(
         config: Arc<Config>,
-        kconfig: Arc<KademliaConfig>,
-        table: Arc<RoutingTable>,
+        kconfig: KademliaConfigRef,
+        table: RoutingTableRef,
         monitor: Arc<Monitor>,
         listen_endpoint: Option<Endpoint>,
         executor: Executor,

@@ -4,7 +4,7 @@
 //! notifications go out on the response, and the client sends the
 //! unsubscribe request on the same request body.
 
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Display;
 
 use async_channel::bounded;
 use bytes::Bytes;
@@ -26,7 +26,7 @@ use crate::{
     error::{Error, Result},
     message,
     server::{
-        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server,
+        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, ServerRef,
         channel::Channel,
         dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
         http::{
@@ -41,7 +41,7 @@ type H3Send = RequestStream<SendStream<Bytes>, Bytes>;
 type H3Recv = RequestStream<RecvStream, Bytes>;
 
 pub(super) async fn accept_h3<C: JsonRpcCodec>(
-    server: &Arc<Server>,
+    server: &ServerRef,
     quic_ep: &QuicEndpoint,
     codec: &C,
     backoff: &Backoff,
@@ -63,7 +63,7 @@ pub(super) async fn accept_h3<C: JsonRpcCodec>(
 }
 
 async fn serve_incoming_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     incoming: QuicIncoming,
     codec: C,
 ) -> Result<()> {
@@ -78,7 +78,7 @@ async fn serve_incoming_task<C: JsonRpcCodec>(
 }
 
 async fn serve_conn_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     quic_conn: QuicConn,
     codec: C,
 ) -> Result<()> {
@@ -93,7 +93,7 @@ async fn serve_conn_task<C: JsonRpcCodec>(
 }
 
 async fn serve_conn<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     quic_conn: QuicConn,
     codec: C,
 ) -> Result<()> {
@@ -128,7 +128,7 @@ async fn serve_conn<C: JsonRpcCodec>(
 }
 
 async fn handle_request_task<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     resolver: H3Resolver,
     peer: Option<Endpoint>,
     codec: C,
@@ -149,7 +149,7 @@ async fn handle_request_task<C: JsonRpcCodec>(
 }
 
 async fn handle_h3_request<C: JsonRpcCodec>(
-    server: Arc<Server>,
+    server: ServerRef,
     req: Request<()>,
     mut send: H3Send,
     recv: H3Recv,

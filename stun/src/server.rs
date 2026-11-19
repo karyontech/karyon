@@ -104,6 +104,9 @@ pub struct StunServer {
     conns: Arc<AtomicUsize>,
 }
 
+/// Shared handle to a `StunServer`.
+pub type StunServerRef = Arc<StunServer>;
+
 /// One taken connection slot. Frees it on drop.
 #[cfg(any(feature = "tcp", feature = "quic"))]
 struct ConnSlot(Arc<AtomicUsize>);
@@ -116,7 +119,7 @@ impl Drop for ConnSlot {
 }
 
 impl StunServer {
-    pub fn new(config: StunConfig, ex: Executor) -> Arc<Self> {
+    pub fn new(config: StunConfig, ex: Executor) -> StunServerRef {
         Arc::new(Self {
             config,
             task_group: TaskGroup::with_executor(ex),
@@ -254,7 +257,7 @@ async fn udp_loop(conn: UdpConn, software: Option<String>) -> Result<()> {
 
 /// Accept TCP connections and spawn one task per connection.
 #[cfg(feature = "tcp")]
-async fn tcp_loop(server: Arc<StunServer>, listener: TcpListener) -> Result<()> {
+async fn tcp_loop(server: StunServerRef, listener: TcpListener) -> Result<()> {
     loop {
         let stream = match listener.accept().await {
             Ok(s) => s,
@@ -274,7 +277,7 @@ async fn tcp_loop(server: Arc<StunServer>, listener: TcpListener) -> Result<()> 
 /// Accept TLS connections. The handshake runs in the per-connection
 /// task so a slow peer cannot stall the accept loop.
 #[cfg(feature = "tls")]
-async fn tls_loop(server: Arc<StunServer>, listener: TcpListener, layer: TlsLayer) -> Result<()> {
+async fn tls_loop(server: StunServerRef, listener: TcpListener, layer: TlsLayer) -> Result<()> {
     loop {
         let stream = match listener.accept().await {
             Ok(s) => s,
@@ -299,7 +302,7 @@ async fn tls_loop(server: Arc<StunServer>, listener: TcpListener, layer: TlsLaye
 /// Run the TLS handshake, then serve the stream.
 #[cfg(feature = "tls")]
 async fn tls_conn(
-    server: Arc<StunServer>,
+    server: StunServerRef,
     layer: TlsLayer,
     stream: Box<dyn ByteStream>,
     slot: ConnSlot,
@@ -314,7 +317,7 @@ async fn tls_conn(
 /// Accept QUIC connections. The handshake runs in the per-connection
 /// task so a slow peer cannot stall the accept loop.
 #[cfg(feature = "quic")]
-async fn quic_loop(server: Arc<StunServer>, quic: QuicEndpoint) -> Result<()> {
+async fn quic_loop(server: StunServerRef, quic: QuicEndpoint) -> Result<()> {
     loop {
         let incoming = match quic.accept_incoming().await {
             Ok(i) => i,
@@ -341,7 +344,7 @@ async fn quic_loop(server: Arc<StunServer>, quic: QuicEndpoint) -> Result<()> {
 /// Run the QUIC handshake, then serve every bidirectional stream the
 /// peer opens until the connection closes. Holds `_slot` throughout.
 #[cfg(feature = "quic")]
-async fn quic_conn(server: Arc<StunServer>, incoming: QuicIncoming, _slot: ConnSlot) -> Result<()> {
+async fn quic_conn(server: StunServerRef, incoming: QuicIncoming, _slot: ConnSlot) -> Result<()> {
     let d = Duration::from_secs(HANDSHAKE_TIMEOUT_SECS);
     let conn = timeout(d, incoming.handshake())
         .await

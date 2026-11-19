@@ -46,6 +46,9 @@ pub struct Subscription {
     unsub: Option<Sender<Value>>,
 }
 
+/// Shared handle to a `Subscription`.
+pub type SubscriptionRef = Arc<Subscription>;
+
 impl Subscription {
     fn new(id: SubscriptionID, buffer_size: usize) -> Self {
         let (tx, rx) = bounded(buffer_size);
@@ -81,13 +84,16 @@ impl Subscription {
 
 /// Manages subscriptions for the client.
 pub(crate) struct Subscriptions {
-    subs: RwLock<HashMap<SubscriptionID, Arc<Subscription>>>,
+    subs: RwLock<HashMap<SubscriptionID, SubscriptionRef>>,
     sub_buffer_size: usize,
 }
 
+/// Shared handle to the `Subscriptions`.
+pub(crate) type SubscriptionsRef = Arc<Subscriptions>;
+
 impl Subscriptions {
     /// Creates a new [`Subscriptions`].
-    pub(super) fn new(sub_buffer_size: usize) -> Arc<Self> {
+    pub(super) fn new(sub_buffer_size: usize) -> SubscriptionsRef {
         Arc::new(Self {
             subs: RwLock::new(HashMap::new()),
             sub_buffer_size,
@@ -95,7 +101,7 @@ impl Subscriptions {
     }
 
     /// Returns a new [`Subscription`]
-    pub(super) async fn subscribe(&self, id: SubscriptionID) -> Arc<Subscription> {
+    pub(super) async fn subscribe(&self, id: SubscriptionID) -> SubscriptionRef {
         let sub = Arc::new(Subscription::new(id, self.sub_buffer_size));
         self.subs.write().await.insert(id, sub.clone());
         sub
@@ -107,7 +113,7 @@ impl Subscriptions {
     pub(super) async fn subscribe_stream(
         &self,
         id: SubscriptionID,
-    ) -> (Arc<Subscription>, Receiver<Value>) {
+    ) -> (SubscriptionRef, Receiver<Value>) {
         let (unsub_tx, unsub_rx) = bounded(1);
         let mut sub = Subscription::new(id, self.sub_buffer_size);
         sub.unsub = Some(unsub_tx);

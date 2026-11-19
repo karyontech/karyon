@@ -3,7 +3,7 @@
 //! One connection is opened when the client is built and shared by
 //! all requests as HTTP/2 streams. Opt in with `HttpConfig::http2`.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::Full;
@@ -15,7 +15,7 @@ use hyper::{
 };
 use log::error;
 
-use karyon_core::{async_runtime::net::TcpStream, async_util::TaskGroup};
+use karyon_core::{async_runtime::net::TcpStream, async_util::TaskGroupRef};
 use karyon_net::Endpoint;
 
 #[cfg(feature = "tokio")]
@@ -37,7 +37,7 @@ pub(super) type H2SendRequest = SendRequest<Full<Bytes>>;
 /// driver runs in `task_group`, so it stops with the client.
 pub(super) async fn connect(
     endpoint: &Endpoint,
-    task_group: &Arc<TaskGroup>,
+    task_group: &TaskGroupRef,
 ) -> Result<H2SendRequest> {
     let addr = SocketAddr::try_from(endpoint.clone())?;
     let stream = TcpStream::connect(addr).await?;

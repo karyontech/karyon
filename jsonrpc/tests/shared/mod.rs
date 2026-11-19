@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use karyon_core::{async_runtime::spawn, async_util::sleep, util::random_32};
 
 use karyon_jsonrpc::{
-    error::RPCError, message::SubscriptionID, rpc_impl, rpc_pubsub_impl, server::channel::Channel,
+    error::RPCError, message::SubscriptionID, rpc_impl, rpc_pubsub_impl, server::ChannelRef,
 };
 
 pub struct MathService {}
@@ -42,7 +42,7 @@ impl MathService {
 impl MathService {
     async fn counter_subscribe(
         &self,
-        chan: Arc<Channel>,
+        chan: ChannelRef,
         method: String,
         _params: Value,
     ) -> Result<Value, RPCError> {
@@ -69,7 +69,7 @@ impl MathService {
     /// Sends 5 notifications of 64 KB each, back to back.
     async fn blob_subscribe(
         &self,
-        chan: Arc<Channel>,
+        chan: ChannelRef,
         method: String,
         _params: Value,
     ) -> Result<Value, RPCError> {
@@ -93,7 +93,7 @@ impl MathService {
 
     async fn counter_unsubscribe(
         &self,
-        chan: Arc<Channel>,
+        chan: ChannelRef,
         _method: String,
         params: Value,
     ) -> Result<Value, RPCError> {

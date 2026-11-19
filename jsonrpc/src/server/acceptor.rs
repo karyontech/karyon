@@ -31,7 +31,7 @@ use std::net::SocketAddr;
 #[cfg(feature = "ws")]
 use karyon_net::{
     Error as NetError,
-    layers::ws::{WsConn, WsLayer},
+    layers::ws::{WsConn, WsLayerRef},
 };
 
 #[cfg(any(feature = "tls", feature = "ws"))]
@@ -49,6 +49,9 @@ pub(super) trait AsyncAcceptor: Send + Sync {
     async fn handle(&self, stream: Box<dyn ByteStream>, server: &Arc<Server>) -> Result<()>;
     fn local_endpoint(&self) -> Result<Endpoint>;
 }
+
+/// Shared handle to an `AsyncAcceptor`.
+pub(super) type AsyncAcceptorRef = Arc<dyn AsyncAcceptor>;
 
 /// A listener that produces byte streams.
 #[async_trait]
@@ -133,7 +136,7 @@ where
 #[cfg(feature = "ws")]
 pub(super) struct WsAcceptor<W> {
     pub(super) listener: Box<dyn StreamListener>,
-    pub(super) layer: Arc<WsLayer<W>>,
+    pub(super) layer: WsLayerRef<W>,
     /// Set for `wss://` endpoints; applied before the WS handshake.
     #[cfg(feature = "tls")]
     pub(super) tls: Option<TlsLayer>,

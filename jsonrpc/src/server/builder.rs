@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use karyon_core::async_runtime::Executor;
 
@@ -17,8 +17,8 @@ use crate::{
     codec::{JsonCodec, JsonRpcCodec},
     error::Result,
     message::{JSONRPC_VERSION, Notification, NotificationResult},
-    server::PubSubRPCService,
-    server::RPCService,
+    server::PubSubRPCServiceRef,
+    server::RPCServiceRef,
     server::WsCodec,
     server::channel::NewNotification,
 };
@@ -28,7 +28,7 @@ use crate::error::Error;
 
 #[cfg(feature = "http")]
 use super::HttpConfig;
-use super::{Server, ServerConfig};
+use super::{Server, ServerConfig, ServerRef};
 
 #[cfg(any(feature = "tls", feature = "ws"))]
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -74,13 +74,13 @@ where
     W: WsCodec,
 {
     /// Add an RPC service.
-    pub fn service(mut self, service: Arc<dyn RPCService>) -> Self {
+    pub fn service(mut self, service: RPCServiceRef) -> Self {
         self.config.services.insert(service.name(), service);
         self
     }
 
     /// Add a PubSub RPC service.
-    pub fn pubsub_service(mut self, service: Arc<dyn PubSubRPCService>) -> Self {
+    pub fn pubsub_service(mut self, service: PubSubRPCServiceRef) -> Self {
         self.config.pubsub_services.insert(service.name(), service);
         self
     }
@@ -191,7 +191,7 @@ where
     }
 
     /// Build the server.
-    pub async fn build(self) -> Result<Arc<Server>> {
+    pub async fn build(self) -> Result<ServerRef> {
         Server::init(self.config, self.executor, self.byte_codec, self.ws_codec).await
     }
 }

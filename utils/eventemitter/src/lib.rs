@@ -4,7 +4,8 @@ pub mod error;
 pub mod eventemitter;
 
 pub use eventemitter::{
-    AsEventValue, Event, EventEmitter, EventListener, EventListenerID, EventTopic,
+    AsEventValue, AsEventValueRef, Event, EventEmitter, EventEmitterRef, EventListener,
+    EventListenerID, EventTopic,
 };
 
 pub use error::{Error, Result};

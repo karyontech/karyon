@@ -18,4 +18,4 @@ pub use client::StunClient;
 pub use codec::StunCodec;
 pub use error::{Error, Result};
 pub use msg::{MAGIC_COOKIE, MessageType, StunMessage, TransactionId};
-pub use server::{StunConfig, StunServer};
+pub use server::{StunConfig, StunServer, StunServerRef};

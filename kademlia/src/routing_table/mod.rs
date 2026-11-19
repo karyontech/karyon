@@ -1,7 +1,7 @@
 mod bucket;
 mod entry;
 
-use std::net::IpAddr;
+use std::{net::IpAddr, sync::Arc};
 
 use parking_lot::RwLock;
 
@@ -52,6 +52,9 @@ pub struct RoutingTable {
     key: Key,
     buckets: RwLock<Vec<Bucket>>,
 }
+
+/// Shared handle to a `RoutingTable`.
+pub(crate) type RoutingTableRef = Arc<RoutingTable>;
 
 impl RoutingTable {
     /// Creates a new RoutingTable

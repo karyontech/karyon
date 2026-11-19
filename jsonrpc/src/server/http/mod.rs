@@ -65,6 +65,9 @@ pub(crate) trait HttpAcceptor: Send + Sync {
     fn local_endpoint(&self) -> Result<Endpoint>;
 }
 
+/// Shared handle to an `HttpAcceptor`.
+pub(crate) type HttpAcceptorRef = Arc<dyn HttpAcceptor>;
+
 /// HTTP server (TCP for h1/h2, optional QUIC for h3).
 pub(crate) struct HttpServer<C> {
     tcp_listener: TcpListener,

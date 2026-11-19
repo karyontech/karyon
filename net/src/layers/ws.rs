@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, sync::Arc};
 
 use async_tungstenite::tungstenite::{
     Bytes as TungBytes, Message as TungMessage, protocol::WebSocketConfig,
@@ -81,6 +81,9 @@ pub struct WsLayer<C> {
     /// before they are buffered.
     max_msg_size: usize,
 }
+
+/// Shared handle to a `WsLayer`.
+pub type WsLayerRef<C> = Arc<WsLayer<C>>;
 
 impl<C> WsLayer<C>
 where

@@ -26,7 +26,7 @@ use hyper_util::client::legacy::{Client as HyperClient, connect::HttpConnector};
 use crate::hyper_exec::HyperExecutor;
 
 use karyon_core::{
-    async_util::{TaskGroup, timeout},
+    async_util::{TaskGroupRef, timeout},
     util::random_32,
 };
 
@@ -43,7 +43,7 @@ use crate::{
 };
 
 #[cfg(feature = "http3")]
-use crate::client::subscriptions::{Subscription, Subscriptions};
+use crate::client::subscriptions::{SubscriptionRef, Subscriptions};
 
 /// HTTP settings for `http://` endpoints, set with
 /// `ClientBuilder::http_config`.
@@ -76,7 +76,7 @@ pub(crate) struct HttpClientBackend {
     config: HttpConfig,
     /// Shared with the Client so driver tasks (h1 per-request, h3
     /// connection) get cancelled when the Client stops.
-    task_group: Arc<TaskGroup>,
+    task_group: TaskGroupRef,
 }
 
 // smol uses HTTP/1.1 via `hyper::client::conn::http1`, which is the
@@ -105,7 +105,7 @@ impl HttpClientBackend {
     pub(crate) fn new(
         endpoint: &Endpoint,
         config: &HttpConfig,
-        task_group: Arc<TaskGroup>,
+        task_group: TaskGroupRef,
     ) -> Result<Self> {
         #[cfg(feature = "smol")]
         let inner = HttpTransport::Smol {
@@ -131,7 +131,7 @@ impl HttpClientBackend {
     pub(crate) async fn new_h2(
         endpoint: &Endpoint,
         config: &HttpConfig,
-        task_group: Arc<TaskGroup>,
+        task_group: TaskGroupRef,
     ) -> Result<Self> {
         let sender = h2::connect(endpoint, &task_group).await?;
         Ok(Self {
@@ -151,7 +151,7 @@ impl HttpClientBackend {
         endpoint: &Endpoint,
         quic_config: &karyon_net::quic::ClientQuicConfig,
         config: &HttpConfig,
-        task_group: Arc<TaskGroup>,
+        task_group: TaskGroupRef,
     ) -> Result<Self> {
         let send_request = h3::connect(endpoint, quic_config, task_group.clone()).await?;
         Ok(Self {
@@ -234,7 +234,7 @@ where
 /// HTTP/2 if enabled, else HTTP/1.1.
 pub(super) async fn build_backend(
     config: &ClientConfig,
-    task_group: Arc<TaskGroup>,
+    task_group: TaskGroupRef,
 ) -> Result<ClientBackend> {
     #[cfg(feature = "http3")]
     if let Some(qc) = config.quic_config.as_ref() {
@@ -305,7 +305,7 @@ where
         http_backend: &HttpClientBackend,
         method: &str,
         params: T,
-    ) -> Result<Arc<Subscription>> {
+    ) -> Result<SubscriptionRef> {
         let ClientBackend::Http { subscriptions, .. } = &self.backend else {
             return Err(Error::InvalidState("not in HTTP mode".into()));
         };

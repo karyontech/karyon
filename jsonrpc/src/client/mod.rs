@@ -18,7 +18,11 @@ use log::info;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
-use karyon_core::{async_runtime::Executor, async_util::TaskGroup, util::random_32};
+use karyon_core::{
+    async_runtime::Executor,
+    async_util::{TaskGroup, TaskGroupRef},
+    util::random_32,
+};
 
 use karyon_net::Endpoint;
 
@@ -32,7 +36,7 @@ use crate::{
 };
 
 #[cfg(feature = "quic")]
-use karyon_net::quic::ClientQuicConfig;
+use karyon_net::quic::{ClientQuicConfig, QuicConnRef};
 
 #[cfg(feature = "ws")]
 use crate::codec::JsonRpcWsCodec;
@@ -40,10 +44,12 @@ use crate::codec::JsonRpcWsCodec;
 pub use builder::ClientBuilder;
 #[cfg(feature = "http")]
 pub use http::HttpConfig;
-pub use subscriptions::{NotificationDecoder, Subscription};
+pub use subscriptions::{NotificationDecoder, Subscription, SubscriptionRef};
 
 use message_dispatcher::MessageDispatcher;
+#[cfg(feature = "quic")]
 use subscriptions::Subscriptions;
+use subscriptions::SubscriptionsRef;
 
 type RequestID = u32;
 
@@ -83,15 +89,15 @@ pub(crate) enum ClientBackend {
     /// Used for TCP, TLS, WS, WSS, and Unix.
     Multiplexed {
         message_dispatcher: MessageDispatcher,
-        subscriptions: Arc<Subscriptions>,
+        subscriptions: SubscriptionsRef,
         // TODO what is the reason for this  ?
         // AND why not using Async queue ?
         send_chan: (Sender<serde_json::Value>, Receiver<serde_json::Value>),
     },
     #[cfg(feature = "quic")]
     QuicStream {
-        quic_conn: Arc<karyon_net::quic::QuicConn>,
-        subscriptions: Arc<Subscriptions>,
+        quic_conn: QuicConnRef,
+        subscriptions: SubscriptionsRef,
     },
     #[cfg(feature = "http")]
     Http {
@@ -99,7 +105,7 @@ pub(crate) enum ClientBackend {
         // larger than the other ClientBackend variants.
         http_backend: Box<http::HttpClientBackend>,
         #[cfg(feature = "http3")]
-        subscriptions: Arc<Subscriptions>,
+        subscriptions: SubscriptionsRef,
     },
 }
 
@@ -110,7 +116,7 @@ pub(crate) enum ClientBackend {
 /// Both default to `JsonCodec`.
 pub struct Client<B = JsonCodec, W = JsonCodec> {
     pub(crate) disconnect: AtomicBool,
-    pub(crate) task_group: Arc<TaskGroup>,
+    pub(crate) task_group: TaskGroupRef,
     pub(crate) config: ClientConfig,
     pub(crate) backend: ClientBackend,
     /// Encodes and decodes HTTP bodies, HTTP/3 and QUIC streams. The
@@ -119,6 +125,9 @@ pub struct Client<B = JsonCodec, W = JsonCodec> {
     pub(crate) codec: B,
     _codecs: PhantomData<(B, W)>,
 }
+
+/// Shared handle to a `Client`.
+pub type ClientRef<B = JsonCodec, W = JsonCodec> = Arc<Client<B, W>>;
 
 impl<B, W> Client<B, W>
 where
@@ -158,7 +167,7 @@ where
         self: &Arc<Self>,
         method: &str,
         params: T,
-    ) -> Result<Arc<Subscription>> {
+    ) -> Result<SubscriptionRef> {
         match &self.backend {
             #[cfg(all(feature = "http", not(feature = "http3")))]
             ClientBackend::Http { .. } => Err(Error::UnsupportedProtocol(
@@ -228,7 +237,7 @@ where
         byte_codec: B,
         ws_codec: W,
         executor: Option<Executor>,
-    ) -> Result<Arc<Self>> {
+    ) -> Result<ClientRef<B, W>> {
         info!("Connecting to RPC endpoint: {}", config.endpoint);
 
         // Build task_group early so backends (HTTP driver tasks) can
@@ -268,10 +277,10 @@ where
 
     fn with_backend(
         config: ClientConfig,
-        task_group: Arc<TaskGroup>,
+        task_group: TaskGroupRef,
         backend: ClientBackend,
         codec: B,
-    ) -> Arc<Self> {
+    ) -> ClientRef<B, W> {
         // Only the HTTP and QUIC backends read the codec from the client.
         #[cfg(not(any(feature = "http", feature = "quic")))]
         drop(codec);

@@ -1,14 +1,12 @@
 //! Request sanity check and method dispatch.
 
-use std::sync::Arc;
-
 use log::debug;
 
 use crate::{
     message,
     server::{
         FAILED_TO_PARSE_ERROR_MSG, INVALID_REQUEST_ERROR_MSG, METHOD_NOT_FOUND_ERROR_MSG, Server,
-        UNSUPPORTED_JSONRPC_VERSION, channel::Channel, pubsub_service::PubSubRPCMethod,
+        UNSUPPORTED_JSONRPC_VERSION, channel::ChannelRef, pubsub_service::PubSubRPCMethod,
         service::RPCMethod,
     },
 };
@@ -123,7 +121,7 @@ impl Server {
     /// from a context without pubsub support (HTTP/1.x and HTTP/2).
     pub(crate) async fn handle_request(
         &self,
-        channel: Option<Arc<Channel>>,
+        channel: Option<ChannelRef>,
         msg: serde_json::Value,
     ) -> message::Response {
         let req = match sanity_check(msg) {
@@ -139,7 +137,7 @@ impl Server {
 pub(super) async fn run_handler(
     handler: Handler<'_>,
     req: message::Request,
-    channel: Option<Arc<Channel>>,
+    channel: Option<ChannelRef>,
 ) -> message::Response {
     let id = Some(req.id);
     let params = req.params.unwrap_or(serde_json::json!(()));

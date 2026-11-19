@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use crate::error::RPCResult;
 
@@ -12,3 +12,6 @@ pub trait RPCService: Sync + Send {
     fn get_method(&self, name: &str) -> Option<RPCMethod<'_>>;
     fn name(&self) -> String;
 }
+
+/// Shared handle to an `RPCService`.
+pub type RPCServiceRef = Arc<dyn RPCService>;

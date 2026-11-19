@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use karyon_core::async_runtime::Executor;
 use karyon_net::ToEndpoint;
 
@@ -25,7 +23,7 @@ use crate::error::Error;
 
 #[cfg(feature = "http")]
 use super::HttpConfig;
-use super::{Client, ClientConfig};
+use super::{Client, ClientConfig, ClientRef};
 
 const DEFAULT_TIMEOUT: u64 = 3000;
 const DEFAULT_MAX_SUBSCRIPTION_BUFFER_SIZE: usize = 20000;
@@ -200,7 +198,7 @@ where
     }
 
     /// Build the client.
-    pub async fn build(self) -> Result<Arc<Client<B, W>>> {
+    pub async fn build(self) -> Result<ClientRef<B, W>> {
         Client::init(self.inner, self.byte_codec, self.ws_codec, self.executor).await
     }
 }

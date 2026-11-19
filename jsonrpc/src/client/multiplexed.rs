@@ -2,10 +2,7 @@
 //! A single message connection is shared across all calls and
 //! subscriptions. A background task splits reader from writer.
 
-use std::{
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
-};
+use std::{sync::atomic::Ordering, time::Duration};
 
 use async_channel::Receiver;
 use log::{debug, error, info};
@@ -24,7 +21,7 @@ use karyon_net::{ClientLayer, layers::ws::WsConn};
 
 use crate::{
     client::{
-        Client, ClientBackend, ClientConfig, RequestID, WsCodec,
+        Client, ClientBackend, ClientConfig, ClientRef, RequestID, WsCodec,
         message_dispatcher::MessageDispatcher,
         subscriptions::{NotificationDecoder, Subscriptions},
     },
@@ -91,7 +88,7 @@ fn build_backend_state(config: &ClientConfig) -> ClientBackend {
 }
 
 /// Spawn the reader/writer task that drives the multiplexed wire.
-pub(super) fn start_io_loop<B, W, R, Wr>(client: &Arc<Client<B, W>>, reader: R, writer: Wr)
+pub(super) fn start_io_loop<B, W, R, Wr>(client: &ClientRef<B, W>, reader: R, writer: Wr)
 where
     B: JsonRpcCodec,
     W: WsCodec,
@@ -119,11 +116,7 @@ where
     );
 }
 
-async fn background_loop<B, W, R, Wr>(
-    client: Arc<Client<B, W>>,
-    reader: R,
-    writer: Wr,
-) -> Result<()>
+async fn background_loop<B, W, R, Wr>(client: ClientRef<B, W>, reader: R, writer: Wr) -> Result<()>
 where
     B: JsonRpcCodec,
     W: WsCodec,

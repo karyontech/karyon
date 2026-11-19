@@ -1,5 +1,22 @@
 # Changelog
 
+## karyon_core 1.1.2, karyon_net 1.2.1, karyon_jsonrpc 1.1.5, karyon_kademlia 0.1.1, karyon_swarm 1.3.1, karyon_stun 0.2.3, karyon_eventemitter 1.0.4
+
+### Added
+
+- **`*Ref` type aliases** for types shared through `Arc`, e.g.
+  `ServerRef = Arc<Server>`. They are plain aliases, so existing code
+  keeps working.
+  - `karyon_core`: `AsyncQueueRef<T>`, `CondWaitRef`, `TaskGroupRef`.
+  - `karyon_net`: `WsLayerRef<C>`, `quic::QuicConnRef`.
+  - `karyon_jsonrpc`: `client::ClientRef<B, W>`, `client::SubscriptionRef`,
+    `server::ServerRef`, `server::ChannelRef`, `server::RPCServiceRef`,
+    `server::PubSubRPCServiceRef`.
+  - `karyon_kademlia`: `KademliaDiscoveryRef`, `KademliaConfigRef`.
+  - `karyon_swarm`: `SwarmRef`.
+  - `karyon_stun`: `StunServerRef`.
+  - `karyon_eventemitter`: `EventEmitterRef<T>`, `AsEventValueRef`.
+
 ## karyon_p2p 1.3.0, karyon_kademlia 0.1.0, karyon_swarm 1.3.0
 
 ### Breaking changes

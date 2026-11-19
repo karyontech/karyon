@@ -84,12 +84,15 @@ pub struct EventEmitter<T> {
     listener_buffer_size: usize,
 }
 
+/// Shared handle to an `EventEmitter`.
+pub type EventEmitterRef<T> = Arc<EventEmitter<T>>;
+
 impl<T> EventEmitter<T>
 where
     T: std::hash::Hash + Eq + std::fmt::Debug + Clone,
 {
     /// Creates a new [`EventEmitter`]
-    pub fn new() -> Arc<EventEmitter<T>> {
+    pub fn new() -> EventEmitterRef<T> {
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
             listener_buffer_size: DEFAULT_CHANNEL_BUFFER_SIZE,
@@ -106,7 +109,7 @@ where
     /// starts to consume the buffered events.
     ///
     /// If `size` is zero, this function will panic.
-    pub fn with_buffer_size(size: usize) -> Arc<EventEmitter<T>> {
+    pub fn with_buffer_size(size: usize) -> EventEmitterRef<T> {
         assert_ne!(size, 0);
         Arc::new(Self {
             listeners: Mutex::new(HashMap::new()),
@@ -200,7 +203,7 @@ where
             > + use<'_, T, E>,
         >,
     > {
-        let value: Arc<dyn AsEventValue> = Arc::new(value.clone());
+        let value: AsEventValueRef = Arc::new(value.clone());
         let event = Event::new(value);
 
         let mut topics = self.listeners.lock();
@@ -325,7 +328,7 @@ where
     }
 
     /// Returns a reference to the parent EventEmitter.
-    pub fn event_emitter(&self) -> Arc<EventEmitter<T>> {
+    pub fn event_emitter(&self) -> EventEmitterRef<T> {
         self.event_emitter.upgrade().unwrap()
     }
 }
@@ -336,12 +339,12 @@ pub struct Event {
     /// The time at which the event was created.
     created_at: DateTime<Utc>,
     /// The value of the Event.
-    value: Arc<dyn AsEventValue>,
+    value: AsEventValueRef,
 }
 
 impl Event {
     /// Creates a new Event.
-    pub fn new(value: Arc<dyn AsEventValue>) -> Self {
+    pub fn new(value: AsEventValueRef) -> Self {
         Self {
             created_at: Utc::now(),
             value,
@@ -364,6 +367,9 @@ pub trait AsEventValue: Any + Send + Sync + std::fmt::Debug {
     where
         Self: Sized;
 }
+
+/// Shared handle to an `AsEventValue`.
+pub type AsEventValueRef = Arc<dyn AsEventValue>;
 
 /// Trait for events that define their own topic.
 ///

@@ -367,6 +367,9 @@ pub struct QuicConn {
     local_endpoint: Endpoint,
 }
 
+/// Shared handle to a `QuicConn`.
+pub type QuicConnRef = Arc<QuicConn>;
+
 impl QuicConn {
     /// Open a new bidirectional stream.
     pub async fn open_bi(&self) -> Result<(QuicSendStream, QuicRecvStream)> {
