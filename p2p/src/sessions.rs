@@ -11,7 +11,7 @@ use karyon_net::Endpoint;
 use crate::{
     Error, PeerID, Result,
     conn_direction::ConnDirection,
-    peer::{Peer, PeerInfo, PeerSession},
+    peer::{PeerInfo, PeerSession},
     protocol::ProtocolID,
 };
 
@@ -31,28 +31,24 @@ impl Sessions {
         })
     }
 
-    /// Adds the peer that `make` builds. If a peer with this id is already
-    /// in the table, the new connection either replaces it (its session is
-    /// returned, for the caller to stop) or is rejected without calling
-    /// `make`; see `new_conn_wins`. Connections are admitted in parallel,
-    /// so the check and the insert run under one write lock. `make` must
-    /// not wait for the remote, so the lock is held only briefly.
+    /// Adds the session. If a peer with this id is already in the table,
+    /// the new connection either replaces it (its session is returned, for
+    /// the caller to stop) or is rejected; see `new_conn_wins`.
+    /// Connections are admitted in parallel, so the check and the insert
+    /// run under one write lock.
     pub(crate) async fn insert(
         &self,
         own_id: &PeerID,
-        info: &PeerInfo,
-        make: impl FnOnce() -> Result<(Peer, PeerSession)>,
-    ) -> Result<(Peer, PeerSession, Option<PeerSession>)> {
+        session: PeerSession,
+    ) -> Result<Option<PeerSession>> {
+        let info = session.info.clone();
         let mut map = self.map.write().await;
         if let Some(old) = map.get(&info.id)
             && !new_conn_wins(own_id, &info.id, &old.info.direction, &info.direction)
         {
             return Err(Error::PeerAlreadyConnected);
         }
-
-        let (peer, session) = make()?;
-        let replaced = map.insert(info.id.clone(), session.clone());
-        Ok((peer, session, replaced))
+        Ok(map.insert(info.id.clone(), session))
     }
 
     /// Removes the session, unless the table holds another connection
