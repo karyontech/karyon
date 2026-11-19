@@ -85,6 +85,8 @@ and `Backoff`.
 ### crypto (feature `crypto`)
 
 `KeyPair` and `PublicKey`: generate, sign, verify. Ed25519 only for now.
+`KeyPair::secret()` exports the secret key bytes and `KeyPair::from_secret`
+loads them back, so a node can keep its identity across restarts.
 
 ### util
 

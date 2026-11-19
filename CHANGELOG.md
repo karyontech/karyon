@@ -1,5 +1,13 @@
 # Changelog
 
+## karyon_core 1.1.3
+
+### Added
+
+- **`KeyPair::from_secret`** (`karyon_core`, feature `crypto`): load a
+  keypair from the bytes `KeyPair::secret()` returns, so a node keeps
+  the same keypair and PeerID across restarts.
+
 ## karyon_core 1.1.2, karyon_net 1.2.1, karyon_jsonrpc 1.1.5, karyon_kademlia 0.1.1, karyon_swarm 1.3.1, karyon_stun 0.2.3, karyon_eventemitter 1.0.4
 
 ### Added

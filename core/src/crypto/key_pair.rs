@@ -31,6 +31,14 @@ impl KeyPair {
         }
     }
 
+    /// Load a keypair from the secret key bytes `secret()` returned, so a
+    /// node keeps the same identity across restarts.
+    pub fn from_secret(kp_type: &KeyPairType, secret: &[u8]) -> Result<Self> {
+        match kp_type {
+            KeyPairType::Ed25519 => Ok(Self::Ed25519(Ed25519KeyPair::from_secret(secret)?)),
+        }
+    }
+
     /// Get the public key of this keypair.
     pub fn public(&self) -> PublicKey {
         match self {
@@ -64,6 +72,13 @@ pub struct Ed25519KeyPair(SigningKey);
 impl Ed25519KeyPair {
     fn generate() -> Self {
         Self(SigningKey::generate(&mut rng()))
+    }
+
+    fn from_secret(secret: &[u8]) -> Result<Self> {
+        let sk: [u8; 32] = secret
+            .try_into()
+            .map_err(|_| Error::TryInto("Failed to convert slice to [u8; 32]".to_string()))?;
+        Ok(Self(SigningKey::from_bytes(&sk)))
     }
 }
 
@@ -159,6 +174,17 @@ mod tests {
         let pk = PublicKey::from_bytes(&KeyPairType::Ed25519, kp.public().as_bytes()).unwrap();
         assert!(pk.verify(b"msg", &sig).is_ok());
         assert!(pk.verify(b"other", &sig).is_err());
+    }
+
+    #[test]
+    fn load_from_secret() {
+        let kp = KeyPair::generate(&KeyPairType::Ed25519);
+        let loaded = KeyPair::from_secret(&KeyPairType::Ed25519, &kp.secret().0).unwrap();
+        assert_eq!(loaded.public().as_bytes(), kp.public().as_bytes());
+        let sig = loaded.sign(b"msg");
+        assert!(kp.public().verify(b"msg", &sig).is_ok());
+
+        assert!(KeyPair::from_secret(&KeyPairType::Ed25519, &[0u8; 31]).is_err());
     }
 
     #[test]
