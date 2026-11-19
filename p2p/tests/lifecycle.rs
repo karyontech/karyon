@@ -12,7 +12,7 @@ use karyon_core::{
 use karyon_eventemitter::EventListener;
 
 use karyon_p2p::{
-    Config, Error, Node, PeerEvent, Version,
+    Config, ConnDirection, Error, Node, PeerEvent, SessionInfoRef, Version,
     endpoint::Endpoint,
     monitor::{ConnectionEvent, MonitorTopic, PeerPoolEvent},
     protocol::{PeerConn, Protocol, ProtocolID},
@@ -55,6 +55,37 @@ impl Protocol for Probe {
 
     fn id() -> ProtocolID {
         PROBE.into()
+    }
+}
+
+const REPORT: &str = "REPORT";
+
+/// Puts its session's `SessionInfo` in `infos`, then reads until the peer
+/// shuts down.
+struct Reporter {
+    peer: PeerConn,
+    infos: AsyncQueueRef<SessionInfoRef>,
+}
+
+#[async_trait]
+impl Protocol for Reporter {
+    async fn start(self: Arc<Self>) -> Result<(), Error> {
+        self.infos.push(self.peer.info().clone()).await;
+        loop {
+            match self.peer.recv().await {
+                Ok(_) => {}
+                Err(Error::PeerShutdown) => return Ok(()),
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    fn version() -> Result<Version, Error> {
+        "0.1.0".parse()
+    }
+
+    fn id() -> ProtocolID {
+        REPORT.into()
     }
 }
 
@@ -393,7 +424,7 @@ fn shutdown_disconnects_peers() {
         let conn_a = node_a.monitor().register::<ConnectionEvent>();
         node_a.run().await.unwrap();
 
-        let (node_b, _) =
+        let (node_b, inbox_b) =
             probe_node(vec![], vec![tcp(port)], fast_config(), false, ex.clone()).await;
         let pool_b = node_b.monitor().register::<PeerPoolEvent>();
         node_b.run().await.unwrap();
@@ -401,6 +432,9 @@ fn shutdown_disconnects_peers() {
         wait_pool(&pool_b, "NewPeer").await;
 
         node_a.shutdown().await;
+        // Nothing is sent once the node is shut down.
+        node_a.broadcast(&PROBE.into(), HELLO.to_vec()).await;
+        assert!(recv_within(&inbox_b, 1).await.is_none());
         timeout(Duration::from_secs(5), wait_conn(&conn_a, "Disconnected"))
             .await
             .expect("A reports the disconnect");
@@ -410,5 +444,99 @@ fn shutdown_disconnects_peers() {
         assert_eq!(node_b.peers().await, 0);
 
         node_b.shutdown().await;
+    });
+}
+
+/// `Node::broadcast` reaches every connected peer.
+#[test]
+fn node_broadcast_reaches_all_peers() {
+    run_test_with_executor(30, |ex| async move {
+        let port = free_port();
+        let (node_a, _) =
+            probe_node(vec![tcp(port)], vec![], fast_config(), false, ex.clone()).await;
+        node_a.run().await.unwrap();
+
+        let (node_b, inbox_b) =
+            probe_node(vec![], vec![tcp(port)], fast_config(), false, ex.clone()).await;
+        node_b.run().await.unwrap();
+        let (node_c, inbox_c) =
+            probe_node(vec![], vec![tcp(port)], fast_config(), false, ex.clone()).await;
+        node_c.run().await.unwrap();
+        wait_peers(&node_a, 2, 15).await;
+
+        node_a.broadcast(&PROBE.into(), HELLO.to_vec()).await;
+        assert_eq!(recv_within(&inbox_b, 10).await.as_deref(), Some(HELLO));
+        assert_eq!(recv_within(&inbox_c, 10).await.as_deref(), Some(HELLO));
+
+        node_c.shutdown().await;
+        node_b.shutdown().await;
+        node_a.shutdown().await;
+    });
+}
+
+/// `PeerConn::info` describes the session on both sides.
+#[test]
+fn session_info_matches_connection() {
+    run_test_with_executor(30, |ex| async move {
+        let port = free_port();
+        let node_a = create_node(
+            Config {
+                listen_endpoints: vec![tcp(port)],
+                ..fast_config()
+            },
+            ex.clone(),
+        );
+        let infos_a: AsyncQueueRef<SessionInfoRef> = AsyncQueue::new(4);
+        let infos = infos_a.clone();
+        node_a
+            .attach_protocol(move |peer| Reporter {
+                peer,
+                infos: infos.clone(),
+            })
+            .await
+            .unwrap();
+        node_a.run().await.unwrap();
+
+        let node_b = create_node(
+            Config {
+                dial_peers: vec![tcp(port)],
+                ..fast_config()
+            },
+            ex.clone(),
+        );
+        let infos_b: AsyncQueueRef<SessionInfoRef> = AsyncQueue::new(4);
+        let infos = infos_b.clone();
+        node_b
+            .attach_protocol(move |peer| Reporter {
+                peer,
+                infos: infos.clone(),
+            })
+            .await
+            .unwrap();
+        node_b.run().await.unwrap();
+
+        let info_a = timeout(Duration::from_secs(10), infos_a.recv())
+            .await
+            .expect("A's session info");
+        let info_b = timeout(Duration::from_secs(10), infos_b.recv())
+            .await
+            .expect("B's session info");
+
+        assert_eq!(&info_a.id, node_b.peer_id());
+        assert!(matches!(info_a.direction, ConnDirection::Inbound));
+        let (report, ping): (ProtocolID, ProtocolID) = (REPORT.into(), "PING".into());
+        assert!(info_a.negotiated.contains(&report));
+        assert!(info_a.negotiated.contains(&ping));
+
+        assert_eq!(&info_b.id, node_a.peer_id());
+        assert!(matches!(info_b.direction, ConnDirection::Outbound));
+        assert_eq!(info_b.endpoint, tcp(port));
+        assert_eq!(info_b.negotiated, info_a.negotiated);
+
+        let set = node_a.peer_protocol_set(node_b.peer_id()).await;
+        assert_eq!(set.as_ref(), Some(&info_a.negotiated));
+
+        node_b.shutdown().await;
+        node_a.shutdown().await;
     });
 }
