@@ -180,7 +180,7 @@ impl PeerPool {
         let endpoint = conn.remote_endpoint.clone();
 
         let res = match admit(&self.id, conn, &self.registry, &self.config).await {
-            Ok(admitted) => self.add_peer(admitted, slot).await,
+            Ok(admitted) => self.add_session(admitted, slot).await,
             Err(rejected) => {
                 self.events.handshake_failed(rejected.peer_id).await;
                 Err(rejected.error)
@@ -194,7 +194,11 @@ impl PeerPool {
     }
 
     /// Builds the session, adds it and runs it.
-    async fn add_peer(self: &PeerPoolRef, admitted: Admitted, slot: SemaphoreGuard) -> Result<()> {
+    async fn add_session(
+        self: &PeerPoolRef,
+        admitted: Admitted,
+        slot: SemaphoreGuard,
+    ) -> Result<()> {
         let Admitted {
             info,
             conn,
@@ -229,7 +233,7 @@ impl PeerPool {
             let this = self.clone();
             |result: TaskResult<Result<()>>| async move {
                 if let TaskResult::Completed(_) = result {
-                    this.remove_peer(session).await;
+                    this.remove_session(session).await;
                 }
             }
         };
@@ -251,7 +255,7 @@ impl PeerPool {
     /// Called once the session's `run` returns. Stops the session and removes
     /// it, unless the pool holds another connection under this id (this
     /// one was replaced and already stopped).
-    async fn remove_peer(&self, session: PeerSession) {
+    async fn remove_session(&self, session: PeerSession) {
         if self.sessions.remove(&session).await {
             let pid = &session.info.id;
             session.stop().await;
