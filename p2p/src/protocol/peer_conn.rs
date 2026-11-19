@@ -1,10 +1,5 @@
-use std::collections::HashSet;
-
-use karyon_net::Endpoint;
-
 use crate::{
-    Error, PeerID, Result,
-    conn_direction::ConnDirection,
+    Error, Result,
     peer::{PeerInfoRef, WireRef},
     protocol::{Broadcaster, ProtocolEvent, ProtocolID},
 };
@@ -58,23 +53,8 @@ impl PeerConn {
         self.broadcaster.broadcast(&self.proto_id, payload).await
     }
 
-    /// The remote peer's id.
-    pub fn peer_id(&self) -> &PeerID {
-        &self.info.id
-    }
-
-    /// The remote peer's endpoint.
-    pub fn remote_endpoint(&self) -> &Endpoint {
-        &self.info.endpoint
-    }
-
-    /// Whether the remote dialed us or we dialed it.
-    pub fn direction(&self) -> &ConnDirection {
-        &self.info.direction
-    }
-
-    /// The protocols both sides agreed on in the handshake.
-    pub fn negotiated_protocols(&self) -> &HashSet<ProtocolID> {
-        &self.info.negotiated
+    /// Everything known about the remote peer. Cheap to clone.
+    pub fn info(&self) -> &PeerInfoRef {
+        &self.info
     }
 }
