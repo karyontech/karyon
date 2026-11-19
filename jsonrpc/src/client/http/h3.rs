@@ -156,11 +156,12 @@ pub(super) async fn send<C: JsonRpcCodec>(
 ) -> Result<message::Response> {
     let mut stream = start_request(send_request, config, msg, codec).await?;
     // Finish before reading, so servers that read the whole body first
-    // still answer.
-    stream
-        .finish()
-        .await
-        .map_err(|e| Error::HttpError(format!("H3 finish: {e}")))?;
+    // still answer. A server may also answer before reading the whole body
+    // and stop the stream (RFC 9114 4.1); its response is still valid, so
+    // read it anyway.
+    if let Err(err) = stream.finish().await {
+        debug!("H3 finish: {err}");
+    }
     let (_, mut reader) = read_response(stream, codec).await?;
     reader.next_response().await
 }

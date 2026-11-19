@@ -1,5 +1,14 @@
 # Changelog
 
+## karyon_jsonrpc 1.1.7
+
+### Fixed
+
+- **HTTP/3 calls failing with `H3 finish: Remote reset`** (`karyon_jsonrpc`):
+  when the server answered and stopped the request stream before the
+  client finished sending, the client returned that error instead of the
+  response. It now reads the response.
+
 ## karyon_p2p 1.4.1, karyon_jsonrpc 1.1.6, karyon_stun 0.2.4, karyon_kademlia 0.1.2, karyon_swarm 1.3.2
 
 ### Added
