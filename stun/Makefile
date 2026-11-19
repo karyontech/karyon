@@ -1,10 +1,10 @@
-ALL_FEATURES = udp,tcp,tls,quic
+ALL_FEATURES = udp,tcp,tls,quic,aws-lc-rs
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 # Single transports. Guard the cfg-gated paths.
 SMOL_UDP  = smol,udp
 SMOL_TCP  = smol,tcp
-SMOL_QUIC = smol,quic
+SMOL_QUIC = smol,quic,aws-lc-rs
 
 .PHONY: check fmt clippy unit-test integration-test test
 

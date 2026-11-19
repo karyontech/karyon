@@ -1,4 +1,4 @@
-ALL_FEATURES = tcp,tls,ws,quic,http,http3,unix
+ALL_FEATURES = tcp,tls,ws,quic,http,http3,unix,aws-lc-rs
 SMOL_ALL  = smol,$(ALL_FEATURES)
 TOKIO_ALL = tokio,$(ALL_FEATURES)
 # Minimal set: no tls, no ws. Guards the cfg-gated handshake paths.

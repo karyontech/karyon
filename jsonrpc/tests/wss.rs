@@ -9,11 +9,15 @@ use karyon_core::testing::run_test;
 use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
 use karyon_net::tls::{ClientTlsConfig, ServerTlsConfig};
 
+#[cfg(feature = "aws-lc-rs")]
+use karyon_net::async_rustls::rustls::crypto::aws_lc_rs::default_provider;
+#[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
+use karyon_net::async_rustls::rustls::crypto::ring::default_provider;
+
 use shared::{MathService, generate_test_certs};
 
 fn test_tls_configs() -> (ServerTlsConfig, ClientTlsConfig) {
-    let _ =
-        karyon_net::async_rustls::rustls::crypto::aws_lc_rs::default_provider().install_default();
+    let _ = default_provider().install_default();
     let (cert_chain, private_key) = generate_test_certs();
 
     let server_config = karyon_net::async_rustls::rustls::ServerConfig::builder()

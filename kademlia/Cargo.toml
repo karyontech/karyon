@@ -1,7 +1,7 @@
 [package]
 name = "karyon_kademlia"
 description = "Kademlia DHT discovery for karyon_p2p: finds peers with a routing table, lookups and liveness refreshes."
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -11,14 +11,17 @@ keywords = ["p2p", "kademlia", "dht", "discovery", "karyon"]
 categories = ["network-programming", "asynchronous"]
 
 [features]
-default = ["tokio", "quic"]
+default = ["tokio", "quic", "aws-lc-rs"]
 smol = ["karyon_core/smol", "karyon_net/smol", "karyon_p2p/smol"]
 tokio = ["karyon_core/tokio", "karyon_net/tokio", "karyon_p2p/tokio"]
 quic = ["karyon_net/quic", "karyon_p2p/quic"]
+# rustls crypto provider, passed to karyon_p2p. Enable one.
+aws-lc-rs = ["karyon_net/aws-lc-rs", "karyon_p2p/aws-lc-rs"]
+ring = ["karyon_net/ring", "karyon_p2p/ring"]
 
 [dependencies]
 karyon_core = { workspace = true, features = ["crypto"] }
-karyon_net = { workspace = true, features = ["tcp", "tls", "udp", "aws-lc-rs"] }
+karyon_net = { workspace = true, features = ["tcp", "tls", "udp"] }
 karyon_p2p = { workspace = true }
 
 log = { workspace = true }

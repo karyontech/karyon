@@ -1,5 +1,21 @@
 # Changelog
 
+## karyon_p2p 1.4.1, karyon_jsonrpc 1.1.6, karyon_stun 0.2.4, karyon_kademlia 0.1.2, karyon_swarm 1.3.2
+
+### Added
+
+- **Selectable rustls crypto provider** (`karyon_p2p`, `karyon_jsonrpc`,
+  `karyon_stun`, `karyon_kademlia`, `karyon_swarm`): new features
+  `aws-lc-rs` (default) and `ring`. To build with ring only, use
+  `default-features = false` and enable `ring` (plus a runtime). With
+  `--no-default-features`, enable one of them: p2p, kademlia and swarm
+  always need one, jsonrpc and stun need one for `quic`.
+
+### Changed
+
+- **karyon_p2p no longer builds ring by default**: `rcgen` now uses the
+  selected provider instead of its default ring backend.
+
 ## karyon_p2p 1.4.0
 
 ### Breaking changes

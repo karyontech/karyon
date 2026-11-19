@@ -33,7 +33,7 @@ karyon_async_rustls = { path = "net/async_rustls", version = "1.2.0", default-fe
 karyon_jsonrpc = { path = "jsonrpc", version = "1.0.6", default-features = false }
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "1.0.1", default-features = false }
 
-karyon_p2p = { path = "p2p", version = "1.3.0", default-features = false }
+karyon_p2p = { path = "p2p", version = "1.4.1", default-features = false }
 karyon_kademlia = { path = "kademlia", version = "0.1.0", default-features = false }
 karyon_swarm = { path = "swarm", version = "1.1.6", default-features = false }
 karyon_stun = { path = "stun", version = "0.2.0", default-features = false }

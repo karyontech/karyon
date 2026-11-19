@@ -77,6 +77,8 @@ Kademlia posts `DiscoveryEvent`s to the node's monitor
 | `tokio` | Use tokio async runtime (default) |
 | `smol` | Use smol async runtime |
 | `quic` | Lookups over QUIC too (default) |
+| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
+| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ## Examples
 

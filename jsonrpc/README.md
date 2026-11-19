@@ -172,6 +172,8 @@ async {
 | `unix` | Unix socket (included by default) |
 | `tokio` | Use tokio async runtime (default) |
 | `smol` | Use smol async runtime |
+| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
+| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
 # QUIC support

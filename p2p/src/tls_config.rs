@@ -11,12 +11,27 @@ use rustls::{
     Error::InvalidCertificate,
     SignatureScheme, SupportedCipherSuite, SupportedProtocolVersion,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    crypto::{
-        CryptoProvider, SupportedKxGroup,
-        aws_lc_rs::{self, cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, kx_group},
-    },
+    crypto::{CryptoProvider, SupportedKxGroup},
     server::danger::{ClientCertVerified, ClientCertVerifier},
 };
+
+// The rustls crypto provider, picked by feature. aws-lc-rs wins if both
+// are on.
+#[cfg(all(feature = "aws-lc-rs", feature = "quic"))]
+use rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_128_GCM_SHA256;
+#[cfg(feature = "aws-lc-rs")]
+use rustls::crypto::aws_lc_rs::{
+    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, default_provider, kx_group::X25519,
+};
+#[cfg(all(feature = "ring", not(feature = "aws-lc-rs"), feature = "quic"))]
+use rustls::crypto::ring::cipher_suite::TLS13_AES_128_GCM_SHA256;
+#[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
+use rustls::crypto::ring::{
+    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, default_provider, kx_group::X25519,
+};
+
+#[cfg(not(any(feature = "aws-lc-rs", feature = "ring")))]
+compile_error!("karyon_p2p needs a rustls crypto provider: enable `aws-lc-rs` or `ring`");
 
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 
@@ -28,9 +43,6 @@ use karyon_core::crypto::{KeyPair, KeyPairType, PublicKey};
 
 use crate::{PeerID, Result};
 
-#[cfg(feature = "quic")]
-use rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_128_GCM_SHA256;
-
 // NOTE: This code needs a comprehensive audit.
 
 static PROTOCOL_VERSIONS: &[&SupportedProtocolVersion] = &[&rustls::version::TLS13];
@@ -40,7 +52,7 @@ static CIPHER_SUITES: &[SupportedCipherSuite] = &[TLS13_CHACHA20_POLY1305_SHA256
 #[cfg(feature = "quic")]
 static QUIC_CIPHER_SUITES: &[SupportedCipherSuite] =
     &[TLS13_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256];
-static KX_GROUPS: &[&dyn SupportedKxGroup] = &[kx_group::X25519];
+static KX_GROUPS: &[&dyn SupportedKxGroup] = &[X25519];
 static SIGNATURE_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
 /// OID for the karyon peer-id custom extension.
@@ -90,7 +102,7 @@ fn client_config(
         CryptoProvider {
             kx_groups: KX_GROUPS.to_vec(),
             cipher_suites: cipher_suites.to_vec(),
-            ..aws_lc_rs::default_provider()
+            ..default_provider()
         }
         .into(),
     )
@@ -112,7 +124,7 @@ fn server_config(
         CryptoProvider {
             kx_groups: KX_GROUPS.to_vec(),
             cipher_suites: cipher_suites.to_vec(),
-            ..aws_lc_rs::default_provider()
+            ..default_provider()
         }
         .into(),
     )
