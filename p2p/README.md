@@ -2,8 +2,7 @@
 
 A lightweight, extensible, and customizable peer-to-peer network stack.
 Multi-transport (TCP, TCP/TLS, QUIC) with pluggable custom protocols via the
-`Protocol` trait, and pluggable discovery. A Kademlia DHT discovery is in
-[karyon_kademlia](https://crates.io/crates/karyon_kademlia).
+`Protocol` trait, and pluggable discovery.
 
 ## Install
 
@@ -69,7 +68,7 @@ async {
         ..Default::default()
     };
 
-    // Dials `dial_peers`; see karyon_kademlia to find more peers.
+    // Dials `dial_peers` only; see Discovery to find more peers.
     let node = Node::new(&key_pair, config, global_executor());
 
     node.attach_protocol(EchoProtocol::new)
@@ -105,48 +104,29 @@ karyon_p2p = { version = "1.0", default-features = false, features = ["smol", "q
 ## Architecture
 
 ```TEXT
-                            Node
-                              |
-   +-----------+--------------+---------------+------------------+
-   |           |              |               |                  |
-Discovery  Connector /    PeerPool       ProtocolRegistry     Monitor
-           Listener           |          (ctor + meta)          ^
-               |              |               |                 |
-               +---queue--> admission <-------+            PeerEvents
-                              |                                 ^
-                          Sessions <-- Broadcaster              |
-                              |            ^             (pool reports
-                     Peer (one task each)  |              each event once)
-                              |            |
-               PeerConn per protocol ------+--> Protocol
-                              |
-                   karyon_net (TCP / TLS / QUIC)
+Node
+ |-- Discovery          finds peers to dial
+ |-- Connector/Listener dial / accept --(queue)--+
+ |-- ProtocolRegistry   attached protocols       |
+ |-- Monitor            events                   v
+ +-- PeerPool <----------------------------------+
+      |-- admission     handshake + access control
+      +-- Sessions      PeerID -> PeerSession
+           +-- PeerSession   one connection
+                +-- PeerConn -> Protocol   one per negotiated protocol
 ```
 
-- **Node**: top-level lifecycle. Creates the discovery, registry, pool,
-  connector and listener; wires them together; exposes the public API.
-- **Discovery**: finds peers and yields them as `DiscoveredPeer`. The
-  default finds none; karyon_kademlia and custom implementations of the
-  `Discovery` trait plug in. The node dials `dial_peers` itself.
-- **Connector / Listener**: dial and accept connections over the
-  configured transports, then hand them to the PeerPool over a bounded
-  queue. Their tasks end at the handover.
-- **ProtocolRegistry**: the attached protocols (constructor and
-  version), shared by the Node and the PeerPool.
-- **PeerPool**: takes connections from the queue, admits them and runs
-  one Peer per admitted connection.
-- **Admission**: the handshake (version + protocol negotiation, peer
-  identity bound to the secure transport's certificate) and access
-  control, before any Peer is built.
-- **Sessions**: one session per connected peer; sends and broadcasts.
-  Shared with every protocol's broadcaster.
-- **PeerEvents**: the pool reports each peer event once; it goes to the
-  monitor, the `register_peer_events` listeners and the discovery.
-- **Peer**: one task per connection. Starts the negotiated protocols and
-  stops on the first error. Knows nothing about the pool.
-- **PeerConn / Protocol**: each protocol gets a `PeerConn` scoped to its
-  own id: `send`, `recv`, `broadcast`, and `info()` for the peer's
-  `PeerInfo`. Custom protocols implement the `Protocol` trait.
+| Part | What it does |
+|------|--------------|
+| `Node` | Public entry point. Builds and wires the parts; `attach_protocol`, `run`, `send_to`, `broadcast`, `shutdown`. |
+| Connector / Listener | Dial / accept TCP, TLS or QUIC connections, up to `outbound_slots` / `inbound_slots`, and hand them to the PeerPool. |
+| `PeerPool` | Takes connections from the queue, admits them, runs one `PeerSession` per admitted connection and removes it when it ends. |
+| Admission | The handshake (network version, protocol negotiation, the claimed `PeerID` checked against the TLS certificate, if any), then access control. |
+| `Sessions` | Map from `PeerID` to its `PeerSession`, one per peer. When two nodes dial each other, both keep the connection dialed by the smaller `PeerID`. |
+| `PeerSession` | One connection to a peer. Runs one task per negotiated protocol; ends when a protocol ends, the connection fails or the peer shuts down. |
+| `PeerConn` | What a protocol gets: `send` / `recv` on its own protocol id, `broadcast` to every peer, `info()` (`SessionInfo`: peer id, direction, endpoint, negotiated protocols). |
+| `ProtocolRegistry` | The protocols attached with `attach_protocol`: constructor, version and flags. |
+| Peer events | Added / removed / handshake failed, sent to the monitor, the `register_peer_events` listeners and the discovery. |
 
 ### Transport
 
