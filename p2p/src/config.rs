@@ -5,6 +5,7 @@ use karyon_net::Endpoint;
 use crate::{
     Version,
     access_control::{AccessControlRef, AllowAll},
+    transport::TransportRef,
 };
 
 /// `Arc` reference to a `Config`.
@@ -70,6 +71,9 @@ pub struct Config {
     pub inbound_slots: usize,
     /// The number of available outbound slots for outgoing connections.
     pub outbound_slots: usize,
+    /// A user transport for the endpoints it supports; the others use the
+    /// built-in TCP, TLS and QUIC. `None` uses only the built-in ones.
+    pub transport: Option<TransportRef>,
 }
 
 impl Default for Config {
@@ -89,6 +93,107 @@ impl Default for Config {
             inbound_slots: 12,
             outbound_slots: 12,
             max_connect_retries: 3,
+            transport: None,
         }
+    }
+}
+
+/// Builds a `Config`, starting from `Config::default()`. The fields stay
+/// public, so a struct literal works too.
+///
+/// # Example
+///
+/// ```
+/// use karyon_p2p::ConfigBuilder;
+///
+/// let config = ConfigBuilder::new()
+///     .with_listen_endpoints(vec!["tcp://0.0.0.0:8000".parse().unwrap()])
+///     .with_dial_peers(vec!["tcp://203.0.113.1:8000".parse().unwrap()])
+///     .build();
+/// ```
+#[derive(Default)]
+pub struct ConfigBuilder {
+    config: Config,
+}
+
+impl ConfigBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// See `Config::version`.
+    pub fn with_version(mut self, value: Version) -> Self {
+        self.config.version = value;
+        self
+    }
+
+    /// See `Config::enable_monitor`.
+    pub fn with_monitor(mut self, value: bool) -> Self {
+        self.config.enable_monitor = value;
+        self
+    }
+
+    /// See `Config::access_control`.
+    pub fn with_access_control(mut self, value: AccessControlRef) -> Self {
+        self.config.access_control = value;
+        self
+    }
+
+    /// See `Config::handshake_timeout`, in seconds.
+    pub fn with_handshake_timeout(mut self, value: u64) -> Self {
+        self.config.handshake_timeout = value;
+        self
+    }
+
+    /// See `Config::ping_interval`, in seconds.
+    pub fn with_ping_interval(mut self, value: u64) -> Self {
+        self.config.ping_interval = value;
+        self
+    }
+
+    /// See `Config::ping_timeout`, in seconds.
+    pub fn with_ping_timeout(mut self, value: u64) -> Self {
+        self.config.ping_timeout = value;
+        self
+    }
+
+    /// See `Config::max_connect_retries`.
+    pub fn with_max_connect_retries(mut self, value: usize) -> Self {
+        self.config.max_connect_retries = value;
+        self
+    }
+
+    /// See `Config::listen_endpoints`.
+    pub fn with_listen_endpoints(mut self, value: Vec<Endpoint>) -> Self {
+        self.config.listen_endpoints = value;
+        self
+    }
+
+    /// See `Config::dial_peers`.
+    pub fn with_dial_peers(mut self, value: Vec<Endpoint>) -> Self {
+        self.config.dial_peers = value;
+        self
+    }
+
+    /// See `Config::inbound_slots`.
+    pub fn with_inbound_slots(mut self, value: usize) -> Self {
+        self.config.inbound_slots = value;
+        self
+    }
+
+    /// See `Config::outbound_slots`.
+    pub fn with_outbound_slots(mut self, value: usize) -> Self {
+        self.config.outbound_slots = value;
+        self
+    }
+
+    /// See `Config::transport`.
+    pub fn with_transport(mut self, transport: TransportRef) -> Self {
+        self.config.transport = Some(transport);
+        self
+    }
+
+    pub fn build(self) -> Config {
+        self.config
     }
 }

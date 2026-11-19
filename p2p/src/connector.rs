@@ -15,10 +15,12 @@ use karyon_net::{ByteBuffer, ClientLayer, Endpoint, FramedConn, codec::Codec, fr
 use crate::{
     Error, PeerID, Result,
     codec::PeerNetMsgCodec,
+    config::Config,
     conn_direction::ConnDirection,
     monitor::{ConnectionKind, MonitorRef},
     queued_conn::{ConnQueueRef, Incoming, QueuedConn},
     tls_config::{peer_id_from_certs, tls_client_config},
+    transport::TransportRef,
 };
 
 #[cfg(feature = "quic")]
@@ -58,6 +60,8 @@ pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     /// Hands dialed connections to the PeerPool. Only on the Node's own
     /// connector.
     conn_queue: Option<ConnQueueRef>,
+    /// Dials the endpoints it supports instead of the built-in transports.
+    transport: Option<TransportRef>,
     monitor: MonitorRef,
     _codec: PhantomData<C>,
 }
@@ -84,6 +88,7 @@ where
             monitor,
             connection_slots: Semaphore::new(slots),
             conn_queue: None,
+            transport: None,
             _codec: PhantomData,
         })
     }
@@ -154,6 +159,15 @@ where
 
     /// Dial, selecting transport based on endpoint type.
     async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<DialResult<C>> {
+        if let Some(transport) = self.transport.as_ref().filter(|t| t.supports(endpoint)) {
+            let stream = transport.dial(endpoint).await?;
+            let vpid = stream
+                .peer_certificates()
+                .as_deref()
+                .and_then(peer_id_from_certs);
+            return Ok(DialResult::Channel(framed(stream, C::default()), vpid));
+        }
+
         match endpoint {
             Endpoint::Tcp(..) => {
                 let stream = tcp::connect(endpoint, Default::default()).await?;
@@ -202,24 +216,22 @@ where
 // PeerPool takes only peer-plane connections.
 impl Connector<PeerNetMsgCodec> {
     /// Create a new Connector that hands its connections to the PeerPool.
-    /// `dial_timeout` is in seconds.
     pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
-        max_retries: usize,
-        slots: usize,
-        dial_timeout: u64,
+        config: &Config,
         conn_queue: ConnQueueRef,
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<PeerNetMsgCodec> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
-            max_retries,
-            dial_timeout: Duration::from_secs(dial_timeout),
+            max_retries: config.max_connect_retries,
+            dial_timeout: Duration::from_secs(config.handshake_timeout),
             task_group: TaskGroup::with_executor(ex),
             monitor,
-            connection_slots: Semaphore::new(slots),
+            connection_slots: Semaphore::new(config.outbound_slots),
             conn_queue: Some(conn_queue),
+            transport: config.transport.clone(),
             _codec: PhantomData,
         })
     }

@@ -31,11 +31,14 @@ pub mod monitor;
 /// Defines the protocol trait.
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
+/// User supplied dial and listen.
+/// [`Read More`](./transport/trait.Transport.html)
+pub mod transport;
 
 pub use access_control::{
     AccessControl, AccessControlRef, Action, AllowAll, PeerCandidate, Subject,
 };
-pub use config::{Config, ConfigRef};
+pub use config::{Config, ConfigBuilder, ConfigRef};
 pub use conn_direction::ConnDirection;
 pub use discovery::{
     DiscoveredPeer, Discovery, DiscoveryContext, DiscoveryRef, PeerConnectionEvent,

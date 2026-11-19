@@ -1,5 +1,19 @@
 # Changelog
 
+## karyon_p2p 1.5.0
+
+### Added
+
+- **Pluggable transport** (`karyon_p2p`): implement the new
+  `transport::Transport` trait (dial and listen, returning byte streams)
+  and set `Config::transport`. The node uses it for the endpoints it
+  supports and the built-in TCP, TLS and QUIC for the others.
+  `Config` gets the `transport` field (default `None`); a struct literal
+  without `..Config::default()` must set it.
+- **`ConfigBuilder`** (`karyon_p2p`): builds a `Config` from the defaults
+  with `with_*` methods (`with_listen_endpoints`, `with_dial_peers`,
+  `with_transport`, ...). `Config` fields stay public.
+
 ## karyon_jsonrpc 1.1.7
 
 ### Fixed
