@@ -1,10 +1,8 @@
 use bincode::{Decode, Encode};
 
-use crate::{
-    PeerID,
-    discovery::kademlia::{bloom::Bloom, messages::PeerMsg},
-    message::PeerAddr,
-};
+use karyon_p2p::{PeerAddr, PeerID};
+
+use crate::{bloom::Bloom, messages::PeerMsg};
 
 /// Specifies the size of the key, in bytes.
 pub const KEY_SIZE: usize = 32;

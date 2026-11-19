@@ -283,7 +283,7 @@ where
 impl Listener<PeerNetMsgCodec> {
     /// Create a new Listener with a ConnQueue (auto-queue mode).
     /// `handshake_timeout` is in seconds.
-    pub fn new_with_queue(
+    pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
         slots: usize,
         conn_queue: Arc<ConnQueue>,
@@ -305,7 +305,7 @@ impl Listener<PeerNetMsgCodec> {
     }
 
     /// Start listening (auto-queue mode). Returns the resolved endpoint.
-    pub async fn start(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
+    pub(crate) async fn start(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
         #[cfg(feature = "quic")]
         if endpoint.is_quic() {
             return self.start_quic(endpoint).await;

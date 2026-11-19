@@ -21,7 +21,9 @@ use crate::{
     conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     connector::Connector,
-    discovery::{DiscoveredPeer, Discovery, PeerConnectionEvent, kademlia::KademliaDiscovery},
+    discovery::{
+        DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, StaticDiscovery,
+    },
     listener::Listener,
     message::{Protocol, pick_endpoint},
     monitor::{Monitor, PoolEvent},
@@ -84,71 +86,25 @@ pub struct Node {
 }
 
 impl Node {
-    /// Creates a new Node with the default Kademlia discovery.
+    /// Creates a new Node that dials `Config::dial_peers` and finds no
+    /// other peers. Use `with_discovery` to run a discovery such as
+    /// karyon_kademlia.
     pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Node> {
-        let config = Arc::new(config);
-        let monitor = Arc::new(Monitor::new(config.clone()));
-        let peer_id = PeerID::try_from(key_pair.public())
-            .expect("Derive a peer id from the provided key pair.");
-        info!("PeerID: {peer_id}");
-
-        let conn_queue = ConnQueue::new();
-        let peer_pool = PeerPool::new(
-            &peer_id,
-            conn_queue.clone(),
-            config.clone(),
-            monitor.clone(),
-            ex.clone(),
-        );
-
-        let discovery: Arc<dyn Discovery> = KademliaDiscovery::new(
+        Self::with_discovery(
             key_pair,
-            &peer_id,
-            config.clone(),
-            monitor.clone(),
-            ex.clone(),
-        );
-
-        let connector = Connector::new_with_queue(
-            key_pair,
-            config.max_connect_retries,
-            config.outbound_slots,
-            config.handshake_timeout,
-            conn_queue.clone(),
-            monitor.clone(),
-            ex.clone(),
-        );
-
-        let listener = Listener::new_with_queue(
-            key_pair,
-            config.inbound_slots,
-            conn_queue,
-            monitor.clone(),
-            config.handshake_timeout,
-            config.access_control.clone(),
-            ex.clone(),
-        );
-
-        let task_group = TaskGroup::with_executor(ex);
-
-        Arc::new(Self {
-            key_pair: key_pair.clone(),
-            peer_id,
-            monitor,
-            discovery,
             config,
-            peer_pool,
-            connector,
-            listener,
-            task_group,
-        })
+            |ctx| StaticDiscovery::new(&ctx.config),
+            ex,
+        )
     }
 
-    /// Creates a new Node with a custom discovery implementation.
+    /// Creates a new Node with a custom discovery. `discovery` builds it
+    /// from what the node shares with it: key pair, PeerID, config,
+    /// monitor and executor.
     pub fn with_discovery(
         key_pair: &KeyPair,
         config: Config,
-        discovery: Arc<dyn Discovery>,
+        discovery: impl FnOnce(&DiscoveryContext) -> Arc<dyn Discovery>,
         ex: Executor,
     ) -> Arc<Node> {
         let config = Arc::new(config);
@@ -165,6 +121,14 @@ impl Node {
             monitor.clone(),
             ex.clone(),
         );
+
+        let discovery = discovery(&DiscoveryContext {
+            key_pair: key_pair.clone(),
+            peer_id: peer_id.clone(),
+            config: config.clone(),
+            monitor: monitor.clone(),
+            executor: ex.clone(),
+        });
 
         let connector = Connector::new_with_queue(
             key_pair,

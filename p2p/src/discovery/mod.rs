@@ -1,10 +1,24 @@
-pub mod kademlia;
+mod static_peers;
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{PeerID, Result, message::PeerAddr, protocol::ProtocolFlags};
+use karyon_core::{async_runtime::Executor, crypto::KeyPair};
+
+use crate::{Config, PeerID, Result, message::PeerAddr, monitor::Monitor, protocol::ProtocolFlags};
+
+pub(crate) use static_peers::StaticDiscovery;
+
+/// What a discovery gets from the node that runs it. Passed to the
+/// constructor given to `Node::with_discovery`.
+pub struct DiscoveryContext {
+    pub key_pair: KeyPair,
+    pub peer_id: PeerID,
+    pub config: Arc<Config>,
+    pub monitor: Arc<Monitor>,
+    pub executor: Executor,
+}
 
 /// Represents a discovered peer that the discovery protocol wants the
 /// Node to connect to.

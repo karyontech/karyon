@@ -15,15 +15,10 @@ fn tcp_and_tls_coexist() {
     run_test_with_executor(30, |ex| async move {
         // TCP pair
         let tcp_port = free_port();
-        let tcp_disc = free_port();
 
         let tcp_listener = create_node(
             Config {
                 listen_endpoints: vec![format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{tcp_disc}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{tcp_disc}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -47,15 +42,10 @@ fn tcp_and_tls_coexist() {
 
         // TLS pair
         let tls_port = free_port();
-        let tls_disc = free_port();
 
         let tls_listener = create_node(
             Config {
                 listen_endpoints: vec![format!("tls://127.0.0.1:{tls_port}").parse().unwrap()],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{tls_disc}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{tls_disc}").parse().unwrap(),
-                ],
                 ..fast_config()
             },
             ex.clone(),
@@ -91,17 +81,12 @@ fn node_listens_on_multiple_transports() {
     run_test_with_executor(30, |ex| async move {
         let tcp_port = free_port();
         let tls_port = free_port();
-        let disc_port = free_port();
 
         let server = create_node(
             Config {
                 listen_endpoints: vec![
                     format!("tcp://127.0.0.1:{tcp_port}").parse().unwrap(),
                     format!("tls://127.0.0.1:{tls_port}").parse().unwrap(),
-                ],
-                discovery_endpoints: vec![
-                    format!("tcp://127.0.0.1:{disc_port}").parse().unwrap(),
-                    format!("udp://127.0.0.1:{disc_port}").parse().unwrap(),
                 ],
                 ..fast_config()
             },

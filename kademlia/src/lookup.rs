@@ -4,28 +4,26 @@ use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
 use rand::{TryRng, rngs::SysRng, seq::IndexedRandom};
 
-use karyon_core::{async_runtime::Executor, async_util::timeout, crypto::KeyPair};
+use karyon_core::async_util::timeout;
 
 use karyon_net::{Addr, Endpoint};
 
-use crate::{
-    Config, Error, PeerID, Result,
-    access_control::{Action, Subject},
-    conn_direction::ConnDirection,
-    connector::Connector,
-    discovery::kademlia::{
-        SUPPORTED_LOOKUP_PROTOCOLS,
-        bloom::BloomRef,
-        messages::{
-            FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
-        },
-        routing_table::RoutingTable,
-    },
-    listener::Listener,
-    message::{PeerAddr, Protocol, ShutdownMsg, pick_endpoint},
+use karyon_p2p::{
+    Action, Config, ConnDirection, Connector, DiscoveryContext, Error, Listener, PeerAddr, PeerID,
+    Protocol, Result, ShutdownMsg, Subject,
     monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    pick_endpoint,
     util::decode,
-    version::version_match,
+    version_match,
+};
+
+use crate::{
+    KademliaConfig, SUPPORTED_LOOKUP_PROTOCOLS,
+    bloom::BloomRef,
+    messages::{
+        FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
+    },
+    routing_table::RoutingTable,
 };
 
 /// Framed lookup-plane connection.
@@ -67,8 +65,11 @@ pub struct LookupService {
     /// Endpoints this service advertises and binds to.
     endpoints: LookupEndpoints,
 
-    /// Holds the configuration for the P2P network.
+    /// The node's configuration.
     config: Arc<Config>,
+
+    /// The Kademlia configuration.
+    kconfig: Arc<KademliaConfig>,
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
@@ -80,17 +81,19 @@ pub struct LookupService {
 impl LookupService {
     /// Creates a new lookup service.
     pub fn new(
-        key_pair: &KeyPair,
+        ctx: &DiscoveryContext,
         table: Arc<RoutingTable>,
-        config: Arc<Config>,
-        monitor: Arc<Monitor>,
+        kconfig: Arc<KademliaConfig>,
         bloom: BloomRef,
         endpoints: LookupEndpoints,
-        ex: Executor,
     ) -> Self {
+        let key_pair = &ctx.key_pair;
+        let config = ctx.config.clone();
+        let monitor = ctx.monitor.clone();
+        let ex = ctx.executor.clone();
         let listener = Listener::new(
             key_pair,
-            config.lookup_inbound_slots,
+            kconfig.lookup_inbound_slots,
             monitor.clone(),
             config.handshake_timeout,
             config.access_control.clone(),
@@ -99,8 +102,8 @@ impl LookupService {
 
         let connector = Connector::new(
             key_pair,
-            config.lookup_connect_retries,
-            config.lookup_outbound_slots,
+            kconfig.lookup_connect_retries,
+            kconfig.lookup_outbound_slots,
             config.handshake_timeout,
             monitor.clone(),
             ex,
@@ -117,6 +120,7 @@ impl LookupService {
             connector,
             endpoints,
             config,
+            kconfig,
             monitor,
             bloom,
         }
@@ -287,7 +291,7 @@ impl LookupService {
         let ping_msg = self.send_ping_msg(&mut conn).await?;
 
         loop {
-            let t = Duration::from_secs(self.config.lookup_response_timeout);
+            let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
             let msg: KadNetMsg = timeout(t, conn.recv_msg()).await??;
             match msg.header.command {
                 KadNetCmd::Pong => {
@@ -340,7 +344,7 @@ impl LookupService {
         let callback = {
             let this = self.clone();
             |conn: KadConnRef| async move {
-                let t = Duration::from_secs(this.config.lookup_connection_lifespan);
+                let t = Duration::from_secs(this.kconfig.lookup_connection_lifespan);
                 timeout(t, this.handle_inbound(conn)).await??;
                 Ok(())
             }
@@ -444,7 +448,7 @@ impl LookupService {
     async fn send_peer_msg(&self, conn: &mut KadConnRef) -> Result<()> {
         trace!("Send Peer msg");
 
-        let public_ip = self.config.public_ip;
+        let public_ip = self.kconfig.public_ip;
         let addrs = self
             .endpoints
             .listen

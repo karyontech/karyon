@@ -254,16 +254,11 @@ fn quic_ep(port: u16) -> Endpoint {
     format!("quic://127.0.0.1:{port}").parse().unwrap()
 }
 
-/// Node listening on QUIC at `port`, with TCP/UDP discovery on a free port.
+/// Node listening on QUIC at `port`.
 fn quic_listener(port: u16, config: Config, ex: Executor) -> Arc<Node> {
-    let discovery_port = free_port();
     create_node(
         Config {
             listen_endpoints: vec![quic_ep(port)],
-            discovery_endpoints: vec![
-                format!("tcp://127.0.0.1:{discovery_port}").parse().unwrap(),
-                format!("udp://127.0.0.1:{discovery_port}").parse().unwrap(),
-            ],
             ..config
         },
         ex,

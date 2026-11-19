@@ -26,6 +26,7 @@ default features and enable the `smol` feature.
 - **[karyon_core](./core)**: Core utilities and shared foundational components.
 - **[karyon_net](./net)**: Layered networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5.
 - **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, pluggable custom protocols, and support for TCP, TLS, and QUIC.
+- **[karyon_kademlia](./kademlia)**: Kademlia DHT discovery for the p2p layer: routing table, lookups through bootstrap peers, and UDP liveness refreshes.
 - **[karyon_swarm](./swarm)**: Builds on the p2p layer with protocol-aware swarms and BitTorrent-style swarm-keyed discovery for scalable decentralized peer coordination.
 - **[karyon_stun](./stun)**: Minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) server and client over UDP, TCP, TLS, and QUIC (karyon extension), so peers behind NAT can discover their public address.
 - **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets.

@@ -9,7 +9,7 @@ use rand::seq::IndexedRandom;
 
 use karyon_net::Addr;
 
-use crate::discovery::kademlia::bloom::LocalBloom;
+use crate::bloom::LocalBloom;
 
 pub use bucket::{
     Bucket, BucketEntry, CONNECTED_ENTRY, DISCONNECTED_ENTRY, EntryStatusFlag, PENDING_ENTRY,
@@ -381,10 +381,9 @@ mod tests {
 
     use karyon_net::Addr;
 
-    use crate::{
-        discovery::kademlia::bloom::Bloom,
-        message::{PeerAddr, Protocol},
-    };
+    use karyon_p2p::{PeerAddr, Protocol};
+
+    use crate::bloom::Bloom;
 
     struct Setup {
         local_key: Key,

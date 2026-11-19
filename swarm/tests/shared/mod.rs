@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use karyon_core::async_runtime::Executor;
 
+use karyon_kademlia::{KademliaConfig, KademliaDiscovery};
 use karyon_p2p::{
     Config, Node,
     keypair::{KeyPair, KeyPairType},
@@ -31,4 +32,15 @@ pub fn fast_config() -> Config {
 pub fn create_node(config: Config, ex: Executor) -> Arc<Node> {
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
     Node::new(&key_pair, config, ex)
+}
+
+/// Helper to create a Node that runs Kademlia discovery.
+pub fn create_kad_node(config: Config, kconfig: KademliaConfig, ex: Executor) -> Arc<Node> {
+    let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
+    Node::with_discovery(
+        &key_pair,
+        config,
+        |ctx| KademliaDiscovery::new(ctx, kconfig),
+        ex,
+    )
 }
