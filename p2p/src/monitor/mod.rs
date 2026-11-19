@@ -8,8 +8,8 @@ use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic,
 
 use karyon_net::Endpoint;
 
-pub(crate) use event::PoolEvent;
 pub use event::ConnectionKind;
+pub(crate) use event::PoolEvent;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
