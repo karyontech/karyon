@@ -15,7 +15,7 @@ use karyon_core::{
 };
 
 use karyon_p2p::{
-    DiscoveredPeer, Node, PeerEvent, PeerEventListener, PeerID, Result,
+    Node, PeerEvent, PeerEventListener, PeerID, Result,
     protocol::{PeerConn, Protocol, ProtocolFlags, ProtocolID},
 };
 
@@ -41,9 +41,8 @@ struct SwarmInfo {
 /// protocol (e.g. chat rooms, pub/sub topics).
 ///
 /// Joining a swarm also advertises the swarm key as a preferred item
-/// through discovery, so other peers can discover this node via
-/// [`Node::find_peers_with`] / [`Swarm::find_peers`] without paying
-/// the cost of a full handshake first.
+/// through discovery, so a discovery such as Kademlia can pick peers
+/// that share a swarm.
 pub struct Swarm {
     node: Arc<Node>,
     /// Swarm key -> swarm state.
@@ -178,14 +177,6 @@ impl Swarm {
             Some(info) => info.peers.read().await.len(),
             None => 0,
         }
-    }
-
-    /// Routing-table candidates whose advertised bloom may contain the
-    /// swarm key. False positives are possible (bloom semantics) - the
-    /// returned peers may not actually be in the swarm. Use this to
-    /// trigger swarm-targeted dials before any handshake has happened.
-    pub fn find_peers(&self, key: &SwarmKey) -> Vec<DiscoveredPeer> {
-        self.node.find_peers_with(key)
     }
 
     /// Reference to the underlying node.

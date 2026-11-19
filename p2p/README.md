@@ -121,8 +121,8 @@ table           |                       |
 - **Node**: top-level lifecycle. Creates the discovery, pool, connector,
   and listener; wires them together; exposes the public API.
 - **Discovery**: finds peers and yields them as `DiscoveredPeer`. The
-  default only dials `dial_peers`; karyon_kademlia and custom
-  implementations of the `Discovery` trait plug in.
+  default finds none; karyon_kademlia and custom implementations of the
+  `Discovery` trait plug in. The node dials `dial_peers` itself.
 - **Connector / Listener**: dial and accept connections over the
   configured transports, then hand them to `ConnQueue`.
 - **ConnQueue**: short-lived bridge between accept/dial and handshake.
@@ -143,11 +143,13 @@ multiplexes one stream per protocol.
 ### Discovery
 
 Implementations of the `Discovery` trait yield candidate peers; the
-Node dials them. `Node::new` only dials `Config::dial_peers`. For a
-Kademlia DHT use [karyon_kademlia](../kademlia) through
-`Node::with_discovery`, or plug in your own (mDNS, ...) by implementing the
-trait. The closure given to `with_discovery` gets a `DiscoveryContext`:
-the node's key pair, PeerID, config, monitor and executor.
+Node dials them. The Node also dials `Config::dial_peers` once at start,
+with any discovery. `Node::new` runs no discovery. For a Kademlia DHT use
+[karyon_kademlia](../kademlia) through `Node::with_discovery`, or plug in
+your own (mDNS, ...) by implementing the trait: only `start` and `recv`
+are required. The closure given to `with_discovery` gets a
+`DiscoveryContext`: the node's key pair, PeerID, config, monitor and
+executor.
 
 ### Protocols
 

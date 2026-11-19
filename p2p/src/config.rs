@@ -61,8 +61,7 @@ pub struct Config {
     /// Endpoints to listen on for incoming peer connections.
     /// e.g. [tcp://0.0.0.0:8000, quic://0.0.0.0:9000]
     pub listen_endpoints: Vec<Endpoint>,
-    /// Peers to dial directly. The default discovery dials them; a custom
-    /// discovery decides itself.
+    /// Peers the node dials once at start, with any discovery.
     pub dial_peers: Vec<Endpoint>,
     /// The number of available inbound slots for incoming connections.
     pub inbound_slots: usize,

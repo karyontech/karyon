@@ -4,8 +4,8 @@ use karyon_net::Endpoint;
 
 /// Configuration of the Kademlia discovery.
 ///
-/// The node settings it also uses (`listen_endpoints`, `dial_peers`,
-/// `version`, `access_control`, `handshake_timeout`) come from the node's
+/// The node settings it also uses (`listen_endpoints`, `version`,
+/// `access_control`, `handshake_timeout`) come from the node's
 /// `karyon_p2p::Config`.
 ///
 /// # Example
@@ -36,7 +36,7 @@ pub struct KademliaConfig {
     ///   Handles UDP liveness pings against routing-table entries.
     ///
     /// Either provide both (one of each kind) or leave the vector empty
-    /// to only look up the bootstrap peers and dial `dial_peers`.
+    /// to only look up the bootstrap peers.
     ///
     /// e.g. [tcp://0.0.0.0:7000, udp://0.0.0.0:7000]
     pub discovery_endpoints: Vec<Endpoint>,

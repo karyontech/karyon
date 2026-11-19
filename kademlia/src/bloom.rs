@@ -21,6 +21,7 @@ impl Bloom {
     }
 
     /// True if this filter might contain `item`.
+    #[cfg(test)]
     pub fn may_contain<I: AsRef<[u8]>>(&self, item: I) -> bool {
         let mask = item_mask(item.as_ref());
         (self.0 & mask) == mask

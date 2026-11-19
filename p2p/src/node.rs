@@ -22,10 +22,10 @@ use crate::{
     conn_queue::ConnQueue,
     connector::Connector,
     discovery::{
-        DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, StaticDiscovery,
+        DiscoveredPeer, Discovery, DiscoveryContext, NoDiscovery, PeerConnectionEvent,
     },
     listener::Listener,
-    message::{Protocol, pick_endpoint},
+    message::{PeerAddr, Protocol, pick_endpoint},
     monitor::{Monitor, PoolEvent},
     peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
     protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID},
@@ -86,13 +86,13 @@ pub struct Node {
 }
 
 impl Node {
-    /// Creates a new Node that dials `Config::dial_peers` and finds no
-    /// other peers. Use `with_discovery` to run a discovery.
+    /// Creates a new Node that runs no discovery: it only dials
+    /// `Config::dial_peers`. Use `with_discovery` to find more peers.
     pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Node> {
         Self::with_discovery(
             key_pair,
             config,
-            |ctx| StaticDiscovery::new(&ctx.config),
+            |_| Arc::new(NoDiscovery),
             ex,
         )
     }
@@ -216,68 +216,83 @@ impl Node {
             let mapped = match event {
                 PeerEvent::Added(pid) => PeerConnectionEvent::Connected(pid),
                 PeerEvent::Removed(pid) => PeerConnectionEvent::Disconnected(pid),
-                PeerEvent::HandshakeFailed(pid) => PeerConnectionEvent::ConnectFailed(pid),
+                PeerEvent::HandshakeFailed(pid) => PeerConnectionEvent::HandshakeFailed(pid),
             };
             self.discovery.on_event(mapped);
         }
     }
 
-    /// Consume discovered peers from the discovery service and connect to them.
-    /// Runs forever; the task_group cancels it on Node::shutdown.
+    /// Dial `Config::dial_peers` once, then the peers the discovery
+    /// yields. Runs forever; the task_group cancels it on Node::shutdown.
     async fn connect_discovered_peers(self: Arc<Self>) {
-        let supported = [Protocol::Tcp, Protocol::Tls, Protocol::Quic];
+        for endpoint in self.config.dial_peers.iter() {
+            let peer = DiscoveredPeer {
+                peer_id: None,
+                addrs: PeerAddr::from_endpoint(endpoint, 0).into_iter().collect(),
+            };
+            if self.dial(peer).await.is_err() {
+                return;
+            }
+        }
 
         loop {
-            let discovered = self.discovery.recv().await;
-
-            let endpoint = match pick_endpoint(&discovered.addrs, &supported) {
-                Some(ep) => ep,
-                None => continue,
-            };
-
-            if !self.config.access_control.allow(
-                &Subject::Endpoint(&endpoint),
-                Action::Connect(ConnDirection::Outbound),
-            ) {
-                debug!("Skipped dialing denied endpoint {endpoint}");
-                continue;
+            let peer = self.discovery.recv().await;
+            if self.dial(peer).await.is_err() {
+                return;
             }
-
-            // Already connected: a second connection would only be
-            // rejected or replace the first.
-            if let Some(pid) = &discovered.peer_id
-                && self.peer_pool.contains_peer(pid).await
-            {
-                continue;
-            }
-
-            // Take the slot here, so this loop waits when all slots are
-            // busy. The dial runs in its own task, so one slow endpoint
-            // does not hold back the next dial.
-            let slot = match self.connector.acquire_slot().await {
-                Ok(slot) => slot,
-                Err(err) => {
-                    error!("Acquire outbound slot: {err}");
-                    break;
-                }
-            };
-
-            let peer_id = discovered.peer_id.clone();
-            let this = self.clone();
-            self.task_group.spawn(async move {
-                let res = this
-                    .connector
-                    .connect_and_queue(&endpoint, &peer_id, slot)
-                    .await;
-                if res.is_err() {
-                    this.monitor
-                        .notify(PoolEvent::ConnectFailed(peer_id.clone(), endpoint))
-                        .await;
-                    this.discovery
-                        .on_event(PeerConnectionEvent::ConnectFailed(peer_id));
-                }
-            });
         }
+    }
+
+    /// Dial `peer` in its own task once an outbound slot is free. Skips
+    /// peers with no usable address, denied or already connected. Fails
+    /// only if the outbound slots are closed.
+    async fn dial(self: &Arc<Self>, peer: DiscoveredPeer) -> Result<()> {
+        let supported = [Protocol::Tcp, Protocol::Tls, Protocol::Quic];
+        let Some(endpoint) = pick_endpoint(&peer.addrs, &supported) else {
+            return Ok(());
+        };
+
+        if !self.config.access_control.allow(
+            &Subject::Endpoint(&endpoint),
+            Action::Connect(ConnDirection::Outbound),
+        ) {
+            debug!("Skipped dialing denied endpoint {endpoint}");
+            return Ok(());
+        }
+
+        // Already connected: a second connection would only be
+        // rejected or replace the first.
+        if let Some(pid) = &peer.peer_id
+            && self.peer_pool.contains_peer(pid).await
+        {
+            return Ok(());
+        }
+
+        // Take the slot here, so the caller waits when all slots are
+        // busy. The dial runs in its own task, so one slow endpoint
+        // does not hold back the next dial.
+        let slot = self
+            .connector
+            .acquire_slot()
+            .await
+            .inspect_err(|err| error!("Acquire outbound slot: {err}"))?;
+
+        let peer_id = peer.peer_id;
+        let this = self.clone();
+        self.task_group.spawn(async move {
+            let res = this
+                .connector
+                .connect_and_queue(&endpoint, &peer_id, slot)
+                .await;
+            if res.is_err() {
+                this.monitor
+                    .notify(PoolEvent::ConnectFailed(peer_id.clone(), endpoint))
+                    .await;
+                this.discovery
+                    .on_event(PeerConnectionEvent::DialFailed(peer_id));
+            }
+        });
+        Ok(())
     }
 
     /// Attach a custom protocol. karyon runs the constructor closure
@@ -309,13 +324,6 @@ impl Node {
     /// layers.
     pub fn advertise(&self, item: impl AsRef<[u8]>, flags: ProtocolFlags) {
         self.discovery.advertise(item.as_ref(), flags);
-    }
-
-    /// Find peers known to the discovery that may support `item`.
-    /// Useful for swarm-targeted lookups (e.g. "peers in this room")
-    /// without changing handshake semantics.
-    pub fn find_peers_with(&self, item: impl AsRef<[u8]>) -> Vec<DiscoveredPeer> {
-        self.discovery.find_peers_with(item.as_ref())
     }
 
     /// Returns the number of currently connected peers.

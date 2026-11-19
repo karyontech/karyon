@@ -36,9 +36,8 @@ use karyon_swarm::Swarm;
 async {
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
-    // `find_peers` needs a discovery with a routing table, such as
-    // karyon_kademlia (`Node::with_discovery`); `Node::new` only dials
-    // `Config::dial_peers`.
+    // `Node::new` only dials `Config::dial_peers`; use karyon_kademlia
+    // (`Node::with_discovery`) to find peers that share a swarm.
     let node = Node::new(&key_pair, Config::default(), global_executor());
     let swarm = Swarm::new(node, global_executor());
 
@@ -56,9 +55,6 @@ async {
 
     // Connected peers currently in this swarm.
     // let peers = swarm.peers(&chat_key).await;
-
-    // Routing-table candidates that may belong to this swarm.
-    // let candidates = swarm.find_peers(&chat_key);
 
     swarm.shutdown().await;
 };

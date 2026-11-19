@@ -199,25 +199,6 @@ impl RoutingTable {
         entries
     }
 
-    /// Returns all entries whose advertised bloom may contain `item`.
-    /// Skips unreachable / unstable entries. False positives are
-    /// possible per bloom semantics.
-    pub fn entries_with_item(&self, item: &[u8]) -> Vec<Entry> {
-        let buckets = self.buckets.read();
-        let mut entries = Vec::new();
-        for bucket in buckets.iter() {
-            for be in bucket.iter() {
-                if be.is_unreachable() || be.is_unstable() {
-                    continue;
-                }
-                if be.entry.protocols.may_contain(item) {
-                    entries.push(be.entry.clone());
-                }
-            }
-        }
-        entries
-    }
-
     /// Removes an entry with the given key from the routing table, if it exists.
     pub fn remove_entry(&self, key: &Key) {
         let mut buckets = self.buckets.write();

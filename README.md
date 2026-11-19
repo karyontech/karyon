@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/crates/l/karyon_core)](https://github.com/karyontech/karyon/blob/master/LICENSE)
 
 [![karyon_p2p crates.io](https://img.shields.io/crates/v/karyon_p2p?label=karyon_p2p%20crates.io)](https://crates.io/crates/karyon_p2p)
+[![karyon_kademlia crates.io](https://img.shields.io/crates/v/karyon_kademlia?label=karyon_kademlia%20crates.io)](https://crates.io/crates/karyon_kademlia)
 [![karyon_swarm crates.io](https://img.shields.io/crates/v/karyon_swarm?label=karyon_swarm%20crates.io)](https://crates.io/crates/karyon_swarm)
 [![karyon_stun crates.io](https://img.shields.io/crates/v/karyon_stun?label=karyon_stun%20crates.io)](https://crates.io/crates/karyon_stun)
 [![karyon_jsonrpc crates.io](https://img.shields.io/crates/v/karyon_jsonrpc?label=karyon_jsonrpc%20crates.io)](https://crates.io/crates/karyon_jsonrpc)
@@ -35,6 +36,7 @@ default features and enable the `smol` feature.
 ## Docs
 
 - [karyon_p2p](https://docs.rs/karyon_p2p/latest/karyon_p2p/)
+- [karyon_kademlia](https://docs.rs/karyon_kademlia/latest/karyon_kademlia/)
 - [karyon_swarm](https://docs.rs/karyon_swarm/latest/karyon_swarm/)
 - [karyon_stun](https://docs.rs/karyon_stun/latest/karyon_stun/)
 - [karyon_jsonrpc](https://docs.rs/karyon_jsonrpc/latest/karyon_jsonrpc/)
