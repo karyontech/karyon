@@ -44,7 +44,12 @@ impl Sessions {
         let info = session.info.clone();
         let mut map = self.map.write().await;
         if let Some(old) = map.get(&info.id)
-            && !new_conn_wins(own_id, &info.id, &old.info.direction, &info.direction)
+            && !new_conn_wins(
+                own_id,
+                &info.id,
+                (&old.info.direction, old.conn_key),
+                (&info.direction, session.conn_key),
+            )
         {
             return Err(Error::PeerAlreadyConnected);
         }
@@ -140,17 +145,26 @@ impl Sessions {
 }
 
 /// Decides whether a new connection to a peer replaces the one already in
-/// the pool. When two nodes dial each other at the same time, each sees
-/// both connections in opposite directions. Both keep the one dialed by
-/// the node with the smaller PeerID, so they keep the same connection.
-/// Two connections in the same direction keep the first.
-fn new_conn_wins(own: &PeerID, remote: &PeerID, old: &ConnDirection, new: &ConnDirection) -> bool {
-    match (old, new) {
+/// the pool. Both nodes must keep the same connection, whatever order
+/// they admit them in:
+/// - Opposite directions (both nodes dialed at the same time): keep the
+///   one dialed by the node with the smaller PeerID.
+/// - Same direction (one node dialed twice, e.g. on two endpoints): keep
+///   the one with the smaller `conn_key`, which both nodes share.
+///
+/// `old` and `new` are the direction and `conn_key` of each connection.
+fn new_conn_wins(
+    own: &PeerID,
+    remote: &PeerID,
+    old: (&ConnDirection, u64),
+    new: (&ConnDirection, u64),
+) -> bool {
+    match (old.0, new.0) {
         // The new one was dialed by us.
         (ConnDirection::Inbound, ConnDirection::Outbound) => own.0 < remote.0,
         // The new one was dialed by the remote.
         (ConnDirection::Outbound, ConnDirection::Inbound) => remote.0 < own.0,
-        _ => false,
+        _ => new.1 < old.1,
     }
 }
 
@@ -166,13 +180,18 @@ mod tests {
 
         // A has the smaller id, so both keep the connection A dialed:
         // outbound on A, inbound on B. The other one never wins.
-        assert!(new_conn_wins(&a, &b, &inb, &outb));
-        assert!(!new_conn_wins(&a, &b, &outb, &inb));
-        assert!(new_conn_wins(&b, &a, &outb, &inb));
-        assert!(!new_conn_wins(&b, &a, &inb, &outb));
+        assert!(new_conn_wins(&a, &b, (&inb, 0), (&outb, 0)));
+        assert!(!new_conn_wins(&a, &b, (&outb, 0), (&inb, 0)));
+        assert!(new_conn_wins(&b, &a, (&outb, 0), (&inb, 0)));
+        assert!(!new_conn_wins(&b, &a, (&inb, 0), (&outb, 0)));
 
-        // Same direction: the first one stays.
-        assert!(!new_conn_wins(&a, &b, &outb, &outb));
-        assert!(!new_conn_wins(&a, &b, &inb, &inb));
+        // Same direction: the smaller key stays, in either order. A sees
+        // both as outbound, B as inbound.
+        assert!(new_conn_wins(&a, &b, (&outb, 5), (&outb, 3)));
+        assert!(!new_conn_wins(&a, &b, (&outb, 3), (&outb, 5)));
+        assert!(new_conn_wins(&b, &a, (&inb, 5), (&inb, 3)));
+        assert!(!new_conn_wins(&b, &a, (&inb, 3), (&inb, 5)));
+        // Equal keys: the first one stays.
+        assert!(!new_conn_wins(&a, &b, (&inb, 3), (&inb, 3)));
     }
 }

@@ -203,11 +203,12 @@ impl PeerPool {
             info,
             conn,
             protocols,
+            conn_key,
         } = admitted;
         let pid = info.id.clone();
 
         let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
-        let session = PeerSession::new(info, conn, conn_id, slot, self.executor.clone())?;
+        let session = PeerSession::new(info, conn, conn_id, conn_key, slot, self.executor.clone())?;
 
         let replaced = match self.sessions.insert(&self.id, session.clone()).await {
             Ok(replaced) => replaced,

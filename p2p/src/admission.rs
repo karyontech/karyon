@@ -5,7 +5,7 @@ use log::warn;
 use crate::{
     Error, PeerID,
     access_control::{AccessControlRef, Action, PeerCandidate, Subject},
-    handshake::{HandshakeParams, handshake},
+    handshake::{HandshakeParams, Handshaked, handshake},
     protocol::{ProtocolID, ProtocolRegistry, ResolvedProtocol},
     queued_conn::QueuedConn,
     session::{SessionInfo, SessionInfoRef},
@@ -28,6 +28,8 @@ pub(crate) struct Admitted {
     pub conn: QueuedConn,
     /// Constructors of the negotiated protocols.
     pub protocols: Vec<ResolvedProtocol>,
+    /// Same on both nodes for this connection (see `Handshaked`).
+    pub conn_key: u64,
 }
 
 /// Why a connection was not admitted.
@@ -58,7 +60,11 @@ pub(crate) async fn admit(
         timeout_secs: config.handshake_timeout,
         verified_peer_id: conn.verified_peer_id.as_ref(),
     };
-    let (pid, negotiated) = handshake(&mut conn.reader, &mut conn.writer, &params)
+    let Handshaked {
+        peer_id: pid,
+        negotiated,
+        conn_key,
+    } = handshake(&mut conn.reader, &mut conn.writer, &params)
         .await
         .map_err(|error| Rejected {
             peer_id: conn.verified_peer_id.clone(),
@@ -95,5 +101,6 @@ pub(crate) async fn admit(
         info,
         conn,
         protocols,
+        conn_key,
     })
 }

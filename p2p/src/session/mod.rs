@@ -30,6 +30,9 @@ pub(crate) struct PeerSession {
     /// Unique per connection in the pool. A peer that reconnects or whose
     /// connection is replaced gets a new one, while the id stays the same.
     pub(crate) conn_id: u64,
+    /// From the handshake, the same on both nodes. Picks which of two
+    /// connections to the same peer stays (see `Sessions::insert`).
+    pub(crate) conn_key: u64,
     /// Hides the wire shape (single framed pipe vs. per-protocol streams).
     wire: WireRef,
     /// Session tasks send the reason the session must stop. `run` waits on
@@ -49,6 +52,7 @@ impl PeerSession {
         info: SessionInfoRef,
         conn: QueuedConn,
         conn_id: u64,
+        conn_key: u64,
         slot: SemaphoreGuard,
         executor: Executor,
     ) -> Result<Self> {
@@ -59,6 +63,7 @@ impl PeerSession {
         Ok(Self {
             info,
             conn_id,
+            conn_key,
             wire,
             stop_tx,
             stop_rx,
