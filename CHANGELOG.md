@@ -25,7 +25,8 @@
   `Listener`, `DiscoveryContext`, `PeerConnectionEvent` (needed to
   implement `Discovery` outside the crate), `pick_endpoint`, `ShutdownMsg`,
   `VersionInt`, `version_match`, and `Monitor::notify` with
-  `monitor::{ConnectionKind, DiscoveryKind}`.
+  `monitor::{ConnectionKind, ToEvent}`. A discovery posts its own events
+  as `DiscoveryEvent` by implementing `ToEvent`.
 - **`karyon_kademlia`**: the Kademlia DHT discovery, with the peer and chat
   examples.
 

@@ -2,6 +2,7 @@
 
 mod bloom;
 mod config;
+mod event;
 mod lookup;
 mod messages;
 mod refresh;

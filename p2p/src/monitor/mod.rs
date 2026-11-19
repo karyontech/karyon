@@ -9,7 +9,7 @@ use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic,
 use karyon_net::Endpoint;
 
 pub(crate) use event::PoolEvent;
-pub use event::{ConnectionKind, DiscoveryKind};
+pub use event::ConnectionKind;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -86,7 +86,8 @@ pub enum MonitorTopic {
     Discovery,
 }
 
-/// An event kind the monitor can post: `ConnectionKind`, `DiscoveryKind`.
+/// An event kind the monitor can post. A discovery crate implements it
+/// for its own kinds, with `DiscoveryEvent` as the event.
 pub trait ToEvent: Sized {
     type Event: From<Self>
         + Clone
@@ -104,10 +105,6 @@ impl ToEvent for ConnectionKind {
 
 impl ToEvent for PoolEvent {
     type Event = PeerPoolEvent;
-}
-
-impl ToEvent for DiscoveryKind {
-    type Event = DiscoveryEvent;
 }
 
 #[derive(Clone, Debug, EventValue)]
@@ -130,6 +127,7 @@ pub struct PeerPoolEvent {
     pub endpoint: Option<Endpoint>,
 }
 
+/// Event of the discovery the node runs, e.g. karyon_kademlia.
 #[derive(Clone, Debug, EventValue)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiscoveryEvent {
@@ -161,18 +159,6 @@ impl From<PoolEvent> for PeerPoolEvent {
         Self {
             peer_id,
             endpoint,
-            event: event.variant_name().to_string(),
-            date: get_current_timestamp(),
-        }
-    }
-}
-
-impl From<DiscoveryKind> for DiscoveryEvent {
-    fn from(event: DiscoveryKind) -> Self {
-        Self {
-            endpoint: event.get_endpoint().cloned(),
-            size: event.get_size(),
-            peer_id: event.get_peer_id().cloned(),
             event: event.variant_name().to_string(),
             date: get_current_timestamp(),
         }
