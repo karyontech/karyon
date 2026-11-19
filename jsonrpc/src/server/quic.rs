@@ -33,7 +33,7 @@ pub(crate) trait QuicAcceptor: Send + Sync {
     fn local_endpoint(&self) -> Result<Endpoint>;
 }
 
-/// Shared handle to a `QuicAcceptor`.
+/// `Arc` reference to a `QuicAcceptor`.
 pub(crate) type QuicAcceptorRef = Arc<dyn QuicAcceptor>;
 
 /// QUIC server. Every stream is framed with `codec`.

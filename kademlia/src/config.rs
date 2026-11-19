@@ -86,7 +86,7 @@ pub struct KademliaConfig {
     pub refresh_connect_retries: usize,
 }
 
-/// Shared handle to a `KademliaConfig`.
+/// `Arc` reference to a `KademliaConfig`.
 pub type KademliaConfigRef = Arc<KademliaConfig>;
 
 impl Default for KademliaConfig {

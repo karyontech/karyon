@@ -126,7 +126,7 @@ pub struct Client<B = JsonCodec, W = JsonCodec> {
     _codecs: PhantomData<(B, W)>,
 }
 
-/// Shared handle to a `Client`.
+/// `Arc` reference to a `Client`.
 pub type ClientRef<B = JsonCodec, W = JsonCodec> = Arc<Client<B, W>>;
 
 impl<B, W> Client<B, W>

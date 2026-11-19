@@ -77,7 +77,7 @@ pub struct Channel {
     peer: Option<Endpoint>,
 }
 
-/// Shared handle to a `Channel`.
+/// `Arc` reference to a `Channel`.
 pub type ChannelRef = Arc<Channel>;
 
 impl Channel {

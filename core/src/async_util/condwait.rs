@@ -35,7 +35,7 @@ pub struct CondWait {
     w: Mutex<bool>,
 }
 
-/// Shared handle to a `CondWait`.
+/// `Arc` reference to a `CondWait`.
 pub type CondWaitRef = Arc<CondWait>;
 
 impl CondWait {

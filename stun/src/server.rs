@@ -104,7 +104,7 @@ pub struct StunServer {
     conns: Arc<AtomicUsize>,
 }
 
-/// Shared handle to a `StunServer`.
+/// `Arc` reference to a `StunServer`.
 pub type StunServerRef = Arc<StunServer>;
 
 /// One taken connection slot. Frees it on drop.

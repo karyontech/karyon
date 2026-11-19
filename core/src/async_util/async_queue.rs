@@ -27,7 +27,7 @@ pub struct AsyncQueue<T> {
     not_full: CondVar,
 }
 
-/// Shared handle to an `AsyncQueue`.
+/// `Arc` reference to an `AsyncQueue`.
 pub type AsyncQueueRef<T> = Arc<AsyncQueue<T>>;
 
 impl<T> AsyncQueue<T> {

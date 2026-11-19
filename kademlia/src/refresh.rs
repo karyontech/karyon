@@ -92,7 +92,7 @@ pub struct RefreshService {
     monitor: Arc<Monitor>,
 }
 
-/// Shared handle to a `RefreshService`.
+/// `Arc` reference to a `RefreshService`.
 pub(crate) type RefreshServiceRef = Arc<RefreshService>;
 
 impl RefreshService {
