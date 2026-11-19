@@ -200,24 +200,29 @@ impl PeerPool {
         } = admitted;
         let pid = info.id.clone();
 
-        let make = || {
-            let peer = Peer::new(
-                info.clone(),
-                conn,
-                protocols,
-                Broadcaster::new(self.sessions.clone()),
-                Duration::from_secs(self.config.handshake_timeout),
-                self.executor.clone(),
-            )?;
-            let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
-            let session = peer.session(conn_id, slot);
-            Ok((peer, session))
+        let peer = Peer::new(
+            info,
+            conn,
+            protocols,
+            Broadcaster::new(self.sessions.clone()),
+            Duration::from_secs(self.config.handshake_timeout),
+            self.executor.clone(),
+        )?;
+        let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
+        let session = peer.session(conn_id, slot);
+
+        let replaced = match self.sessions.insert(&self.id, session.clone()).await {
+            Ok(replaced) => replaced,
+            Err(err) => {
+                // Rejected: cancel the wire tasks `Peer::new` spawned. The
+                // peer is dropped with its connection and slot.
+                session.stop().await;
+                if matches!(err, Error::PeerAlreadyConnected) {
+                    self.events.already_connected(&pid).await;
+                }
+                return Err(err);
+            }
         };
-        let res = self.sessions.insert(&self.id, &info, make).await;
-        if matches!(res, Err(Error::PeerAlreadyConnected)) {
-            self.events.already_connected(&pid).await;
-        }
-        let (peer, session, replaced) = res?;
 
         let on_end = {
             let this = self.clone();
