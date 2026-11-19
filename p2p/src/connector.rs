@@ -1,13 +1,13 @@
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
-use log::{error, trace, warn};
+use log::{error, warn};
 
 use karyon_core::{
     async_runtime::{
         Executor,
         lock::{Semaphore, SemaphoreGuard},
     },
-    async_util::{Backoff, TaskGroup, TaskResult, timeout},
+    async_util::{Backoff, TaskGroup, timeout},
     crypto::KeyPair,
 };
 use karyon_net::{ByteBuffer, ClientLayer, Endpoint, FramedConn, codec::Codec, framed, tcp};
@@ -16,8 +16,8 @@ use crate::{
     Error, PeerID, Result,
     codec::PeerNetMsgCodec,
     conn_direction::ConnDirection,
-    conn_queue::ConnQueue,
-    monitor::{ConnectionKind, Monitor},
+    monitor::{ConnectionKind, MonitorRef},
+    queued_conn::{ConnQueueRef, Incoming, QueuedConn},
     tls_config::{peer_id_from_certs, tls_client_config},
 };
 
@@ -41,6 +41,9 @@ enum DialResult<C: Codec<ByteBuffer> + Default + Clone> {
     Quic(FramedConn<C>, quic::QuicConn, Option<PeerID>),
 }
 
+/// `Arc` reference to a `Connector`.
+pub type ConnectorRef<C> = Arc<Connector<C>>;
+
 /// Creates outbound connections with other peers. Generic over the
 /// codec applied to the resulting framed stream so the same machinery
 /// (TLS, retries, slots, monitor events) serves both the peer
@@ -52,8 +55,10 @@ pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     max_retries: usize,
     /// Max time for one dial: connect plus the TLS or QUIC handshake.
     dial_timeout: Duration,
-    conn_queue: Option<Arc<ConnQueue>>,
-    monitor: Arc<Monitor>,
+    /// Hands dialed connections to the PeerPool. Only on the Node's own
+    /// connector.
+    conn_queue: Option<ConnQueueRef>,
+    monitor: MonitorRef,
     _codec: PhantomData<C>,
 }
 
@@ -61,16 +66,16 @@ impl<C> Connector<C>
 where
     C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
 {
-    /// Create a new Connector without a ConnQueue, for plain `connect`
+    /// Create a new Connector not tied to the PeerPool, for plain `connect`
     /// calls such as a discovery's queries. `dial_timeout` is in seconds.
     pub fn new(
         key_pair: &KeyPair,
         max_retries: usize,
         slots: usize,
         dial_timeout: u64,
-        monitor: Arc<Monitor>,
+        monitor: MonitorRef,
         ex: Executor,
-    ) -> Arc<Self> {
+    ) -> ConnectorRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
@@ -194,19 +199,19 @@ where
 }
 
 // `connect_and_queue` only lives on the peer-plane Connector since the
-// ConnQueue is part of the data-plane handshake pipeline.
+// PeerPool takes only peer-plane connections.
 impl Connector<PeerNetMsgCodec> {
-    /// Create a new Connector with a ConnQueue. `dial_timeout` is in
-    /// seconds.
+    /// Create a new Connector that hands its connections to the PeerPool.
+    /// `dial_timeout` is in seconds.
     pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
         max_retries: usize,
         slots: usize,
         dial_timeout: u64,
-        conn_queue: Arc<ConnQueue>,
-        monitor: Arc<Monitor>,
+        conn_queue: ConnQueueRef,
+        monitor: MonitorRef,
         ex: Executor,
-    ) -> Arc<Self> {
+    ) -> ConnectorRef<PeerNetMsgCodec> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
@@ -219,58 +224,39 @@ impl Connector<PeerNetMsgCodec> {
         })
     }
 
-    /// Connect, queue for handshake, and run until the peer
-    /// disconnects. Disconnect/handshake-failure is observable via
-    /// `PeerPool::register_peer_events`, not via this call. `slot` comes
-    /// from `acquire_slot` and is held until the peer disconnects.
+    /// Connect and hand the connection to the PeerPool, which handshakes
+    /// it. Handshake failure and disconnect are observable via
+    /// `Node::register_peer_events`, not via this call. `slot` comes
+    /// from `acquire_slot` and is held until the connection is closed.
     pub(crate) async fn connect_and_queue(
-        self: &Arc<Self>,
+        &self,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
         slot: SemaphoreGuard,
     ) -> Result<()> {
-        let dial_result = self.connect_internal(endpoint, peer_id).await?;
+        let conn_queue = self.conn_queue.as_ref().ok_or_else(|| {
+            Error::Config("connect_and_queue called on Connector built without a PeerPool".into())
+        })?;
 
-        let endpoint = endpoint.clone();
-        let on_disconnect = {
-            let this = self.clone();
-            |res: TaskResult<Result<()>>| async move {
-                if let TaskResult::Completed(Err(err)) = res {
-                    trace!("Outbound connection dropped: {err}");
-                }
-                this.monitor
-                    .notify(ConnectionKind::Disconnected(endpoint.clone()))
-                    .await;
-                drop(slot);
+        let conn = match self.connect_internal(endpoint, peer_id).await? {
+            DialResult::Channel(conn, vpid) => QueuedConn::new(conn, ConnDirection::Outbound, vpid),
+            #[cfg(feature = "quic")]
+            DialResult::Quic(conn, quic_conn, vpid) => {
+                QueuedConn::new(conn, ConnDirection::Outbound, vpid).map(|c| c.with_quic(quic_conn))
             }
         };
 
-        let conn_queue = self
-            .conn_queue
-            .as_ref()
-            .ok_or_else(|| {
-                Error::Config(
-                    "connect_and_queue called on Connector built without ConnQueue".into(),
-                )
-            })?
-            .clone();
-        self.task_group.spawn_then(
-            async move {
-                match dial_result {
-                    DialResult::Channel(conn, vpid) => {
-                        conn_queue.handle(conn, ConnDirection::Outbound, vpid).await
-                    }
-                    #[cfg(feature = "quic")]
-                    DialResult::Quic(conn, quic_conn, vpid) => {
-                        conn_queue
-                            .handle_quic(conn, quic_conn, ConnDirection::Outbound, vpid)
-                            .await
-                    }
-                }
-            },
-            on_disconnect,
-        );
-
-        Ok(())
+        match conn {
+            Ok(conn) => {
+                conn_queue.push(Incoming { conn, slot }).await;
+                Ok(())
+            }
+            Err(err) => {
+                self.monitor
+                    .notify(ConnectionKind::Disconnected(endpoint.clone()))
+                    .await;
+                Err(err)
+            }
+        }
     }
 }

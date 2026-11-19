@@ -1,5 +1,47 @@
 # Changelog
 
+## karyon_p2p 1.4.0
+
+### Breaking changes
+
+- **`Peer` is no longer public** (`karyon_p2p`): protocols only see their
+  `PeerConn`. `PeerConn::inner()` is removed; use `PeerConn::peer_id`,
+  `remote_endpoint`, `direction` and `negotiated_protocols` instead. To
+  send on another protocol, use `Node::send_to` or `Node::broadcast`.
+- **`PeerPool::attach_protocol` and `PeerPool::new` removed from the
+  public API** (`karyon_p2p`): attach protocols with
+  `Node::attach_protocol`.
+- **`PeerPool::register_peer_events` removed** (`karyon_p2p`): use
+  `Node::register_peer_events`, which now returns `PeerEventListener`.
+
+### Added
+
+- **`Node::broadcast`** (`karyon_p2p`): send to every connected peer on a
+  protocol, from outside a protocol.
+- **`PeerConn::peer_id`, `remote_endpoint`, `direction`,
+  `negotiated_protocols`** (`karyon_p2p`).
+- **`*Ref` aliases** (`karyon_p2p`): `NodeRef`, `ConfigRef`, `MonitorRef`,
+  `PeerPoolRef`, `DiscoveryRef`, `AccessControlRef`, `ConnectorRef`,
+  `ListenerRef`, `protocol::ProtocolRef` and
+  `protocol::ProtocolConstructorRef`, each an `Arc` of its type.
+
+### Changed
+
+- **`PeerConn::broadcast` after shutdown** (`karyon_p2p`): does nothing
+  once the node is shut down, instead of panicking.
+- **Connection slots** (`karyon_p2p`): a connection's inbound or outbound
+  slot is freed once the peer is stopped, not when the listener or
+  connector task notices it.
+- **`ConnectionKind::Disconnected` for outbound peers** (`karyon_p2p`):
+  carries the peer's remote socket address, like for inbound peers,
+  instead of the dialed endpoint.
+- **Discovery peer events** (`karyon_p2p`): `Discovery::on_event` gets
+  peer events from the start of the pool, including those during
+  shutdown, instead of only once the node runs its event task.
+- **Shutdown order** (`karyon_p2p`): `Node::shutdown` stops the listener,
+  the connector and the dials before the PeerPool, and the connections
+  still queued for the pool emit `ConnectionKind::Disconnected`.
+
 ## karyon_core 1.1.3
 
 ### Added

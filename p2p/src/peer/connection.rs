@@ -5,7 +5,7 @@ use async_channel::Sender;
 use async_trait::async_trait;
 use log::debug;
 
-use karyon_core::async_util::{AsyncQueue, TaskGroup, TaskResult};
+use karyon_core::async_util::{AsyncQueue, AsyncQueueRef, TaskGroup, TaskResult};
 use karyon_net::{FramedReader, FramedWriter};
 
 #[cfg(feature = "quic")]
@@ -19,14 +19,17 @@ use crate::{conn_direction::ConnDirection, message::StreamInit, util::encode};
 use crate::{
     Error, Result,
     codec::PeerNetMsgCodec,
-    conn_queue::QueuedConn,
     message::{PeerNetCmd, PeerNetMsg, ProtocolMsg, ShutdownMsg},
     protocol::{ProtocolEvent, ProtocolID},
+    queued_conn::QueuedConn,
     util::decode,
 };
 
 const SEND_QUEUE_SIZE: usize = 128;
 const RECV_QUEUE_SIZE: usize = 128;
+
+/// `Arc` reference to a `Wire`.
+pub(crate) type WireRef = Arc<dyn Wire>;
 
 /// Per-peer wire abstraction. Hides single-pipe (TCP/TLS) vs.
 /// stream-mux (QUIC) framing from the layers above.
@@ -63,11 +66,11 @@ pub(crate) fn from_queued(
     negotiated: &HashSet<ProtocolID>,
     task_group: &TaskGroup,
     stop_reason_tx: Sender<Result<()>>,
-) -> Result<Arc<dyn Wire>> {
+) -> Result<WireRef> {
     #[cfg(feature = "quic")]
     if queued.quic_conn.is_some() {
         let conn = MuxConnection::from_queued(queued, negotiated)?;
-        return Ok(Arc::new(conn) as Arc<dyn Wire>);
+        return Ok(Arc::new(conn) as WireRef);
     }
 
     let conn = SingleConnection::from_queued(queued, negotiated, task_group, stop_reason_tx);
@@ -77,8 +80,8 @@ pub(crate) fn from_queued(
 /// TCP / TLS path: one shared writer drains `send_queue`; a single
 /// reader demuxes incoming `PeerNetMsg`s into the matching `recv_queues`.
 pub(crate) struct SingleConnection {
-    send_queue: Arc<AsyncQueue<PeerNetMsg>>,
-    recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
+    send_queue: AsyncQueueRef<PeerNetMsg>,
+    recv_queues: HashMap<ProtocolID, AsyncQueueRef<ProtocolEvent>>,
 }
 
 impl SingleConnection {
@@ -138,8 +141,8 @@ impl Wire for SingleConnection {
 /// `send_queues` and `recv_queues` are keyed by protocol id.
 #[cfg(feature = "quic")]
 pub(crate) struct MuxConnection {
-    send_queues: HashMap<ProtocolID, Arc<AsyncQueue<PeerNetMsg>>>,
-    recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
+    send_queues: HashMap<ProtocolID, AsyncQueueRef<PeerNetMsg>>,
+    recv_queues: HashMap<ProtocolID, AsyncQueueRef<ProtocolEvent>>,
     quic_conn: QuicConn,
     direction: ConnDirection,
 }
@@ -245,7 +248,7 @@ struct MuxStream {
 fn spawn_writer_task(
     task_group: &TaskGroup,
     mut writer: FramedWriter<PeerNetMsgCodec>,
-    queue: Arc<AsyncQueue<PeerNetMsg>>,
+    queue: AsyncQueueRef<PeerNetMsg>,
 ) {
     task_group.spawn_then(
         async move {
@@ -269,7 +272,7 @@ fn spawn_writer_task(
 fn spawn_demux_reader(
     task_group: &TaskGroup,
     mut reader: FramedReader<PeerNetMsgCodec>,
-    recv_queues: HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>,
+    recv_queues: HashMap<ProtocolID, AsyncQueueRef<ProtocolEvent>>,
     stop_reason_tx: Sender<Result<()>>,
 ) {
     task_group.spawn_then(
@@ -331,7 +334,7 @@ fn spawn_demux_reader(
 fn spawn_quic_reader(
     task_group: &TaskGroup,
     mut reader: FramedReader<PeerNetMsgCodec>,
-    recv_queue: Arc<AsyncQueue<ProtocolEvent>>,
+    recv_queue: AsyncQueueRef<ProtocolEvent>,
     stop_reason_tx: Sender<Result<()>>,
 ) {
     task_group.spawn_then(
@@ -459,7 +462,7 @@ async fn setup_quic_streams(
 /// One bounded recv queue per protocol id.
 fn build_recv_queues(
     proto_ids: &HashSet<ProtocolID>,
-) -> HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>> {
+) -> HashMap<ProtocolID, AsyncQueueRef<ProtocolEvent>> {
     proto_ids
         .iter()
         .map(|id| (id.clone(), AsyncQueue::new(RECV_QUEUE_SIZE)))
@@ -468,7 +471,7 @@ fn build_recv_queues(
 
 /// Push `ProtocolEvent::Shutdown` into every recv queue, waking
 /// blocked `recv` callers.
-async fn broadcast_shutdown(queues: &HashMap<ProtocolID, Arc<AsyncQueue<ProtocolEvent>>>) {
+async fn broadcast_shutdown(queues: &HashMap<ProtocolID, AsyncQueueRef<ProtocolEvent>>) {
     for q in queues.values() {
         q.push(ProtocolEvent::Shutdown).await;
     }

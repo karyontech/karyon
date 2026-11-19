@@ -105,33 +105,48 @@ karyon_p2p = { version = "1.0", default-features = false, features = ["smol", "q
 ## Architecture
 
 ```TEXT
-                          Node
-                            |
-   +------------+-----------+-----------+
-   |            |                       |
-Discovery   PeerPool             Connector / Listener
-   |            |                       |
-Routing     Peers + Protocols       ConnQueue
-table           |                       |
-                +------- Handshake -----+
-                             |
-                          karyon_net (TCP / TLS / QUIC)
+                            Node
+                              |
+   +-----------+--------------+---------------+------------------+
+   |           |              |               |                  |
+Discovery  Connector /    PeerPool       ProtocolRegistry     Monitor
+   |       Listener           |          (ctor + meta)          ^
+Routing        |              |               |                 |
+table          +---queue--> admission <-------+            PeerEvents
+                              |                                 ^
+                          Sessions <-- Broadcaster              |
+                              |            ^             (pool reports
+                     Peer (one task each)  |              each event once)
+                              |            |
+               PeerConn per protocol ------+--> Protocol
+                              |
+                   karyon_net (TCP / TLS / QUIC)
 ```
 
-- **Node**: top-level lifecycle. Creates the discovery, pool, connector,
-  and listener; wires them together; exposes the public API.
+- **Node**: top-level lifecycle. Creates the discovery, registry, pool,
+  connector and listener; wires them together; exposes the public API.
 - **Discovery**: finds peers and yields them as `DiscoveredPeer`. The
   default finds none; karyon_kademlia and custom implementations of the
   `Discovery` trait plug in. The node dials `dial_peers` itself.
 - **Connector / Listener**: dial and accept connections over the
-  configured transports, then hand them to `ConnQueue`.
-- **ConnQueue**: short-lived bridge between accept/dial and handshake.
-- **Handshake**: version + protocol negotiation. Verifies peer identity
-  bound to the secure transport's certificate.
-- **PeerPool**: registry of post-handshake peers. Owns the per-peer
-  `Peer` state and broadcasts lifecycle events.
-- **Peer / Protocol**: per-peer read loop dispatching to the registered
-  protocols. Custom protocols implement the `Protocol` trait.
+  configured transports, then hand them to the PeerPool over a bounded
+  queue. Their tasks end at the handover.
+- **ProtocolRegistry**: the attached protocols (constructor and
+  version), shared by the Node and the PeerPool.
+- **PeerPool**: takes connections from the queue, admits them and runs
+  one Peer per admitted connection.
+- **Admission**: the handshake (version + protocol negotiation, peer
+  identity bound to the secure transport's certificate) and access
+  control, before any Peer is built.
+- **Sessions**: one session per connected peer; sends and broadcasts.
+  Shared with every protocol's broadcaster.
+- **PeerEvents**: the pool reports each peer event once; it goes to the
+  monitor, the `register_peer_events` listeners and the discovery.
+- **Peer**: one task per connection. Starts the negotiated protocols and
+  stops on the first error. Knows nothing about the pool.
+- **PeerConn / Protocol**: each protocol gets a `PeerConn` scoped to its
+  own id: `send`, `recv`, `broadcast`, and the peer's id, endpoint and
+  direction. Custom protocols implement the `Protocol` trait.
 
 ### Transport
 

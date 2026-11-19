@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use karyon_net::Endpoint;
 
 use crate::{PeerID, conn_direction::ConnDirection, protocol::ProtocolID};
@@ -28,6 +30,9 @@ pub enum Action {
     /// A liveness check. No data is exchanged.
     Probe(ConnDirection),
 }
+
+/// `Arc` reference to an `AccessControl` policy.
+pub type AccessControlRef = Arc<dyn AccessControl>;
 
 /// Policy that decides which peers this node talks to, and for what.
 ///

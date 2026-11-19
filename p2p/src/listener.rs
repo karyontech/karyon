@@ -3,7 +3,10 @@ use std::{future::Future, marker::PhantomData, sync::Arc, time::Duration};
 use log::{debug, error, info};
 
 use karyon_core::{
-    async_runtime::{Executor, lock::Semaphore},
+    async_runtime::{
+        Executor,
+        lock::{Semaphore, SemaphoreGuard},
+    },
     async_util::{TaskGroup, TaskResult, timeout},
     crypto::KeyPair,
 };
@@ -17,13 +20,16 @@ use karyon_net::{
 
 use crate::{
     Error, PeerID, Result,
-    access_control::{AccessControl, Action, Subject},
+    access_control::{AccessControlRef, Action, Subject},
     codec::PeerNetMsgCodec,
     conn_direction::ConnDirection,
-    conn_queue::ConnQueue,
-    monitor::{ConnectionKind, Monitor},
+    monitor::{ConnectionKind, MonitorRef},
+    queued_conn::{ConnQueueRef, Incoming, QueuedConn},
     tls_config::{peer_id_from_certs, tls_server_config},
 };
+
+/// `Arc` reference to a `StreamListener`.
+type StreamListenerRef = Arc<StreamListener>;
 
 /// Listener for byte-stream transports (TCP, TLS). Accepting is split in
 /// two phases: `accept` does only the cheap kernel accept, `handshake`
@@ -71,10 +77,13 @@ impl StreamListener {
 }
 
 #[cfg(feature = "quic")]
-use karyon_net::{StreamMux, quic};
+use karyon_net::{StreamMux, quic, quic::QuicIncoming};
 
 #[cfg(feature = "quic")]
 use crate::tls_config::quic_server_config;
+
+/// `Arc` reference to a `Listener`.
+pub type ListenerRef<C> = Arc<Listener<C>>;
 
 /// Creates inbound connections with other peers. Generic over the
 /// codec applied to the framed accepted streams so the same accept
@@ -84,10 +93,12 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     key_pair: KeyPair,
     task_group: TaskGroup,
     connection_slots: Semaphore,
-    conn_queue: Option<Arc<ConnQueue>>,
-    monitor: Arc<Monitor>,
+    /// Hands accepted connections to the PeerPool. Only on the Node's
+    /// own listener.
+    conn_queue: Option<ConnQueueRef>,
+    monitor: MonitorRef,
     handshake_timeout: Duration,
-    access_control: Arc<dyn AccessControl>,
+    access_control: AccessControlRef,
     _codec: PhantomData<C>,
 }
 
@@ -100,11 +111,11 @@ where
     pub fn new(
         key_pair: &KeyPair,
         slots: usize,
-        monitor: Arc<Monitor>,
+        monitor: MonitorRef,
         handshake_timeout: u64,
-        access_control: Arc<dyn AccessControl>,
+        access_control: AccessControlRef,
         ex: Executor,
-    ) -> Arc<Self> {
+    ) -> ListenerRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots: Semaphore::new(slots),
@@ -183,7 +194,7 @@ where
     /// Accept loop (callback mode).
     async fn listen_loop_callback<Fut>(
         self: Arc<Self>,
-        listener: Arc<StreamListener>,
+        listener: StreamListenerRef,
         callback: impl FnOnce(FramedConn<C>) -> Fut + Clone + Send + 'static,
     ) where
         Fut: Future<Output = Result<()>> + Send + 'static,
@@ -279,19 +290,19 @@ where
 
 // Auto-queue paths only live on the peer-plane Listener. A discovery
 // uses `start_with_callback` and handles each connection inline (no
-// ConnQueue / handshake pipeline).
+// PeerPool / handshake pipeline).
 impl Listener<PeerNetMsgCodec> {
-    /// Create a new Listener with a ConnQueue (auto-queue mode).
+    /// Create a new Listener that hands its connections to the PeerPool.
     /// `handshake_timeout` is in seconds.
     pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
         slots: usize,
-        conn_queue: Arc<ConnQueue>,
-        monitor: Arc<Monitor>,
+        conn_queue: ConnQueueRef,
+        monitor: MonitorRef,
         handshake_timeout: u64,
-        access_control: Arc<dyn AccessControl>,
+        access_control: AccessControlRef,
         ex: Executor,
-    ) -> Arc<Self> {
+    ) -> ListenerRef<PeerNetMsgCodec> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots: Semaphore::new(slots),
@@ -305,7 +316,10 @@ impl Listener<PeerNetMsgCodec> {
     }
 
     /// Start listening (auto-queue mode). Returns the resolved endpoint.
-    pub(crate) async fn start(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
+    pub(crate) async fn start(
+        self: &ListenerRef<PeerNetMsgCodec>,
+        endpoint: Endpoint,
+    ) -> Result<Endpoint> {
         #[cfg(feature = "quic")]
         if endpoint.is_quic() {
             return self.start_quic(endpoint).await;
@@ -337,16 +351,20 @@ impl Listener<PeerNetMsgCodec> {
         Ok(resolved)
     }
 
+    /// The queue to the PeerPool. Set on every listener that runs the
+    /// auto-queue paths.
+    fn conn_queue(&self) -> ConnQueueRef {
+        self.conn_queue
+            .clone()
+            .expect("auto-queue listener requires a PeerPool queue")
+    }
+
     /// Accept loop (auto-queue mode).
-    async fn listen_loop(self: Arc<Self>, listener: Arc<StreamListener>) {
-        let conn_queue = self
-            .conn_queue
-            .as_ref()
-            .expect("listen_loop requires ConnQueue")
-            .clone();
+    async fn listen_loop(self: ListenerRef<PeerNetMsgCodec>, listener: StreamListenerRef) {
+        let conn_queue = self.conn_queue();
 
         loop {
-            // Released on `continue` or when the connection ends.
+            // Released on `continue` or once the connection is closed.
             let slot = match self.connection_slots.acquire().await {
                 Ok(s) => s,
                 Err(err) => {
@@ -385,36 +403,44 @@ impl Listener<PeerNetMsgCodec> {
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
                 .await;
 
-            let on_disconnect = {
-                let this = self.clone();
-                |res: TaskResult<Result<()>>| async move {
-                    if let TaskResult::Completed(Err(err)) = res {
-                        debug!("Inbound connection dropped: {err}");
-                    }
+            // The task ends once the connection is handed to the PeerPool.
+            let this = self.clone();
+            let listener = listener.clone();
+            let conn_queue = conn_queue.clone();
+            self.task_group.spawn(async move {
+                let res = this
+                    .queue_inbound(&listener, stream, slot, &conn_queue)
+                    .await;
+                if let Err(err) = res {
+                    debug!("Inbound connection dropped: {err}");
                     this.monitor
                         .notify(ConnectionKind::Disconnected(endpoint))
                         .await;
-                    drop(slot);
                 }
-            };
-
-            let cq = conn_queue.clone();
-            let this = self.clone();
-            let listener = listener.clone();
-            self.task_group.spawn_then(
-                async move {
-                    let (conn, vpid) = this.upgrade(&listener, stream).await?;
-                    cq.handle(conn, ConnDirection::Inbound, vpid).await?;
-                    Ok(())
-                },
-                on_disconnect,
-            );
+            });
         }
+    }
+
+    /// Upgrades an accepted stream and hands it to the PeerPool.
+    async fn queue_inbound(
+        &self,
+        listener: &StreamListener,
+        stream: Box<dyn ByteStream>,
+        slot: SemaphoreGuard,
+        conn_queue: &ConnQueueRef,
+    ) -> Result<()> {
+        let (conn, vpid) = self.upgrade(listener, stream).await?;
+        let conn = QueuedConn::new(conn, ConnDirection::Inbound, vpid)?;
+        conn_queue.push(Incoming { conn, slot }).await;
+        Ok(())
     }
 
     /// QUIC listener.
     #[cfg(feature = "quic")]
-    async fn start_quic(self: &Arc<Self>, endpoint: Endpoint) -> Result<Endpoint> {
+    async fn start_quic(
+        self: &ListenerRef<PeerNetMsgCodec>,
+        endpoint: Endpoint,
+    ) -> Result<Endpoint> {
         let rustls_config = quic_server_config(&self.key_pair)?;
         let server_config = quic::ServerQuicConfig::from_rustls(rustls_config);
 
@@ -452,9 +478,14 @@ impl Listener<PeerNetMsgCodec> {
 
     /// QUIC accept loop.
     #[cfg(feature = "quic")]
-    async fn listen_loop_quic(self: Arc<Self>, quic_endpoint: quic::QuicEndpoint) {
+    async fn listen_loop_quic(
+        self: ListenerRef<PeerNetMsgCodec>,
+        quic_endpoint: quic::QuicEndpoint,
+    ) {
+        let conn_queue = self.conn_queue();
+
         loop {
-            // Released on `continue` or when the connection ends.
+            // Released on `continue` or once the connection is closed.
             let slot = match self.connection_slots.acquire().await {
                 Ok(s) => s,
                 Err(err) => {
@@ -489,45 +520,43 @@ impl Listener<PeerNetMsgCodec> {
                 .notify(ConnectionKind::Accepted(peer_ep.clone()))
                 .await;
 
-            let on_disconnect = {
-                let this = self.clone();
-                |res: TaskResult<Result<()>>| async move {
-                    if let TaskResult::Completed(Err(err)) = res {
-                        debug!("Inbound QUIC conn dropped: {err}");
-                    }
+            // The task ends once the connection is handed to the PeerPool.
+            let this = self.clone();
+            let conn_queue = conn_queue.clone();
+            self.task_group.spawn(async move {
+                let res = this.queue_inbound_quic(incoming, slot, &conn_queue).await;
+                if let Err(err) = res {
+                    debug!("Inbound QUIC conn dropped: {err}");
                     this.monitor
                         .notify(ConnectionKind::Disconnected(peer_ep))
                         .await;
-                    drop(slot);
                 }
-            };
-
-            let conn_queue = self
-                .conn_queue
-                .as_ref()
-                .expect("QUIC listener requires ConnQueue")
-                .clone();
-            let handshake_timeout = self.handshake_timeout;
-            self.task_group.spawn_then(
-                async move {
-                    // Without this the only bound is the QUIC idle
-                    // timeout, which holds the slot far longer.
-                    let quic_conn = timeout(handshake_timeout, incoming.handshake()).await??;
-                    let vpid = quic_conn
-                        .peer_certificates()
-                        .as_deref()
-                        .and_then(peer_id_from_certs);
-                    // A peer that handshakes and then never opens a
-                    // stream only wastes its own slot.
-                    let stream = timeout(handshake_timeout, quic_conn.accept_stream()).await??;
-                    let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
-                    conn_queue
-                        .handle_quic(conn, quic_conn, ConnDirection::Inbound, vpid)
-                        .await?;
-                    Ok(())
-                },
-                on_disconnect,
-            );
+            });
         }
+    }
+
+    /// Runs the QUIC handshake, waits for the peer's first stream and
+    /// hands the connection to the PeerPool.
+    #[cfg(feature = "quic")]
+    async fn queue_inbound_quic(
+        &self,
+        incoming: QuicIncoming,
+        slot: SemaphoreGuard,
+        conn_queue: &ConnQueueRef,
+    ) -> Result<()> {
+        // Without this the only bound is the QUIC idle timeout, which
+        // holds the slot far longer.
+        let quic_conn = timeout(self.handshake_timeout, incoming.handshake()).await??;
+        let vpid = quic_conn
+            .peer_certificates()
+            .as_deref()
+            .and_then(peer_id_from_certs);
+        // A peer that handshakes and then never opens a stream only
+        // wastes its own slot.
+        let stream = timeout(self.handshake_timeout, quic_conn.accept_stream()).await??;
+        let conn: FramedConn<PeerNetMsgCodec> = framed(stream, PeerNetMsgCodec::new());
+        let conn = QueuedConn::new(conn, ConnDirection::Inbound, vpid)?.with_quic(quic_conn);
+        conn_queue.push(Incoming { conn, slot }).await;
+        Ok(())
     }
 }

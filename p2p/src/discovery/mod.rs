@@ -4,17 +4,23 @@ use async_trait::async_trait;
 
 use karyon_core::{async_runtime::Executor, crypto::KeyPair};
 
-use crate::{Config, PeerID, Result, message::PeerAddr, monitor::Monitor, protocol::ProtocolFlags};
+use crate::{
+    PeerID, Result, config::ConfigRef, message::PeerAddr, monitor::MonitorRef,
+    protocol::ProtocolFlags,
+};
 
 /// What a discovery gets from the node that runs it. Passed to the
 /// constructor given to `Node::with_discovery`.
 pub struct DiscoveryContext {
     pub key_pair: KeyPair,
     pub peer_id: PeerID,
-    pub config: Arc<Config>,
-    pub monitor: Arc<Monitor>,
+    pub config: ConfigRef,
+    pub monitor: MonitorRef,
     pub executor: Executor,
 }
+
+/// `Arc` reference to a `Discovery`.
+pub type DiscoveryRef = Arc<dyn Discovery>;
 
 /// A peer the discovery wants the Node to connect to.
 pub struct DiscoveredPeer {
