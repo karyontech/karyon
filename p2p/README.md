@@ -159,14 +159,13 @@ connection. For QUIC, each protocol gets its own bidirectional stream.
 `ProtocolFlags::REQUIRED` for protocols every peer must speak, or
 `ProtocolFlags::empty()` for protocols that should not be advertised.
 Flags combine with `|`. Bits from `ProtocolFlags::USER` up are free for
-user meaning: Kademlia advertises such items without letting them affect
-peer selection; custom `Discovery` implementations may interpret them.
+user meaning; each `Discovery` implementation decides what they do.
 
 ### Monitor
 
 Subscribe to `node.monitor()` to observe what the network is doing -
 connections opening and closing, peer add/remove, handshake failures,
-discovery lookups and refreshes. Each topic is a separate event type
+discovery events. Each topic is a separate event type
 with its own listener; every subscriber gets every event independently.
 
 ```rust,ignore

@@ -127,7 +127,7 @@ pub struct PeerPoolEvent {
     pub endpoint: Option<Endpoint>,
 }
 
-/// Event of the discovery the node runs, e.g. karyon_kademlia.
+/// Event posted by the discovery the node runs.
 #[derive(Clone, Debug, EventValue)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiscoveryEvent {

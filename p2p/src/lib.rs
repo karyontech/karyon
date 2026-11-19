@@ -34,7 +34,7 @@ pub use conn_direction::ConnDirection;
 pub use discovery::{DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent};
 pub use message::{PeerAddr, Protocol};
 
-// Building blocks for discovery crates such as karyon_kademlia.
+// Building blocks for discovery crates.
 pub use connector::Connector;
 pub use listener::Listener;
 pub use message::{ShutdownMsg, pick_endpoint};

@@ -10,8 +10,8 @@ use crate::{
 /// Configuration for the p2p network.
 ///
 /// `dial_peers` are static peers dialed directly. To find more peers, run
-/// the node with a discovery such as karyon_kademlia (see
-/// `Node::with_discovery`), which has its own configuration.
+/// the node with a discovery (see `Node::with_discovery`), which has its
+/// own configuration.
 ///
 /// # Example
 ///
@@ -61,8 +61,8 @@ pub struct Config {
     /// Endpoints to listen on for incoming peer connections.
     /// e.g. [tcp://0.0.0.0:8000, quic://0.0.0.0:9000]
     pub listen_endpoints: Vec<Endpoint>,
-    /// Peers to dial directly. The default discovery and karyon_kademlia
-    /// dial them; a custom discovery decides itself.
+    /// Peers to dial directly. The default discovery dials them; a custom
+    /// discovery decides itself.
     pub dial_peers: Vec<Endpoint>,
     /// The number of available inbound slots for incoming connections.
     pub inbound_slots: usize,

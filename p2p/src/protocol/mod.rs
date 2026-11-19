@@ -40,9 +40,8 @@ impl ProtocolFlags {
     /// peers without it are still accepted. The default.
     pub const PREFERRED: Self = Self(1 << 1);
     /// First bit free for user-defined meaning. Bits below are
-    /// reserved by karyon. Kademlia advertises items carrying only
-    /// user bits without letting them affect peer selection; custom
-    /// `Discovery` impls may give them any meaning.
+    /// reserved by karyon. A `Discovery` impl may give user bits any
+    /// meaning.
     pub const USER: Self = Self(1 << 16);
 
     /// No flags set.

@@ -87,8 +87,7 @@ pub struct Node {
 
 impl Node {
     /// Creates a new Node that dials `Config::dial_peers` and finds no
-    /// other peers. Use `with_discovery` to run a discovery such as
-    /// karyon_kademlia.
+    /// other peers. Use `with_discovery` to run a discovery.
     pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Node> {
         Self::with_discovery(
             key_pair,
@@ -312,7 +311,7 @@ impl Node {
         self.discovery.advertise(item.as_ref(), flags);
     }
 
-    /// Find peers in the routing table that may support `item`.
+    /// Find peers known to the discovery that may support `item`.
     /// Useful for swarm-targeted lookups (e.g. "peers in this room")
     /// without changing handshake semantics.
     pub fn find_peers_with(&self, item: impl AsRef<[u8]>) -> Vec<DiscoveredPeer> {

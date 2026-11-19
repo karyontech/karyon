@@ -44,8 +44,7 @@ enum DialResult<C: Codec<ByteBuffer> + Default + Clone> {
 /// Creates outbound connections with other peers. Generic over the
 /// codec applied to the resulting framed stream so the same machinery
 /// (TLS, retries, slots, monitor events) serves both the peer
-/// data-plane (`PeerNetMsgCodec`) and the kademlia lookup-plane
-/// (`KadNetMsgCodec`).
+/// data-plane (`PeerNetMsgCodec`) and a discovery's own messages.
 pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     key_pair: KeyPair,
     task_group: TaskGroup,
@@ -62,8 +61,8 @@ impl<C> Connector<C>
 where
     C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
 {
-    /// Create a new Connector without a ConnQueue (used for plain
-    /// `connect` paths like Kademlia lookup). `dial_timeout` is in seconds.
+    /// Create a new Connector without a ConnQueue, for plain `connect`
+    /// calls such as a discovery's queries. `dial_timeout` is in seconds.
     pub fn new(
         key_pair: &KeyPair,
         max_retries: usize,
