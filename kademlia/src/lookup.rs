@@ -9,8 +9,8 @@ use karyon_core::async_util::timeout;
 use karyon_net::{Addr, Endpoint};
 
 use karyon_p2p::{
-    Action, Config, ConnDirection, Connector, DiscoveryContext, Error, Listener, PeerAddr, PeerID,
-    Protocol, Result, ShutdownMsg, Subject,
+    Action, Config, ConnDirection, ConnectorRef, DiscoveryContext, Error, Listener, PeerAddr,
+    PeerID, Protocol, Result, ShutdownMsg, Subject, VersionInt,
     monitor::{ConnectionKind, Monitor},
     pick_endpoint,
     util::decode,
@@ -28,7 +28,7 @@ use crate::{
 };
 
 /// Framed lookup-plane connection.
-type KadConnRef = karyon_net::FramedConn<KadNetMsgCodec>;
+pub(crate) type KadConnRef = karyon_net::FramedConn<KadNetMsgCodec>;
 
 /// Maximum number of peers that can be returned in a PeersMsg.
 pub const MAX_PEERS_IN_PEERSMSG: usize = 10;
@@ -60,8 +60,8 @@ pub struct LookupService {
 
     /// Listener
     listener: Arc<Listener<KadNetMsgCodec>>,
-    /// Connector
-    connector: Arc<Connector<KadNetMsgCodec>>,
+    /// Connector, shared with the refresh service.
+    connector: ConnectorRef<KadNetMsgCodec>,
 
     /// Endpoints this service advertises and binds to.
     endpoints: LookupEndpoints,
@@ -90,6 +90,7 @@ impl LookupService {
         kconfig: KademliaConfigRef,
         bloom: BloomRef,
         endpoints: LookupEndpoints,
+        connector: ConnectorRef<KadNetMsgCodec>,
     ) -> Self {
         let key_pair = &ctx.key_pair;
         let config = ctx.config.clone();
@@ -103,16 +104,6 @@ impl LookupService {
             config.handshake_timeout,
             config.access_control.clone(),
             config.transport.clone(),
-            ex.clone(),
-        );
-
-        let connector = Connector::new_with_transport(
-            key_pair,
-            kconfig.lookup_connect_retries,
-            kconfig.lookup_outbound_slots,
-            config.handshake_timeout,
-            config.transport.clone(),
-            monitor.clone(),
             ex,
         );
 
@@ -286,36 +277,6 @@ impl LookupService {
         result
     }
 
-    /// Checks that the peer at `endpoint` answers a Ping on the lookup
-    /// protocol. Used by the refresh service when it can not use UDP.
-    pub(crate) async fn ping(&self, endpoint: Endpoint, peer_id: PeerID) -> Result<()> {
-        // The slot is released when `_slot` drops at the end.
-        let (mut conn, _slot) = self.connector.connect(&endpoint, &Some(peer_id)).await?;
-        let result = self.ping_conn(&mut conn).await;
-
-        self.monitor
-            .notify(ConnectionKind::Disconnected(endpoint))
-            .await;
-
-        result
-    }
-
-    async fn ping_conn(&self, conn: &mut KadConnRef) -> Result<()> {
-        let ping_msg = self.send_ping_msg(conn).await?;
-        let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
-        let msg: KadNetMsg = timeout(t, conn.recv_msg()).await??;
-        match msg.header.command {
-            KadNetCmd::Pong => {
-                let (pong_msg, _) = decode::<PongMsg>(&msg.payload)?;
-                if ping_msg.nonce != pong_msg.0 {
-                    return Err(Error::InvalidPongMsg);
-                }
-            }
-            c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
-        }
-        self.send_shutdown_msg(conn).await
-    }
-
     /// Handles outbound connection
     async fn handle_outbound(
         &self,
@@ -325,7 +286,7 @@ impl LookupService {
         trace!("Send Ping msg");
         let mut peers;
 
-        let ping_msg = self.send_ping_msg(&mut conn).await?;
+        let ping_msg = send_ping_msg(&mut conn, &self.config.version.v).await?;
 
         loop {
             let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
@@ -360,7 +321,7 @@ impl LookupService {
         self.send_peer_msg(&mut conn).await?;
 
         trace!("Send Shutdown msg");
-        self.send_shutdown_msg(&mut conn).await?;
+        send_shutdown_msg(&mut conn).await?;
 
         Ok(peers)
     }
@@ -436,21 +397,6 @@ impl LookupService {
         }
     }
 
-    /// Sends a Ping msg.
-    async fn send_ping_msg(&self, conn: &mut KadConnRef) -> Result<PingMsg> {
-        trace!("Send Pong msg");
-        let mut nonce: [u8; 32] = [0; 32];
-        SysRng.try_fill_bytes(&mut nonce)?;
-
-        let ping_msg = PingMsg {
-            version: self.config.version.v.clone(),
-            nonce,
-        };
-        conn.send_msg(KadNetMsg::new(KadNetCmd::Ping, &ping_msg)?)
-            .await?;
-        Ok(ping_msg)
-    }
-
     /// Sends a Pong msg
     async fn send_pong_msg(&self, nonce: [u8; 32], conn: &mut KadConnRef) -> Result<()> {
         trace!("Send Pong msg");
@@ -517,14 +463,29 @@ impl LookupService {
             .await?;
         Ok(())
     }
+}
 
-    /// Sends a Shutdown msg.
-    async fn send_shutdown_msg(&self, conn: &mut KadConnRef) -> Result<()> {
-        trace!("Send Shutdown msg");
-        conn.send_msg(KadNetMsg::new(KadNetCmd::Shutdown, ShutdownMsg(0))?)
-            .await?;
-        Ok(())
-    }
+/// Sends a Ping msg.
+pub(crate) async fn send_ping_msg(conn: &mut KadConnRef, version: &VersionInt) -> Result<PingMsg> {
+    trace!("Send Ping msg");
+    let mut nonce: [u8; 32] = [0; 32];
+    SysRng.try_fill_bytes(&mut nonce)?;
+
+    let ping_msg = PingMsg {
+        version: version.clone(),
+        nonce,
+    };
+    conn.send_msg(KadNetMsg::new(KadNetCmd::Ping, &ping_msg)?)
+        .await?;
+    Ok(ping_msg)
+}
+
+/// Sends a Shutdown msg.
+pub(crate) async fn send_shutdown_msg(conn: &mut KadConnRef) -> Result<()> {
+    trace!("Send Shutdown msg");
+    conn.send_msg(KadNetMsg::new(KadNetCmd::Shutdown, ShutdownMsg(0))?)
+        .await?;
+    Ok(())
 }
 
 /// The PeerAddr to advertise for `ep`, with its IP replaced by

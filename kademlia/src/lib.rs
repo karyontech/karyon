@@ -19,7 +19,7 @@ use karyon_core::async_util::{AsyncQueue, AsyncQueueRef, Backoff, TaskGroup, Tas
 use karyon_net::Endpoint;
 
 use karyon_p2p::{
-    DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol, Result,
+    Connector, DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol, Result,
     pick_endpoint, protocol::ProtocolFlags,
 };
 
@@ -108,6 +108,18 @@ impl KademliaDiscovery {
                 .cloned(),
         };
 
+        // One lookup connector for lookups and the refresh pings, through
+        // the node's transport if it has one.
+        let connector = Connector::new_with_transport(
+            &ctx.key_pair,
+            kconfig.lookup_connect_retries,
+            kconfig.lookup_outbound_slots,
+            config.handshake_timeout,
+            config.transport.clone(),
+            monitor.clone(),
+            ex.clone(),
+        );
+
         let lookup_endpoints = LookupEndpoints {
             listen: config.listen_endpoints.clone(),
             lookup: lookup_ep,
@@ -119,6 +131,7 @@ impl KademliaDiscovery {
             kconfig.clone(),
             bloom.clone(),
             lookup_endpoints,
+            connector.clone(),
         ));
 
         let refresh_service = Arc::new(RefreshService::new(
@@ -127,7 +140,7 @@ impl KademliaDiscovery {
             table.clone(),
             monitor.clone(),
             refresh_ep,
-            lookup_service.clone(),
+            connector,
             ex.clone(),
         ));
 

@@ -16,7 +16,8 @@ use karyon_core::{
 use karyon_net::{Endpoint, udp};
 
 use karyon_p2p::{
-    Action, Config, ConnDirection, Error, Protocol, Result, Subject,
+    Action, Config, ConnDirection, ConnectorRef, Error, PeerID, Protocol, Result, Subject,
+    VersionInt,
     monitor::{ConnectionKind, Monitor},
     pick_endpoint,
     util::{decode, encode},
@@ -25,8 +26,9 @@ use karyon_p2p::{
 use crate::{
     KademliaConfigRef, SUPPORTED_LOOKUP_PROTOCOLS,
     event::DiscoveryKind,
-    lookup::LookupServiceRef,
+    lookup::{KadConnRef, send_ping_msg, send_shutdown_msg},
     messages::RefreshMsg,
+    messages::{KadNetCmd, KadNetMsg, KadNetMsgCodec, PongMsg},
     routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTableRef, UNREACHABLE_ENTRY},
 };
 
@@ -92,8 +94,9 @@ pub struct RefreshService {
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
 
-    /// Pings over the lookup protocol when UDP can not be used.
-    lookup: LookupServiceRef,
+    /// The lookup connector, to ping over the lookup protocol when UDP
+    /// can not be used.
+    connector: ConnectorRef<KadNetMsgCodec>,
 }
 
 /// `Arc` reference to a `RefreshService`.
@@ -107,7 +110,7 @@ impl RefreshService {
         table: RoutingTableRef,
         monitor: Arc<Monitor>,
         listen_endpoint: Option<Endpoint>,
-        lookup: LookupServiceRef,
+        connector: ConnectorRef<KadNetMsgCodec>,
         executor: Executor,
     ) -> Self {
         Self {
@@ -117,7 +120,7 @@ impl RefreshService {
             config,
             kconfig,
             monitor,
-            lookup,
+            connector,
         }
     }
 
@@ -240,7 +243,7 @@ impl RefreshService {
             let endpoint = pick_endpoint(&entry.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS)
                 .ok_or(Error::Lookup("No discovery address available".into()))?;
             self.allow_probe(&endpoint)?;
-            return self.lookup.ping(endpoint, entry.key.into()).await;
+            return self.stream_ping(endpoint, entry.key.into()).await;
         };
         self.allow_probe(&endpoint)?;
 
@@ -261,6 +264,20 @@ impl RefreshService {
             }
         }
         Err(Error::Timeout)
+    }
+
+    /// Pings the peer at `endpoint` over the lookup protocol.
+    async fn stream_ping(&self, endpoint: Endpoint, peer_id: PeerID) -> Result<()> {
+        // The slot is released when `_slot` drops at the end.
+        let (mut conn, _slot) = self.connector.connect(&endpoint, &Some(peer_id)).await?;
+        let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
+        let result = ping_conn(&mut conn, &self.config.version.v, t).await;
+
+        self.monitor
+            .notify(ConnectionKind::Disconnected(endpoint))
+            .await;
+
+        result
     }
 
     fn allow_probe(&self, endpoint: &Endpoint) -> Result<()> {
@@ -386,4 +403,25 @@ impl RefreshService {
             _ => Err(Error::InvalidMsg("Unexpected ping msg".into())),
         }
     }
+}
+
+/// Pings the peer on a lookup connection, checks its Pong and closes the
+/// exchange.
+async fn ping_conn(
+    conn: &mut KadConnRef,
+    version: &VersionInt,
+    response_timeout: Duration,
+) -> Result<()> {
+    let ping_msg = send_ping_msg(conn, version).await?;
+    let msg: KadNetMsg = timeout(response_timeout, conn.recv_msg()).await??;
+    match msg.header.command {
+        KadNetCmd::Pong => {
+            let (pong_msg, _) = decode::<PongMsg>(&msg.payload)?;
+            if ping_msg.nonce != pong_msg.0 {
+                return Err(Error::InvalidPongMsg);
+            }
+        }
+        c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
+    }
+    send_shutdown_msg(conn).await
 }
