@@ -23,8 +23,9 @@ use karyon_p2p::{
 };
 
 use crate::{
-    KademliaConfigRef,
+    KademliaConfigRef, SUPPORTED_LOOKUP_PROTOCOLS,
     event::DiscoveryKind,
+    lookup::LookupServiceRef,
     messages::RefreshMsg,
     routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTableRef, UNREACHABLE_ENTRY},
 };
@@ -90,6 +91,9 @@ pub struct RefreshService {
 
     /// Responsible for network and system monitoring.
     monitor: Arc<Monitor>,
+
+    /// Pings over the lookup protocol when UDP can not be used.
+    lookup: LookupServiceRef,
 }
 
 /// `Arc` reference to a `RefreshService`.
@@ -103,6 +107,7 @@ impl RefreshService {
         table: RoutingTableRef,
         monitor: Arc<Monitor>,
         listen_endpoint: Option<Endpoint>,
+        lookup: LookupServiceRef,
         executor: Executor,
     ) -> Self {
         Self {
@@ -112,6 +117,7 @@ impl RefreshService {
             config,
             kconfig,
             monitor,
+            lookup,
         }
     }
 
@@ -222,20 +228,23 @@ impl RefreshService {
         }
     }
 
-    /// Send a ping over UDP with retries.
+    /// Pings the entry: over UDP with retries, or over the lookup protocol
+    /// when the node has a user transport (no raw UDP besides it) or the
+    /// entry has no UDP address.
     async fn connect(&self, entry: &Entry) -> Result<()> {
+        let udp = match self.config.transport {
+            Some(_) => None,
+            None => pick_endpoint(&entry.discovery_addrs, &[Protocol::Udp]),
+        };
+        let Some(endpoint) = udp else {
+            let endpoint = pick_endpoint(&entry.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS)
+                .ok_or(Error::Lookup("No discovery address available".into()))?;
+            self.allow_probe(&endpoint)?;
+            return self.lookup.ping(endpoint, entry.key.into()).await;
+        };
+        self.allow_probe(&endpoint)?;
+
         let mut retry = 0;
-        let supported = [Protocol::Udp];
-        let endpoint = pick_endpoint(&entry.discovery_addrs, &supported)
-            .ok_or(Error::Lookup("No UDP discovery address available".into()))?;
-
-        if !self.config.access_control.allow(
-            &Subject::Endpoint(&endpoint),
-            Action::Probe(ConnDirection::Outbound),
-        ) {
-            return Err(Error::AccessDenied);
-        }
-
         let conn = udp::dial(&endpoint, Default::default()).await?;
         let peer_addr = SocketAddr::try_from(endpoint.clone())?;
         let backoff = Backoff::new(100, 5000);
@@ -252,6 +261,18 @@ impl RefreshService {
             }
         }
         Err(Error::Timeout)
+    }
+
+    fn allow_probe(&self, endpoint: &Endpoint) -> Result<()> {
+        let allowed = self.config.access_control.allow(
+            &Subject::Endpoint(endpoint),
+            Action::Probe(ConnDirection::Outbound),
+        );
+        if allowed {
+            Ok(())
+        } else {
+            Err(Error::AccessDenied)
+        }
     }
 
     /// Listen on UDP for Ping messages.

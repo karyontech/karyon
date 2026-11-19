@@ -97,25 +97,21 @@ impl KademliaDiscovery {
             .iter()
             .find(|e| is_lookup_proto(e))
             .cloned();
-        let refresh_ep = kconfig
-            .discovery_endpoints
-            .iter()
-            .find(|e| e.is_udp())
-            .cloned();
-
-        let refresh_service = Arc::new(RefreshService::new(
-            config.clone(),
-            kconfig.clone(),
-            table.clone(),
-            monitor.clone(),
-            refresh_ep.clone(),
-            ex.clone(),
-        ));
+        // With a user transport the node sends no raw UDP: the refresh
+        // pings go over the lookup protocol instead.
+        let refresh_ep = match config.transport {
+            Some(_) => None,
+            None => kconfig
+                .discovery_endpoints
+                .iter()
+                .find(|e| e.is_udp())
+                .cloned(),
+        };
 
         let lookup_endpoints = LookupEndpoints {
             listen: config.listen_endpoints.clone(),
             lookup: lookup_ep,
-            refresh: refresh_ep,
+            refresh: refresh_ep.clone(),
         };
         let lookup_service = Arc::new(LookupService::new(
             ctx,
@@ -123,6 +119,16 @@ impl KademliaDiscovery {
             kconfig.clone(),
             bloom.clone(),
             lookup_endpoints,
+        ));
+
+        let refresh_service = Arc::new(RefreshService::new(
+            config.clone(),
+            kconfig.clone(),
+            table.clone(),
+            monitor.clone(),
+            refresh_ep,
+            lookup_service.clone(),
+            ex.clone(),
         ));
 
         let task_group = TaskGroup::with_executor(ex);

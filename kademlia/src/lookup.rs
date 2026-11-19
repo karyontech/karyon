@@ -95,20 +95,23 @@ impl LookupService {
         let config = ctx.config.clone();
         let monitor = ctx.monitor.clone();
         let ex = ctx.executor.clone();
-        let listener = Listener::new(
+        // Lookups go through the node's transport too, if it has one.
+        let listener = Listener::new_with_transport(
             key_pair,
             kconfig.lookup_inbound_slots,
             monitor.clone(),
             config.handshake_timeout,
             config.access_control.clone(),
+            config.transport.clone(),
             ex.clone(),
         );
 
-        let connector = Connector::new(
+        let connector = Connector::new_with_transport(
             key_pair,
             kconfig.lookup_connect_retries,
             kconfig.lookup_outbound_slots,
             config.handshake_timeout,
+            config.transport.clone(),
             monitor.clone(),
             ex,
         );
@@ -283,6 +286,36 @@ impl LookupService {
         result
     }
 
+    /// Checks that the peer at `endpoint` answers a Ping on the lookup
+    /// protocol. Used by the refresh service when it can not use UDP.
+    pub(crate) async fn ping(&self, endpoint: Endpoint, peer_id: PeerID) -> Result<()> {
+        // The slot is released when `_slot` drops at the end.
+        let (mut conn, _slot) = self.connector.connect(&endpoint, &Some(peer_id)).await?;
+        let result = self.ping_conn(&mut conn).await;
+
+        self.monitor
+            .notify(ConnectionKind::Disconnected(endpoint))
+            .await;
+
+        result
+    }
+
+    async fn ping_conn(&self, conn: &mut KadConnRef) -> Result<()> {
+        let ping_msg = self.send_ping_msg(conn).await?;
+        let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
+        let msg: KadNetMsg = timeout(t, conn.recv_msg()).await??;
+        match msg.header.command {
+            KadNetCmd::Pong => {
+                let (pong_msg, _) = decode::<PongMsg>(&msg.payload)?;
+                if ping_msg.nonce != pong_msg.0 {
+                    return Err(Error::InvalidPongMsg);
+                }
+            }
+            c => return Err(Error::InvalidMsg(format!("Unexpected msg: {c:?}"))),
+        }
+        self.send_shutdown_msg(conn).await
+    }
+
     /// Handles outbound connection
     async fn handle_outbound(
         &self,
@@ -339,9 +372,14 @@ impl LookupService {
             None => return Ok(()),
         };
 
-        if !endpoint.is_tcp() {
+        let by_transport = self
+            .config
+            .transport
+            .as_ref()
+            .is_some_and(|t| t.supports(&endpoint));
+        if !endpoint.is_tcp() && !by_transport {
             return Err(Error::Config(format!(
-                "lookup endpoint must be tcp://..., got {endpoint}"
+                "lookup endpoint must be tcp://... or one the transport supports, got {endpoint}"
             )));
         }
 
