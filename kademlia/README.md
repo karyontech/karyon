@@ -54,6 +54,22 @@ async {
 };
 ```
 
+## Advertised items
+
+`Node::advertise` items go into the bloom filter sent to other peers, and
+filter which peers from the routing table the node dials: a peer must
+advertise every `REQUIRED` item and, if any `PREFERRED` item is set, at
+least one of them. Items with only `ProtocolFlags::USER` bits are
+advertised but do not affect peer selection.
+
+## Monitor
+
+Kademlia posts `DiscoveryEvent`s to the node's monitor
+(`node.monitor().register::<DiscoveryEvent>()`): `LookupStarted`,
+`LookupFailed`, `LookupSucceeded` (with the number of peers found),
+`RefreshStarted`, `RefreshSucceeded` (with the number of entries pinged),
+`RefreshFailed` and `EntryEvicted`.
+
 ## Feature Flags
 
 | Feature | Description |

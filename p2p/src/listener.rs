@@ -78,8 +78,8 @@ use crate::tls_config::quic_server_config;
 
 /// Creates inbound connections with other peers. Generic over the
 /// codec applied to the framed accepted streams so the same accept
-/// machinery serves the peer data-plane (`PeerNetMsgCodec`) and the
-/// kademlia lookup-plane (`KadNetMsgCodec`).
+/// machinery serves the peer data-plane (`PeerNetMsgCodec`) and a
+/// discovery's own messages.
 pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     key_pair: KeyPair,
     task_group: TaskGroup,
@@ -216,7 +216,7 @@ where
                 }
             };
 
-            // Callback mode is the kademlia lookup plane.
+            // Callback mode serves discovery queries.
             if !self.access_control.allow(
                 &Subject::Endpoint(&endpoint),
                 Action::Lookup(ConnDirection::Inbound),
@@ -277,9 +277,9 @@ where
     }
 }
 
-// Auto-queue paths only live on the peer-plane Listener. The kademlia
-// lookup plane uses `start_with_callback` and handles each connection
-// inline (no ConnQueue / handshake pipeline).
+// Auto-queue paths only live on the peer-plane Listener. A discovery
+// uses `start_with_callback` and handles each connection inline (no
+// ConnQueue / handshake pipeline).
 impl Listener<PeerNetMsgCodec> {
     /// Create a new Listener with a ConnQueue (auto-queue mode).
     /// `handshake_timeout` is in seconds.
