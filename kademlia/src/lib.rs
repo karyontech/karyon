@@ -19,8 +19,8 @@ use karyon_core::async_util::{AsyncQueue, Backoff, TaskGroup, TaskResult};
 use karyon_net::Endpoint;
 
 use karyon_p2p::{
-    DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol,
-    Result, pick_endpoint, protocol::ProtocolFlags,
+    DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol, Result,
+    pick_endpoint, protocol::ProtocolFlags,
 };
 
 pub use config::KademliaConfig;
