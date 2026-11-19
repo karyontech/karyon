@@ -147,23 +147,14 @@ impl Node {
 
         let connector = Connector::new_with_queue(
             key_pair,
-            config.max_connect_retries,
-            config.outbound_slots,
-            config.handshake_timeout,
+            &config,
             conn_queue.clone(),
             monitor.clone(),
             ex.clone(),
         );
 
-        let listener = Listener::new_with_queue(
-            key_pair,
-            config.inbound_slots,
-            conn_queue,
-            monitor.clone(),
-            config.handshake_timeout,
-            config.access_control.clone(),
-            ex.clone(),
-        );
+        let listener =
+            Listener::new_with_queue(key_pair, &config, conn_queue, monitor.clone(), ex.clone());
 
         let task_group = TaskGroup::with_executor(ex);
 

@@ -140,6 +140,14 @@ Configuration uses endpoint URLs (`tcp://`, `tls://`, `quic://`); TLS
 uses self-signed certs derived from the node's keypair, and QUIC
 multiplexes one stream per protocol.
 
+To bring your own transport, implement `transport::Transport` (dial and
+listen, both give a byte stream) and set it with
+`ConfigBuilder::with_transport` (or the `Config::transport` field). The node
+uses it for the endpoints it `supports` and the built-in transports for
+the others. If its streams carry the peer's karyon certificate
+(`ByteStream::peer_certificates`), the handshake checks the peer's id
+against it, as with TLS.
+
 ### Discovery
 
 Implementations of the `Discovery` trait yield candidate peers; the

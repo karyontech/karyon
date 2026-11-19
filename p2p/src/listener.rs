@@ -22,21 +22,24 @@ use crate::{
     Error, PeerID, Result,
     access_control::{AccessControlRef, Action, Subject},
     codec::PeerNetMsgCodec,
+    config::Config,
     conn_direction::ConnDirection,
     monitor::{ConnectionKind, MonitorRef},
     queued_conn::{ConnQueueRef, Incoming, QueuedConn},
     tls_config::{peer_id_from_certs, tls_server_config},
+    transport::{TransportListener, TransportRef},
 };
 
 /// `Arc` reference to a `StreamListener`.
 type StreamListenerRef = Arc<StreamListener>;
 
-/// Listener for byte-stream transports (TCP, TLS). Accepting is split in
-/// two phases: `accept` does only the cheap kernel accept, `handshake`
-/// runs the TLS upgrade. QUIC uses a separate `StreamMux` path.
+/// Listener for byte-stream transports (TCP, TLS, a user `Transport`).
+/// Accepting is split in two phases: `accept` does only the cheap accept,
+/// `handshake` runs the TLS upgrade. QUIC uses a separate `StreamMux` path.
 enum StreamListener {
     Tcp(TcpListener),
     Tls(TcpListener, Box<TlsLayer>),
+    Custom(Box<dyn TransportListener>),
 }
 
 impl StreamListener {
@@ -44,6 +47,7 @@ impl StreamListener {
     async fn accept(&self) -> Result<Box<dyn ByteStream>> {
         match self {
             Self::Tcp(l) | Self::Tls(l, _) => Ok(l.accept().await?),
+            Self::Custom(l) => l.accept().await,
         }
     }
 
@@ -54,7 +58,7 @@ impl StreamListener {
         handshake_timeout: Duration,
     ) -> Result<Box<dyn ByteStream>> {
         match self {
-            Self::Tcp(_) => Ok(stream),
+            Self::Tcp(_) | Self::Custom(_) => Ok(stream),
             Self::Tls(_, layer) => Ok(timeout(
                 handshake_timeout,
                 ServerLayer::handshake(layer.as_ref(), stream),
@@ -66,6 +70,7 @@ impl StreamListener {
     fn local_endpoint(&self) -> Result<Endpoint> {
         match self {
             Self::Tcp(l) => Ok(l.local_endpoint()?),
+            Self::Custom(l) => l.local_endpoint(),
             // The listener is plain TCP; report the TLS scheme so peers
             // dialling this endpoint run the handshake.
             Self::Tls(l, _) => {
@@ -99,6 +104,9 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     monitor: MonitorRef,
     handshake_timeout: Duration,
     access_control: AccessControlRef,
+    /// Listens on the endpoints it supports instead of the built-in
+    /// transports.
+    transport: Option<TransportRef>,
     _codec: PhantomData<C>,
 }
 
@@ -124,6 +132,7 @@ where
             monitor,
             handshake_timeout: Duration::from_secs(handshake_timeout),
             access_control,
+            transport: None,
             _codec: PhantomData,
         })
     }
@@ -268,6 +277,10 @@ where
 
     /// Create a listener for TCP/TLS.
     async fn listen(&self, endpoint: &Endpoint) -> Result<StreamListener> {
+        if let Some(transport) = self.transport.as_ref().filter(|t| t.supports(endpoint)) {
+            return Ok(StreamListener::Custom(transport.listen(endpoint).await?));
+        }
+
         match endpoint {
             Endpoint::Tcp(..) => {
                 let listener = TcpListener::bind(endpoint, Default::default()).await?;
@@ -293,24 +306,22 @@ where
 // PeerPool / handshake pipeline).
 impl Listener<PeerNetMsgCodec> {
     /// Create a new Listener that hands its connections to the PeerPool.
-    /// `handshake_timeout` is in seconds.
     pub(crate) fn new_with_queue(
         key_pair: &KeyPair,
-        slots: usize,
+        config: &Config,
         conn_queue: ConnQueueRef,
         monitor: MonitorRef,
-        handshake_timeout: u64,
-        access_control: AccessControlRef,
         ex: Executor,
     ) -> ListenerRef<PeerNetMsgCodec> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
-            connection_slots: Semaphore::new(slots),
+            connection_slots: Semaphore::new(config.inbound_slots),
             conn_queue: Some(conn_queue),
             task_group: TaskGroup::with_executor(ex),
             monitor,
-            handshake_timeout: Duration::from_secs(handshake_timeout),
-            access_control,
+            handshake_timeout: Duration::from_secs(config.handshake_timeout),
+            access_control: config.access_control.clone(),
+            transport: config.transport.clone(),
             _codec: PhantomData,
         })
     }
@@ -320,8 +331,14 @@ impl Listener<PeerNetMsgCodec> {
         self: &ListenerRef<PeerNetMsgCodec>,
         endpoint: Endpoint,
     ) -> Result<Endpoint> {
+        // A user transport takes the endpoints it supports, QUIC included.
         #[cfg(feature = "quic")]
-        if endpoint.is_quic() {
+        if endpoint.is_quic()
+            && !self
+                .transport
+                .as_ref()
+                .is_some_and(|t| t.supports(&endpoint))
+        {
             return self.start_quic(endpoint).await;
         }
 
