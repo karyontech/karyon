@@ -21,9 +21,7 @@ use crate::{
     conn_direction::ConnDirection,
     conn_queue::ConnQueue,
     connector::Connector,
-    discovery::{
-        DiscoveredPeer, Discovery, DiscoveryContext, NoDiscovery, PeerConnectionEvent,
-    },
+    discovery::{DiscoveredPeer, Discovery, DiscoveryContext, NoDiscovery, PeerConnectionEvent},
     listener::Listener,
     message::{PeerAddr, Protocol, pick_endpoint},
     monitor::{Monitor, PoolEvent},
@@ -89,12 +87,7 @@ impl Node {
     /// Creates a new Node that runs no discovery: it only dials
     /// `Config::dial_peers`. Use `with_discovery` to find more peers.
     pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Node> {
-        Self::with_discovery(
-            key_pair,
-            config,
-            |_| Arc::new(NoDiscovery),
-            ex,
-        )
+        Self::with_discovery(key_pair, config, |_| Arc::new(NoDiscovery), ex)
     }
 
     /// Creates a new Node with a custom discovery. `discovery` builds it
