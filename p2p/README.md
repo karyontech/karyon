@@ -110,9 +110,9 @@ karyon_p2p = { version = "1.0", default-features = false, features = ["smol", "q
    +-----------+--------------+---------------+------------------+
    |           |              |               |                  |
 Discovery  Connector /    PeerPool       ProtocolRegistry     Monitor
-   |       Listener           |          (ctor + meta)          ^
-Routing        |              |               |                 |
-table          +---queue--> admission <-------+            PeerEvents
+           Listener           |          (ctor + meta)          ^
+               |              |               |                 |
+               +---queue--> admission <-------+            PeerEvents
                               |                                 ^
                           Sessions <-- Broadcaster              |
                               |            ^             (pool reports
@@ -145,8 +145,8 @@ table          +---queue--> admission <-------+            PeerEvents
 - **Peer**: one task per connection. Starts the negotiated protocols and
   stops on the first error. Knows nothing about the pool.
 - **PeerConn / Protocol**: each protocol gets a `PeerConn` scoped to its
-  own id: `send`, `recv`, `broadcast`, and the peer's id, endpoint and
-  direction. Custom protocols implement the `Protocol` trait.
+  own id: `send`, `recv`, `broadcast`, and `info()` for the peer's
+  `PeerInfo`. Custom protocols implement the `Protocol` trait.
 
 ### Transport
 

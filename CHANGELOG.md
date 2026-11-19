@@ -5,8 +5,7 @@
 ### Breaking changes
 
 - **`Peer` is no longer public** (`karyon_p2p`): protocols only see their
-  `PeerConn`. `PeerConn::inner()` is removed; use `PeerConn::peer_id`,
-  `remote_endpoint`, `direction` and `negotiated_protocols` instead. To
+  `PeerConn`. `PeerConn::inner()` is removed; use `PeerConn::info` instead. To
   send on another protocol, use `Node::send_to` or `Node::broadcast`.
 - **`PeerPool::attach_protocol` and `PeerPool::new` removed from the
   public API** (`karyon_p2p`): attach protocols with
@@ -18,8 +17,9 @@
 
 - **`Node::broadcast`** (`karyon_p2p`): send to every connected peer on a
   protocol, from outside a protocol.
-- **`PeerConn::peer_id`, `remote_endpoint`, `direction`,
-  `negotiated_protocols`** (`karyon_p2p`).
+- **`PeerInfo` / `PeerInfoRef`** (`karyon_p2p`): what is known about a
+  connected peer (id, direction, endpoint, negotiated protocols).
+- **`PeerConn::info`** (`karyon_p2p`): the remote peer's `PeerInfo`.
 - **`*Ref` aliases** (`karyon_p2p`): `NodeRef`, `ConfigRef`, `MonitorRef`,
   `PeerPoolRef`, `DiscoveryRef`, `AccessControlRef`, `ConnectorRef`,
   `ListenerRef`, `protocol::ProtocolRef` and

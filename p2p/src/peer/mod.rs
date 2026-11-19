@@ -19,10 +19,10 @@ use crate::{
     queued_conn::QueuedConn,
 };
 
+pub use info::{PeerInfo, PeerInfoRef};
 pub use peer_id::PeerID;
 
 pub(crate) use connection::WireRef;
-pub(crate) use info::{PeerInfo, PeerInfoRef};
 pub(crate) use session::PeerSession;
 
 /// A connected peer. Owned by its `run` task only; the PeerPool keeps a

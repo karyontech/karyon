@@ -46,7 +46,7 @@ pub use connector::{Connector, ConnectorRef};
 pub use listener::{Listener, ListenerRef};
 pub use message::{ShutdownMsg, pick_endpoint};
 pub use node::{Node, NodeRef};
-pub use peer::PeerID;
+pub use peer::{PeerID, PeerInfo, PeerInfoRef};
 pub use peer_events::{PeerEvent, PeerEventListener};
 pub use peer_pool::{PeerPool, PeerPoolRef};
 pub use version::Version;
