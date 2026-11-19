@@ -11,7 +11,7 @@ use karyon_net::{Addr, Endpoint};
 use karyon_p2p::{
     Action, Config, ConnDirection, Connector, DiscoveryContext, Error, Listener, PeerAddr, PeerID,
     Protocol, Result, ShutdownMsg, Subject,
-    monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    monitor::{ConnectionKind, Monitor},
     pick_endpoint,
     util::decode,
     version_match,
@@ -20,6 +20,7 @@ use karyon_p2p::{
 use crate::{
     KademliaConfig, SUPPORTED_LOOKUP_PROTOCOLS,
     bloom::BloomRef,
+    event::DiscoveryKind,
     messages::{
         FindPeerMsg, KadNetCmd, KadNetMsg, KadNetMsgCodec, PeerMsg, PeersMsg, PingMsg, PongMsg,
     },

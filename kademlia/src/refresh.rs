@@ -17,13 +17,14 @@ use karyon_net::{Endpoint, udp};
 
 use karyon_p2p::{
     Action, Config, ConnDirection, Error, Protocol, Result, Subject,
-    monitor::{ConnectionKind, DiscoveryKind, Monitor},
+    monitor::{ConnectionKind, Monitor},
     pick_endpoint,
     util::{decode, encode},
 };
 
 use crate::{
     KademliaConfig,
+    event::DiscoveryKind,
     messages::RefreshMsg,
     routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTable, UNREACHABLE_ENTRY},
 };

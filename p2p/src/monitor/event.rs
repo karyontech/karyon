@@ -29,20 +29,6 @@ pub enum PoolEvent {
     PeerAlreadyConnected(PeerID),
 }
 
-/// Discovery (Kademlia) events.
-#[derive(Clone, Debug)]
-pub enum DiscoveryKind {
-    LookupStarted(Endpoint),
-    LookupFailed(Endpoint),
-    LookupSucceeded(Endpoint, usize),
-    RefreshStarted,
-    /// Refresh sweep completed. Carries the number of entries pinged.
-    RefreshSucceeded(usize),
-    RefreshFailed,
-    /// Routing-table entry evicted after exceeding the failure budget.
-    EntryEvicted(PeerID),
-}
-
 impl ConnectionKind {
     pub(super) fn get_endpoint(&self) -> Option<&Endpoint> {
         match self {
@@ -97,45 +83,6 @@ impl PoolEvent {
             PoolEvent::HandshakeFailed(_) => "HandshakeFailed",
             PoolEvent::ConnectFailed(_, _) => "ConnectFailed",
             PoolEvent::PeerAlreadyConnected(_) => "PeerAlreadyConnected",
-        }
-    }
-}
-
-impl DiscoveryKind {
-    pub(super) fn get_endpoint(&self) -> Option<&Endpoint> {
-        match self {
-            DiscoveryKind::LookupStarted(endpoint)
-            | DiscoveryKind::LookupFailed(endpoint)
-            | DiscoveryKind::LookupSucceeded(endpoint, _) => Some(endpoint),
-            _ => None,
-        }
-    }
-
-    pub(super) fn get_size(&self) -> Option<usize> {
-        match self {
-            DiscoveryKind::LookupSucceeded(_, size) | DiscoveryKind::RefreshSucceeded(size) => {
-                Some(*size)
-            }
-            _ => None,
-        }
-    }
-
-    pub(super) fn get_peer_id(&self) -> Option<&PeerID> {
-        match self {
-            DiscoveryKind::EntryEvicted(peer_id) => Some(peer_id),
-            _ => None,
-        }
-    }
-
-    pub(super) fn variant_name(&self) -> &'static str {
-        match self {
-            DiscoveryKind::LookupStarted(_) => "LookupStarted",
-            DiscoveryKind::LookupFailed(_) => "LookupFailed",
-            DiscoveryKind::LookupSucceeded(_, _) => "LookupSucceeded",
-            DiscoveryKind::RefreshStarted => "RefreshStarted",
-            DiscoveryKind::RefreshSucceeded(_) => "RefreshSucceeded",
-            DiscoveryKind::RefreshFailed => "RefreshFailed",
-            DiscoveryKind::EntryEvicted(_) => "EntryEvicted",
         }
     }
 }
