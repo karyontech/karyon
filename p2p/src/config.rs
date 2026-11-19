@@ -4,8 +4,11 @@ use karyon_net::Endpoint;
 
 use crate::{
     Version,
-    access_control::{AccessControl, AllowAll},
+    access_control::{AccessControlRef, AllowAll},
 };
+
+/// `Arc` reference to a `Config`.
+pub type ConfigRef = Arc<Config>;
 
 /// Configuration for the p2p network.
 ///
@@ -36,7 +39,7 @@ pub struct Config {
     pub enable_monitor: bool,
 
     /// Policy deciding who this node talks to. Defaults to `AllowAll`.
-    pub access_control: Arc<dyn AccessControl>,
+    pub access_control: AccessControlRef,
 
     /////////////////
     // PeerPool

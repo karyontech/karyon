@@ -1,50 +1,80 @@
-use std::sync::Arc;
+use std::collections::HashSet;
+
+use karyon_net::Endpoint;
 
 use crate::{
-    Error, Result,
-    peer::Peer,
-    protocol::{ProtocolEvent, ProtocolID},
+    Error, PeerID, Result,
+    conn_direction::ConnDirection,
+    peer::{PeerInfoRef, WireRef},
+    protocol::{Broadcaster, ProtocolEvent, ProtocolID},
 };
 
-/// Per-protocol view of a Peer with the protocol id baked in. Built
-/// by karyon and handed to the protocol constructor. Hides the
-/// underlying `proto_id` routing so user code never types it.
+/// Per-protocol view of a peer with the protocol id baked in. Built
+/// by karyon and handed to the protocol constructor. A protocol can
+/// only send and receive on its own id.
 pub struct PeerConn {
-    peer: Arc<Peer>,
+    info: PeerInfoRef,
+    wire: WireRef,
     proto_id: ProtocolID,
+    broadcaster: Broadcaster,
 }
 
 impl PeerConn {
     /// karyon-internal constructor. User code receives a fully-built
     /// `PeerConn` from the protocol constructor closure.
-    pub(crate) fn new(peer: Arc<Peer>, proto_id: ProtocolID) -> Self {
-        Self { peer, proto_id }
+    pub(crate) fn new(
+        info: PeerInfoRef,
+        wire: WireRef,
+        proto_id: ProtocolID,
+        broadcaster: Broadcaster,
+    ) -> Self {
+        Self {
+            info,
+            wire,
+            proto_id,
+            broadcaster,
+        }
     }
 
     /// Send pre-encoded payload bytes to the peer on this protocol.
     pub async fn send(&self, payload: Vec<u8>) -> Result<()> {
-        self.peer.send(self.proto_id.clone(), payload).await
+        self.wire.send(&self.proto_id, payload).await
     }
 
     /// Receive the next message bytes. Returns `Err(PeerShutdown)`
     /// when the peer is closing -- callers can treat that as an
     /// orderly end of stream.
     pub async fn recv(&self) -> Result<Vec<u8>> {
-        match self.peer.recv(&self.proto_id).await? {
+        match self.wire.recv(&self.proto_id).await? {
             ProtocolEvent::Message(bytes) => Ok(bytes),
             ProtocolEvent::Shutdown => Err(Error::PeerShutdown),
         }
     }
 
     /// Broadcast pre-encoded bytes to every connected peer on this
-    /// protocol.
+    /// protocol, this one included. Does nothing once the node is shut
+    /// down.
     pub async fn broadcast(&self, payload: Vec<u8>) {
-        self.peer.broadcast(&self.proto_id, payload).await
+        self.broadcaster.broadcast(&self.proto_id, payload).await
     }
 
-    /// Underlying peer handle. Escape hatch for code that needs the
-    /// raw `Arc<Peer>` (peer id, endpoint, lifecycle hooks).
-    pub fn inner(&self) -> &Arc<Peer> {
-        &self.peer
+    /// The remote peer's id.
+    pub fn peer_id(&self) -> &PeerID {
+        &self.info.id
+    }
+
+    /// The remote peer's endpoint.
+    pub fn remote_endpoint(&self) -> &Endpoint {
+        &self.info.endpoint
+    }
+
+    /// Whether the remote dialed us or we dialed it.
+    pub fn direction(&self) -> &ConnDirection {
+        &self.info.direction
+    }
+
+    /// The protocols both sides agreed on in the handshake.
+    pub fn negotiated_protocols(&self) -> &HashSet<ProtocolID> {
+        &self.info.negotiated
     }
 }

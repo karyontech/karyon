@@ -7,28 +7,35 @@ use log::{debug, error, info};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{TaskGroup, TaskResult},
+    async_util::{AsyncQueue, TaskGroup, TaskResult},
     crypto::KeyPair,
 };
-use karyon_eventemitter::EventListener;
 use karyon_net::Endpoint;
 
 use crate::{
     PeerID, Result,
     access_control::{Action, Subject},
+    admission::AdmitConfig,
     codec::PeerNetMsgCodec,
-    config::Config,
+    config::{Config, ConfigRef},
     conn_direction::ConnDirection,
-    conn_queue::ConnQueue,
-    connector::Connector,
-    discovery::{DiscoveredPeer, Discovery, DiscoveryContext, NoDiscovery, PeerConnectionEvent},
-    listener::Listener,
+    connector::{Connector, ConnectorRef},
+    discovery::{DiscoveredPeer, DiscoveryContext, DiscoveryRef, NoDiscovery, PeerConnectionEvent},
+    listener::{Listener, ListenerRef},
     message::{PeerAddr, Protocol, pick_endpoint},
-    monitor::{Monitor, PoolEvent},
-    peer_pool::{PeerEvent, PeerEventTopic, PeerPool},
-    protocol::{PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID},
+    monitor::{Monitor, MonitorRef, PoolEvent},
+    peer_events::{PeerEventListener, PeerEvents, PeerEventsRef},
+    peer_pool::{PeerPool, PeerPoolRef},
+    protocol::{
+        PeerConn, Protocol as ProtocolTrait, ProtocolFlags, ProtocolID, ProtocolMeta, ProtocolRef,
+        ProtocolRegistry, ProtocolRegistryRef,
+    },
     protocols::PingProtocol,
+    queued_conn::CONN_QUEUE_SIZE,
 };
+
+/// `Arc` reference to a `Node`.
+pub type NodeRef = Arc<Node>;
 
 /// Central entry point for the p2p network.
 ///
@@ -56,7 +63,7 @@ use crate::{
 /// ```
 pub struct Node {
     /// The Configuration for the P2P network.
-    config: Arc<Config>,
+    config: ConfigRef,
 
     /// Identity Key pair
     key_pair: KeyPair,
@@ -65,19 +72,25 @@ pub struct Node {
     peer_id: PeerID,
 
     /// Responsible for network and system monitoring.
-    monitor: Arc<Monitor>,
+    monitor: MonitorRef,
 
     /// Discovery instance.
-    discovery: Arc<dyn Discovery>,
+    discovery: DiscoveryRef,
+
+    /// Attached protocols, shared with the PeerPool.
+    registry: ProtocolRegistryRef,
 
     /// PeerPool instance.
-    peer_pool: Arc<PeerPool>,
+    peer_pool: PeerPoolRef,
+
+    /// Where the PeerPool reports peer events.
+    peer_events: PeerEventsRef,
 
     /// Connector for outbound connections.
-    connector: Arc<Connector<PeerNetMsgCodec>>,
+    connector: ConnectorRef<PeerNetMsgCodec>,
 
     /// Listener for inbound connections.
-    listener: Arc<Listener<PeerNetMsgCodec>>,
+    listener: ListenerRef<PeerNetMsgCodec>,
 
     /// Managing spawned tasks.
     task_group: TaskGroup,
@@ -86,7 +99,7 @@ pub struct Node {
 impl Node {
     /// Creates a new Node that runs no discovery: it only dials
     /// `Config::dial_peers`. Use `with_discovery` to find more peers.
-    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> Arc<Node> {
+    pub fn new(key_pair: &KeyPair, config: Config, ex: Executor) -> NodeRef {
         Self::with_discovery(key_pair, config, |_| Arc::new(NoDiscovery), ex)
     }
 
@@ -96,23 +109,14 @@ impl Node {
     pub fn with_discovery(
         key_pair: &KeyPair,
         config: Config,
-        discovery: impl FnOnce(&DiscoveryContext) -> Arc<dyn Discovery>,
+        discovery: impl FnOnce(&DiscoveryContext) -> DiscoveryRef,
         ex: Executor,
-    ) -> Arc<Node> {
+    ) -> NodeRef {
         let config = Arc::new(config);
-        let monitor = Arc::new(Monitor::new(config.clone()));
+        let monitor = Monitor::new(config.enable_monitor);
         let peer_id = PeerID::try_from(key_pair.public())
             .expect("Derive a peer id from the provided key pair.");
         info!("PeerID: {peer_id}");
-
-        let conn_queue = ConnQueue::new();
-        let peer_pool = PeerPool::new(
-            &peer_id,
-            conn_queue.clone(),
-            config.clone(),
-            monitor.clone(),
-            ex.clone(),
-        );
 
         let discovery = discovery(&DiscoveryContext {
             key_pair: key_pair.clone(),
@@ -121,6 +125,25 @@ impl Node {
             monitor: monitor.clone(),
             executor: ex.clone(),
         });
+
+        // The listener and the connector hand their connections to the
+        // PeerPool over this queue.
+        let conn_queue = AsyncQueue::new(CONN_QUEUE_SIZE);
+        let registry = ProtocolRegistry::new();
+        let peer_events = PeerEvents::new(monitor.clone(), discovery.clone());
+        let admit_config = AdmitConfig {
+            version: config.version.clone(),
+            handshake_timeout: config.handshake_timeout,
+            access_control: config.access_control.clone(),
+        };
+        let peer_pool = PeerPool::new(
+            &peer_id,
+            conn_queue.clone(),
+            registry.clone(),
+            admit_config,
+            peer_events.clone(),
+            ex.clone(),
+        );
 
         let connector = Connector::new_with_queue(
             key_pair,
@@ -150,7 +173,9 @@ impl Node {
             monitor,
             discovery,
             config,
+            registry,
             peer_pool,
+            peer_events,
             connector,
             listener,
             task_group,
@@ -174,17 +199,6 @@ impl Node {
         // Start discovery.
         self.discovery.clone().start().await?;
 
-        // Forward peer lifecycle events to discovery.
-        self.task_group.spawn_then(
-            {
-                let this = self.clone();
-                async move { this.forward_peer_events().await }
-            },
-            |res: TaskResult<()>| async move {
-                debug!("forward_peer_events task ended: {res}");
-            },
-        );
-
         // Spawn task to connect discovered peers.
         self.task_group.spawn_then(
             {
@@ -197,22 +211,6 @@ impl Node {
         );
 
         Ok(())
-    }
-
-    /// Forward peer-pool lifecycle events to discovery so it can
-    /// update its routing state. Each registered listener (Node's
-    /// here, plus any external Swarm subscriber) gets every event
-    /// independently - no MPMC stealing.
-    async fn forward_peer_events(self: Arc<Self>) {
-        let listener = self.peer_pool.register_peer_events();
-        while let Ok(event) = listener.recv().await {
-            let mapped = match event {
-                PeerEvent::Added(pid) => PeerConnectionEvent::Connected(pid),
-                PeerEvent::Removed(pid) => PeerConnectionEvent::Disconnected(pid),
-                PeerEvent::HandshakeFailed(pid) => PeerConnectionEvent::HandshakeFailed(pid),
-            };
-            self.discovery.on_event(mapped);
-        }
     }
 
     /// Dial `Config::dial_peers` once, then the peers the discovery
@@ -301,15 +299,22 @@ impl Node {
         &self,
         c: impl Fn(PeerConn) -> P + Send + Sync + 'static,
     ) -> Result<()> {
-        let c = move |conn| Arc::new(c(conn)) as Arc<dyn ProtocolTrait>;
-        self.peer_pool.attach_protocol::<P>(Box::new(c)).await?;
+        let meta = ProtocolMeta {
+            version: P::version()?,
+            flags: P::flags(),
+        };
+        let c = move |conn| Arc::new(c(conn)) as ProtocolRef;
+        self.registry.insert(P::id(), Arc::new(c), meta).await;
         self.advertise(P::id().as_bytes(), P::flags());
         Ok(())
     }
 
     /// Attach the core protocols (PING). Called once during `run`.
-    async fn attach_core_protocols(self: &Arc<Self>) -> Result<()> {
-        self.attach_protocol(PingProtocol::new).await
+    async fn attach_core_protocols(&self) -> Result<()> {
+        let interval = self.config.ping_interval;
+        let timeout = self.config.ping_timeout;
+        self.attach_protocol(move |peer| PingProtocol::new(peer, interval, timeout))
+            .await
     }
 
     /// Advertise an item (protocol id, swarm key, ...) through
@@ -325,7 +330,7 @@ impl Node {
     }
 
     /// Returns the `Config`.
-    pub fn config(&self) -> Arc<Config> {
+    pub fn config(&self) -> ConfigRef {
         self.config.clone()
     }
 
@@ -350,14 +355,19 @@ impl Node {
     }
 
     /// Returns the monitor to receive system events.
-    pub fn monitor(&self) -> Arc<Monitor> {
+    pub fn monitor(&self) -> MonitorRef {
         self.monitor.clone()
     }
 
     /// Register a listener for peer lifecycle events. Each call returns
     /// a fresh listener that receives every event (true broadcast).
-    pub fn register_peer_events(&self) -> EventListener<PeerEventTopic, PeerEvent> {
-        self.peer_pool.register_peer_events()
+    pub fn register_peer_events(&self) -> PeerEventListener {
+        self.peer_events.register()
+    }
+
+    /// Broadcast a message to every connected peer on a given protocol.
+    pub async fn broadcast(&self, proto_id: &ProtocolID, msg: Vec<u8>) {
+        self.peer_pool.broadcast(proto_id, msg).await;
     }
 
     /// Broadcast a message to a specific set of peers on a given protocol.
@@ -391,9 +401,12 @@ impl Node {
     /// Shuts down the Node.
     pub async fn shutdown(&self) {
         self.discovery.shutdown().await;
-        self.peer_pool.shutdown().await;
-        self.connector.shutdown().await;
+        // Stop everything that hands connections to the PeerPool first
+        // (the dial tasks run in this task group), so the pool can drop
+        // the rest of its queue.
         self.listener.shutdown().await;
+        self.connector.shutdown().await;
         self.task_group.cancel().await;
+        self.peer_pool.shutdown().await;
     }
 }

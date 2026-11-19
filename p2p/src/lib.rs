@@ -1,10 +1,10 @@
 #![doc = include_str!("../README.md")]
 
 mod access_control;
+mod admission;
 mod codec;
 mod config;
 mod conn_direction;
-mod conn_queue;
 mod connector;
 mod discovery;
 mod error;
@@ -13,8 +13,11 @@ mod listener;
 mod message;
 mod node;
 mod peer;
+mod peer_events;
 mod peer_pool;
 mod protocols;
+mod queued_conn;
+mod sessions;
 mod tls_config;
 mod version;
 
@@ -28,19 +31,24 @@ pub mod monitor;
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
 
-pub use access_control::{AccessControl, Action, AllowAll, PeerCandidate, Subject};
-pub use config::Config;
+pub use access_control::{
+    AccessControl, AccessControlRef, Action, AllowAll, PeerCandidate, Subject,
+};
+pub use config::{Config, ConfigRef};
 pub use conn_direction::ConnDirection;
-pub use discovery::{DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent};
+pub use discovery::{
+    DiscoveredPeer, Discovery, DiscoveryContext, DiscoveryRef, PeerConnectionEvent,
+};
 pub use message::{PeerAddr, Protocol};
 
 // Building blocks for discovery crates.
-pub use connector::Connector;
-pub use listener::Listener;
+pub use connector::{Connector, ConnectorRef};
+pub use listener::{Listener, ListenerRef};
 pub use message::{ShutdownMsg, pick_endpoint};
-pub use node::Node;
-pub use peer::{Peer, PeerID};
-pub use peer_pool::{PeerEvent, PeerEventListener, PeerPool};
+pub use node::{Node, NodeRef};
+pub use peer::PeerID;
+pub use peer_events::{PeerEvent, PeerEventListener};
+pub use peer_pool::{PeerPool, PeerPoolRef};
 pub use version::Version;
 pub use version::{VersionInt, version_match};
 

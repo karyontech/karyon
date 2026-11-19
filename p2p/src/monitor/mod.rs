@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use log::error;
 
-use karyon_eventemitter::{AsEventValue, EventEmitter, EventListener, EventTopic, EventValue};
+use karyon_eventemitter::{
+    AsEventValue, EventEmitter, EventEmitterRef, EventListener, EventTopic, EventValue,
+};
 
 use karyon_net::Endpoint;
 
@@ -14,7 +16,7 @@ pub(crate) use event::PoolEvent;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{Config, PeerID};
+use crate::PeerID;
 
 /// Responsible for network and system monitoring.
 ///
@@ -39,22 +41,26 @@ use crate::{Config, PeerID};
 /// };
 /// ```
 pub struct Monitor {
-    event_emitter: Arc<EventEmitter<MonitorTopic>>,
-    config: Arc<Config>,
+    event_emitter: EventEmitterRef<MonitorTopic>,
+    /// `Config::enable_monitor`.
+    enabled: bool,
 }
+
+/// `Arc` reference to the `Monitor`.
+pub type MonitorRef = Arc<Monitor>;
 
 impl Monitor {
     /// Creates a new Monitor
-    pub(crate) fn new(config: Arc<Config>) -> Self {
-        Self {
+    pub(crate) fn new(enabled: bool) -> MonitorRef {
+        Arc::new(Self {
             event_emitter: EventEmitter::new(),
-            config,
-        }
+            enabled,
+        })
     }
 
     /// Sends a new monitor event to subscribers.
     pub async fn notify<E: ToEvent>(&self, event: E) {
-        if !self.config.enable_monitor {
+        if !self.enabled {
             return;
         }
 

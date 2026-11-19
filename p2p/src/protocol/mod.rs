@@ -1,4 +1,6 @@
+mod broadcaster;
 mod peer_conn;
+mod registry;
 
 use std::{
     ops::{BitOr, BitOrAssign},
@@ -12,6 +14,9 @@ use karyon_eventemitter::EventValue;
 use crate::{Result, version::Version};
 
 pub use peer_conn::PeerConn;
+
+pub(crate) use broadcaster::Broadcaster;
+pub(crate) use registry::{ProtocolRegistry, ProtocolRegistryRef, ResolvedProtocol};
 
 pub type ProtocolID = String;
 
@@ -80,7 +85,7 @@ impl BitOrAssign for ProtocolFlags {
     }
 }
 
-/// Per-protocol metadata stored in the peer pool.
+/// Per-protocol metadata stored in the protocol registry.
 #[derive(Clone, Debug)]
 pub struct ProtocolMeta {
     pub version: Version,
@@ -163,8 +168,14 @@ pub trait Protocol: Send + Sync {
     }
 }
 
-/// Boxed protocol constructor stored in the peer pool. Built by
+/// Protocol constructor stored in the protocol registry. Built by
 /// `Node::attach_protocol` from the user's `Fn(PeerConn) -> P` closure.
 /// karyon calls it once per connected peer with a typed `PeerConn`
 /// scoped to this protocol.
-pub type ProtocolConstructor = dyn Fn(PeerConn) -> Arc<dyn Protocol> + Send + Sync;
+pub type ProtocolConstructor = dyn Fn(PeerConn) -> ProtocolRef + Send + Sync;
+
+/// `Arc` reference to a `ProtocolConstructor`.
+pub type ProtocolConstructorRef = Arc<ProtocolConstructor>;
+
+/// `Arc` reference to a running protocol.
+pub type ProtocolRef = Arc<dyn Protocol>;

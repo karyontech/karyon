@@ -8,7 +8,7 @@ use bincode::{Decode, Encode};
 use log::trace;
 use rand::{TryRng, rngs::SysRng};
 
-use karyon_core::async_util::{Either, TaskGroup, TaskResult, select, sleep, timeout};
+use karyon_core::async_util::{Either, select, sleep, timeout};
 
 use crate::{
     Error, Result,
@@ -35,17 +35,14 @@ pub struct PingProtocol {
     peer: PeerConn,
     ping_interval: u64,
     ping_timeout: u64,
-    task_group: TaskGroup,
 }
 
 impl PingProtocol {
-    pub(crate) fn new(peer: PeerConn) -> Self {
-        let cfg = peer.inner().config();
-        let executor = peer.inner().executor();
+    /// `ping_interval` and `ping_timeout` are in seconds.
+    pub(crate) fn new(peer: PeerConn, ping_interval: u64, ping_timeout: u64) -> Self {
         Self {
-            ping_interval: cfg.ping_interval,
-            ping_timeout: cfg.ping_timeout,
-            task_group: TaskGroup::with_executor(executor),
+            ping_interval,
+            ping_timeout,
             peer,
         }
     }
@@ -126,31 +123,16 @@ impl Protocol for PingProtocol {
     async fn start(self: Arc<Self>) -> Result<()> {
         trace!("Start Ping protocol");
 
-        let stop_signal = async_channel::bounded::<Result<()>>(1);
         let (pong_tx, pong_rx) = async_channel::bounded(1);
 
-        self.task_group.spawn_then(
-            {
-                let this = self.clone();
-                async move { this.ping_loop(pong_rx).await }
-            },
-            |res| async move {
-                if let TaskResult::Completed(result) = res {
-                    let _ = stop_signal.0.send(result).await;
-                }
-            },
-        );
-
-        let result = select(self.recv_loop(pong_tx), stop_signal.1.recv()).await;
-        self.task_group.cancel().await;
-
-        match result {
+        // Both loops live inside this future, so they stop together when
+        // it ends or is cancelled with the peer's tasks.
+        match select(self.recv_loop(pong_tx), self.ping_loop(pong_rx)).await {
             Either::Left(res) => {
                 trace!("Receive loop stopped {res:?}");
                 res
             }
             Either::Right(res) => {
-                let res = res?;
                 trace!("Ping loop stopped {res:?}");
                 res
             }

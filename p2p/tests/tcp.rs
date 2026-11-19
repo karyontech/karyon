@@ -235,28 +235,6 @@ impl Protocol for Beta {
     }
 }
 
-/// Runs as "Alpha" but sends one message tagged "Beta", which this
-/// node never negotiated.
-struct BetaSmuggler {
-    peer: PeerConn,
-}
-
-#[async_trait]
-impl Protocol for BetaSmuggler {
-    async fn start(self: Arc<Self>) -> Result<(), Error> {
-        self.peer.inner().send("Beta".into(), b"x".to_vec()).await?;
-        idle(&self.peer).await
-    }
-
-    fn version() -> Result<Version, Error> {
-        "0.1.0".parse()
-    }
-
-    fn id() -> ProtocolID {
-        "Alpha".into()
-    }
-}
-
 #[test]
 fn non_negotiated_protocol_msg_disconnects_peer() {
     run_test_with_executor(15, |ex| async move {
@@ -282,11 +260,22 @@ fn non_negotiated_protocol_msg_disconnects_peer() {
             },
             ex.clone(),
         );
+        node_b.attach_protocol(|peer| Alpha { peer }).await.unwrap();
+        let pool_b = node_b.monitor().register::<PeerPoolEvent>();
+        node_b.run().await.expect("node_b run");
+
+        // B sends one message tagged "Beta", which A never negotiated
+        // with B.
+        loop {
+            let ev = pool_b.recv().await.unwrap();
+            if ev.event == "NewPeer" {
+                break;
+            }
+        }
         node_b
-            .attach_protocol(|peer| BetaSmuggler { peer })
+            .send_to(node_a.peer_id(), &"Beta".into(), b"x".to_vec())
             .await
             .unwrap();
-        node_b.run().await.expect("node_b run");
 
         loop {
             let ev = pool_a.recv().await.unwrap();

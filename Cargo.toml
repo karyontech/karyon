@@ -38,7 +38,7 @@ karyon_kademlia = { path = "kademlia", version = "0.1.0", default-features = fal
 karyon_swarm = { path = "swarm", version = "1.1.6", default-features = false }
 karyon_stun = { path = "stun", version = "0.2.0", default-features = false }
 
-karyon_eventemitter = { path = "./utils/eventemitter", version = "1.0.2", default-features = false }
+karyon_eventemitter = { path = "./utils/eventemitter", version = "1.0.4", default-features = false }
 karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "1.0.1", default-features = false }
 
 log = "0.4"
