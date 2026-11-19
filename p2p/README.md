@@ -94,16 +94,16 @@ async {
 
 ```toml
 # Default (tokio + TCP/TLS)
-karyon_p2p = "1.0"
+karyon_p2p = "1.6"
 
 # With QUIC
-karyon_p2p = { version = "1.0", features = ["quic"] }
+karyon_p2p = { version = "1.6", features = ["quic"] }
 
 # With smol
-karyon_p2p = { version = "1.4.1", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
+karyon_p2p = { version = "1.6", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
 
 # With the ring provider instead of aws-lc-rs
-karyon_p2p = { version = "1.4.1", default-features = false, features = ["tokio", "quic", "ring"] }
+karyon_p2p = { version = "1.6", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
 ## Architecture
@@ -144,7 +144,10 @@ To bring your own transport, implement `transport::Transport` (dial and
 listen, both give a byte stream) and set it with
 `ConfigBuilder::with_transport` (or the `Config::transport` field). The node
 uses it for the endpoints it `supports` and the built-in transports for
-the others. If its streams carry the peer's karyon certificate
+the others. A transport can also claim its own scheme: `Endpoint::Custom`
+(`scheme://addr`, e.g. `mem://node-a`) works in `listen_endpoints`,
+`dial_peers` and Kademlia once the transport `supports` it. If its
+streams carry the peer's karyon certificate
 (`ByteStream::peer_certificates`), the handshake checks the peer's id
 against it, as with TLS.
 

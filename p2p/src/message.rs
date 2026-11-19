@@ -2,10 +2,11 @@ use bincode::{Decode, Encode};
 
 use karyon_net::{Addr, Endpoint, Port};
 
-use crate::{Result, protocol::ProtocolID, util::encode};
+use crate::{Result, protocol::ProtocolID, transport::TransportRef, util::encode};
 
-/// Transport protocol used by a peer address.
+/// Transport protocol of a built-in peer address.
 #[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Protocol {
     Tcp,
     Tls,
@@ -13,67 +14,109 @@ pub enum Protocol {
     Quic,
 }
 
-/// A peer address with protocol and priority.
-/// Lower priority number means higher preference.
+/// A peer address with a priority. Lower priority number means higher
+/// preference.
 #[derive(Decode, Encode, Debug, Clone, PartialEq, Eq)]
-pub struct PeerAddr {
-    pub addr: Addr,
-    pub port: Port,
-    pub protocol: Protocol,
-    pub priority: u16,
+#[non_exhaustive]
+pub enum PeerAddr {
+    /// An IP or domain address on a built-in transport.
+    Ip {
+        addr: Addr,
+        port: Port,
+        protocol: Protocol,
+        priority: u16,
+    },
+    /// The address of a user transport, as `scheme://addr`.
+    Custom {
+        scheme: String,
+        addr: String,
+        priority: u16,
+    },
 }
 
 impl PeerAddr {
     /// Convert this PeerAddr to a network Endpoint.
     pub fn to_endpoint(&self) -> Endpoint {
-        match self.protocol {
-            Protocol::Tcp => Endpoint::Tcp(self.addr.clone(), self.port),
-            Protocol::Tls => Endpoint::Tls(self.addr.clone(), self.port),
-            Protocol::Udp => Endpoint::Udp(self.addr.clone(), self.port),
-            Protocol::Quic => Endpoint::Quic(self.addr.clone(), self.port),
+        match self {
+            PeerAddr::Ip {
+                addr,
+                port,
+                protocol,
+                ..
+            } => match protocol {
+                Protocol::Tcp => Endpoint::Tcp(addr.clone(), *port),
+                Protocol::Tls => Endpoint::Tls(addr.clone(), *port),
+                Protocol::Udp => Endpoint::Udp(addr.clone(), *port),
+                Protocol::Quic => Endpoint::Quic(addr.clone(), *port),
+            },
+            PeerAddr::Custom { scheme, addr, .. } => Endpoint::Custom {
+                scheme: scheme.clone(),
+                addr: addr.clone(),
+            },
         }
     }
 
-    /// Create a PeerAddr from an Endpoint with a given priority.
+    /// Create a PeerAddr from an Endpoint with a given priority. `None`
+    /// for endpoints peers can not dial (HTTP, WS, Unix).
     pub fn from_endpoint(endpoint: &Endpoint, priority: u16) -> Option<Self> {
+        let ip = |addr: &Addr, port: &Port, protocol| PeerAddr::Ip {
+            addr: addr.clone(),
+            port: *port,
+            protocol,
+            priority,
+        };
         match endpoint {
-            Endpoint::Tcp(addr, port) => Some(PeerAddr {
+            Endpoint::Tcp(addr, port) => Some(ip(addr, port, Protocol::Tcp)),
+            Endpoint::Tls(addr, port) => Some(ip(addr, port, Protocol::Tls)),
+            Endpoint::Udp(addr, port) => Some(ip(addr, port, Protocol::Udp)),
+            Endpoint::Quic(addr, port) => Some(ip(addr, port, Protocol::Quic)),
+            Endpoint::Custom { scheme, addr } => Some(PeerAddr::Custom {
+                scheme: scheme.clone(),
                 addr: addr.clone(),
-                port: *port,
-                protocol: Protocol::Tcp,
-                priority,
-            }),
-            Endpoint::Tls(addr, port) => Some(PeerAddr {
-                addr: addr.clone(),
-                port: *port,
-                protocol: Protocol::Tls,
-                priority,
-            }),
-            Endpoint::Udp(addr, port) => Some(PeerAddr {
-                addr: addr.clone(),
-                port: *port,
-                protocol: Protocol::Udp,
-                priority,
-            }),
-            Endpoint::Quic(addr, port) => Some(PeerAddr {
-                addr: addr.clone(),
-                port: *port,
-                protocol: Protocol::Quic,
                 priority,
             }),
             _ => None,
         }
     }
+
+    pub fn priority(&self) -> u16 {
+        match self {
+            PeerAddr::Ip { priority, .. } | PeerAddr::Custom { priority, .. } => *priority,
+        }
+    }
+
+    /// The protocol of a built-in address; `None` for a custom one.
+    pub fn protocol(&self) -> Option<&Protocol> {
+        match self {
+            PeerAddr::Ip { protocol, .. } => Some(protocol),
+            PeerAddr::Custom { .. } => None,
+        }
+    }
+
+    /// The IP or domain of a built-in address; `None` for a custom one.
+    pub fn ip_addr(&self) -> Option<&Addr> {
+        match self {
+            PeerAddr::Ip { addr, .. } => Some(addr),
+            PeerAddr::Custom { .. } => None,
+        }
+    }
 }
 
-/// Pick the best endpoint from a list of peer addresses that matches
-/// one of the supported protocols. Returns the highest-priority (lowest number)
-/// matching endpoint.
-pub fn pick_endpoint(addrs: &[PeerAddr], supported: &[Protocol]) -> Option<Endpoint> {
+/// Pick the best endpoint from a list of peer addresses: built-in ones
+/// whose protocol is in `supported`, custom ones the `transport` supports.
+/// Returns the highest-priority (lowest number) one.
+pub fn pick_endpoint(
+    addrs: &[PeerAddr],
+    supported: &[Protocol],
+    transport: Option<&TransportRef>,
+) -> Option<Endpoint> {
     addrs
         .iter()
-        .filter(|a| supported.contains(&a.protocol))
-        .min_by_key(|a| a.priority)
+        .filter(|a| match a.protocol() {
+            Some(p) => supported.contains(p),
+            None => transport.is_some_and(|t| t.supports(&a.to_endpoint())),
+        })
+        .min_by_key(|a| a.priority())
         .map(|a| a.to_endpoint())
 }
 
@@ -131,3 +174,33 @@ pub struct ProtocolMsg {
 /// Graceful close payload. Used by both wire surfaces.
 #[derive(Decode, Encode, Debug, Clone)]
 pub struct ShutdownMsg(pub u8);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::util::decode;
+
+    #[test]
+    fn custom_peer_addr_roundtrip() {
+        let ep: Endpoint = "mem://node-a".parse().unwrap();
+        let pa = PeerAddr::from_endpoint(&ep, 2).unwrap();
+        assert_eq!(pa.to_endpoint(), ep);
+        assert_eq!(pa.priority(), 2);
+        assert!(pa.protocol().is_none());
+
+        let bytes = encode(&pa).unwrap();
+        let (decoded, _) = decode::<PeerAddr>(&bytes).unwrap();
+        assert_eq!(decoded, pa);
+    }
+
+    #[test]
+    fn pick_endpoint_skips_custom_without_transport() {
+        let addrs = vec![
+            PeerAddr::from_endpoint(&"mem://node-a".parse().unwrap(), 0).unwrap(),
+            PeerAddr::from_endpoint(&"tcp://10.0.0.1:8000".parse().unwrap(), 1).unwrap(),
+        ];
+        let ep = pick_endpoint(&addrs, &[Protocol::Tcp], None).unwrap();
+        assert_eq!(ep, "tcp://10.0.0.1:8000".parse().unwrap());
+    }
+}

@@ -230,7 +230,8 @@ impl Node {
     /// only if the outbound slots are closed.
     async fn dial(self: &Arc<Self>, peer: DiscoveredPeer) -> Result<()> {
         let supported = [Protocol::Tcp, Protocol::Tls, Protocol::Quic];
-        let Some(endpoint) = pick_endpoint(&peer.addrs, &supported) else {
+        let Some(endpoint) = pick_endpoint(&peer.addrs, &supported, self.config.transport.as_ref())
+        else {
             return Ok(());
         };
 

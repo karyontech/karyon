@@ -237,11 +237,15 @@ impl RefreshService {
     async fn connect(&self, entry: &Entry) -> Result<()> {
         let udp = match self.config.transport {
             Some(_) => None,
-            None => pick_endpoint(&entry.discovery_addrs, &[Protocol::Udp]),
+            None => pick_endpoint(&entry.discovery_addrs, &[Protocol::Udp], None),
         };
         let Some(endpoint) = udp else {
-            let endpoint = pick_endpoint(&entry.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS)
-                .ok_or(Error::Lookup("No discovery address available".into()))?;
+            let endpoint = pick_endpoint(
+                &entry.discovery_addrs,
+                SUPPORTED_LOOKUP_PROTOCOLS,
+                self.config.transport.as_ref(),
+            )
+            .ok_or(Error::Lookup("No discovery address available".into()))?;
             self.allow_probe(&endpoint)?;
             return self.stream_ping(endpoint, entry.key.into()).await;
         };

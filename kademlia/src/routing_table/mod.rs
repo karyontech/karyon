@@ -222,7 +222,7 @@ impl RoutingTable {
         for bucket in buckets.iter() {
             for be in bucket.iter() {
                 for a in be.entry.discovery_addrs.iter() {
-                    if let Addr::Ip(entry_ip) = &a.addr
+                    if let Some(Addr::Ip(entry_ip)) = a.ip_addr()
                         && entry_ip == ip
                     {
                         return true;
@@ -377,20 +377,20 @@ mod tests {
     fn new_entry(key: &Key, addr: &Addr, port: u16, discovery_port: u16) -> Entry {
         Entry {
             key: *key,
-            addrs: vec![PeerAddr {
+            addrs: vec![PeerAddr::Ip {
                 addr: addr.clone(),
                 port,
                 protocol: Protocol::Tcp,
                 priority: 0,
             }],
             discovery_addrs: vec![
-                PeerAddr {
+                PeerAddr::Ip {
                     addr: addr.clone(),
                     port: discovery_port,
                     protocol: Protocol::Tcp,
                     priority: 0,
                 },
-                PeerAddr {
+                PeerAddr::Ip {
                     addr: addr.clone(),
                     port: discovery_port,
                     protocol: Protocol::Udp,
