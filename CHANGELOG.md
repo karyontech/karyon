@@ -1,6 +1,6 @@
 # Changelog
 
-## karyon_p2p 1.3.0, karyon_kademlia 0.1.0, karyon_swarm 1.2.2
+## karyon_p2p 1.3.0, karyon_kademlia 0.1.0, karyon_swarm 1.3.0
 
 ### Breaking changes
 
@@ -18,6 +18,17 @@
 - **`Node::with_discovery` takes a constructor** (`karyon_p2p`): a closure
   that gets a `DiscoveryContext` (key pair, PeerID, config, monitor,
   executor) and returns the discovery, instead of a ready discovery.
+- **`Discovery` trait** (`karyon_p2p`): the Node dials `Config::dial_peers`
+  itself, so a discovery no longer yields them. `DiscoveredPeer` drops
+  `discovery_addrs`. `PeerConnectionEvent::ConnectFailed` is split into
+  `DialFailed` (the Node's dial failed) and `HandshakeFailed` (inbound or
+  outbound, including `AccessControl` denials). `find_peers_with` is
+  removed. `shutdown`, `on_event` and `advertise` now have empty default
+  bodies.
+- **`find_peers` removed** (`karyon_p2p`, `karyon_swarm`):
+  `Node::find_peers_with` and `Swarm::find_peers` are gone. The peers they
+  returned could not be dialed through any public API. Swarm keys are
+  still advertised, and Kademlia still uses them to pick peers.
 
 ### Added
 

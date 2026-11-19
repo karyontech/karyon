@@ -19,7 +19,7 @@ use karyon_core::async_util::{AsyncQueue, Backoff, TaskGroup, TaskResult};
 use karyon_net::Endpoint;
 
 use karyon_p2p::{
-    Config, DiscoveredPeer, Discovery, DiscoveryContext, PeerAddr, PeerConnectionEvent, Protocol,
+    DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol,
     Result, pick_endpoint, protocol::ProtocolFlags,
 };
 
@@ -53,16 +53,13 @@ pub struct KademliaDiscovery {
     /// Refresh Service
     refresh_service: Arc<RefreshService>,
 
-    /// Discovered peers queued for the Node to dial. Producers
-    /// (connect_loop, manual dial_peers) push; the Node's
-    /// connect_discovered_peers task drains via `recv()`.
+    /// Discovered peers queued for the Node to dial. `connect_loop`
+    /// pushes; the Node's connect_discovered_peers task drains via
+    /// `recv()`.
     peer_queue: Arc<AsyncQueue<DiscoveredPeer>>,
 
     /// Managing spawned tasks.
     task_group: TaskGroup,
-
-    /// The node's configuration.
-    config: Arc<Config>,
 
     /// The Kademlia configuration.
     kconfig: Arc<KademliaConfig>,
@@ -135,7 +132,6 @@ impl KademliaDiscovery {
             table,
             peer_queue,
             task_group,
-            config,
             kconfig,
             bloom,
         })
@@ -155,7 +151,6 @@ impl KademliaDiscovery {
                     let peer = DiscoveredPeer {
                         peer_id: Some(key.into()),
                         addrs: entry.addrs.clone(),
-                        discovery_addrs: entry.discovery_addrs.clone(),
                     };
                     // Mark as connected to prevent re-picking while
                     // the Node is still connecting.
@@ -211,18 +206,6 @@ impl Discovery for KademliaDiscovery {
         // Start the refresh service
         self.refresh_service.start().await?;
 
-        // Send manual dial peers as DiscoveredPeer
-        for endpoint in self.config.dial_peers.iter() {
-            if let Some(addr) = PeerAddr::from_endpoint(endpoint, 0) {
-                let peer = DiscoveredPeer {
-                    peer_id: None,
-                    addrs: vec![addr],
-                    discovery_addrs: vec![],
-                };
-                self.peer_queue.push(peer).await;
-            }
-        }
-
         // Start connect loop
         self.task_group.spawn_then(
             {
@@ -257,27 +240,16 @@ impl Discovery for KademliaDiscovery {
             PeerConnectionEvent::Disconnected(pid) => {
                 self.table.update_entry(&pid.0, DISCONNECTED_ENTRY);
             }
-            PeerConnectionEvent::ConnectFailed(Some(pid)) => {
+            PeerConnectionEvent::DialFailed(Some(pid))
+            | PeerConnectionEvent::HandshakeFailed(Some(pid)) => {
                 self.table.update_entry(&pid.0, UNREACHABLE_ENTRY);
             }
-            PeerConnectionEvent::ConnectFailed(None) => {}
+            PeerConnectionEvent::DialFailed(None) | PeerConnectionEvent::HandshakeFailed(None) => {}
         }
     }
 
     fn advertise(&self, item: &[u8], flags: ProtocolFlags) {
         self.bloom.add(item, flags);
-    }
-
-    fn find_peers_with(&self, item: &[u8]) -> Vec<DiscoveredPeer> {
-        self.table
-            .entries_with_item(item)
-            .into_iter()
-            .map(|e| DiscoveredPeer {
-                peer_id: Some(e.key.into()),
-                addrs: e.addrs,
-                discovery_addrs: e.discovery_addrs,
-            })
-            .collect()
     }
 }
 

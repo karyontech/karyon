@@ -1,14 +1,10 @@
-mod static_peers;
-
-use std::sync::Arc;
+use std::{future::pending, sync::Arc};
 
 use async_trait::async_trait;
 
 use karyon_core::{async_runtime::Executor, crypto::KeyPair};
 
 use crate::{Config, PeerID, Result, message::PeerAddr, monitor::Monitor, protocol::ProtocolFlags};
-
-pub(crate) use static_peers::StaticDiscovery;
 
 /// What a discovery gets from the node that runs it. Passed to the
 /// constructor given to `Node::with_discovery`.
@@ -20,31 +16,35 @@ pub struct DiscoveryContext {
     pub executor: Executor,
 }
 
-/// Represents a discovered peer that the discovery protocol wants the
-/// Node to connect to.
+/// A peer the discovery wants the Node to connect to.
 pub struct DiscoveredPeer {
+    /// `None` if the id is not known before the handshake.
     pub peer_id: Option<PeerID>,
+    /// Addresses the peer accepts peer connections on.
     pub addrs: Vec<PeerAddr>,
-    pub discovery_addrs: Vec<PeerAddr>,
 }
 
 /// Connection lifecycle events the Node forwards to discovery.
 #[derive(Debug, Clone)]
 pub enum PeerConnectionEvent {
-    /// Outbound connection completed handshake successfully.
+    /// A peer joined the pool, inbound or outbound.
     Connected(PeerID),
-    /// Previously-connected peer has disconnected.
+    /// A peer left the pool.
     Disconnected(PeerID),
-    /// Connection attempt failed. Peer id may be unknown for
-    /// manual dial peers whose id wasn't pre-shared.
-    ConnectFailed(Option<PeerID>),
+    /// The Node could not dial a peer. The id is `None` for a
+    /// `dial_peers` entry whose id is not known.
+    DialFailed(Option<PeerID>),
+    /// A connection, inbound or outbound, failed the handshake or was
+    /// denied by `AccessControl`. The id is `None` if not verified yet.
+    HandshakeFailed(Option<PeerID>),
 }
 
 /// Trait that any discovery protocol must implement.
 ///
 /// Discovery implementations find peers and yield them via
 /// `recv()`. The Node awaits `recv()` in a loop and handles
-/// connecting - discovery never connects directly.
+/// connecting - discovery never connects directly. The Node dials
+/// `Config::dial_peers` itself. Only `start` and `recv` are required.
 #[async_trait]
 pub trait Discovery: Send + Sync {
     /// Start the discovery service. Listen endpoints, if needed by
@@ -52,24 +52,32 @@ pub trait Discovery: Send + Sync {
     async fn start(self: Arc<Self>) -> Result<()>;
 
     /// Shutdown the discovery service.
-    async fn shutdown(&self);
+    async fn shutdown(&self) {}
 
     /// Await the next discovered peer. The Node calls this in a
     /// loop; on shutdown the surrounding task is cancelled.
     async fn recv(&self) -> DiscoveredPeer;
 
     /// Receive a peer connection event from the Node.
-    fn on_event(&self, event: PeerConnectionEvent);
+    fn on_event(&self, _event: PeerConnectionEvent) {}
 
     /// Advertise an item (protocol id, swarm key, ...) to other peers.
     /// `REQUIRED` items are required from peers, `PREFERRED` ones are
     /// preferred but not required. Other bits are implementation
     /// defined.
-    fn advertise(&self, item: &[u8], flags: ProtocolFlags);
+    fn advertise(&self, _item: &[u8], _flags: ProtocolFlags) {}
+}
 
-    /// Return peers in the routing table whose advertised bloom may
-    /// contain `item`. Used by application layers (e.g. Swarm) to find
-    /// candidates for protocol- or swarm-targeted dials. Implementations
-    /// without a routing table may return an empty vector.
-    fn find_peers_with(&self, item: &[u8]) -> Vec<DiscoveredPeer>;
+/// Default discovery of `Node::new`: finds no peers.
+pub(crate) struct NoDiscovery;
+
+#[async_trait]
+impl Discovery for NoDiscovery {
+    async fn start(self: Arc<Self>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn recv(&self) -> DiscoveredPeer {
+        pending().await
+    }
 }
