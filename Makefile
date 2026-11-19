@@ -9,7 +9,9 @@ SMOL_FEATURES = karyon_core/smol,karyon_async_rustls/smol,\
 	karyon_jsonrpc_macro/smol,karyon_p2p/smol,karyon_p2p/quic,\
 	karyon_kademlia/smol,karyon_kademlia/quic,karyon_swarm/smol,\
 	karyon_stun/smol,karyon_stun/udp,karyon_stun/tcp,karyon_stun/tls,karyon_stun/quic,\
-	karyon_eventemitter/derive
+	karyon_eventemitter/derive,\
+	karyon_async_rustls/aws-lc-rs,karyon_net/aws-lc-rs,karyon_jsonrpc/aws-lc-rs,\
+	karyon_p2p/aws-lc-rs,karyon_kademlia/aws-lc-rs,karyon_swarm/aws-lc-rs,karyon_stun/aws-lc-rs
 
 .PHONY: all check fmt clippy unit-test integration-test test \
 	test-core test-net test-jsonrpc test-p2p test-kademlia test-swarm test-stun \
