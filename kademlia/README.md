@@ -54,6 +54,14 @@ async {
 };
 ```
 
+## Transport
+
+With `Config::transport` set, lookups dial and listen through it too, and
+the node sends no raw UDP: the refresh service pings each entry over the
+lookup protocol instead, and the `udp://` discovery endpoint is not used.
+Without a transport, refresh uses UDP, and pings over the lookup protocol
+only entries that have no UDP address.
+
 ## Advertised items
 
 `Node::advertise` items go into the bloom filter sent to other peers, and

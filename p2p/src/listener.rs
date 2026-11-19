@@ -124,6 +124,28 @@ where
         access_control: AccessControlRef,
         ex: Executor,
     ) -> ListenerRef<C> {
+        Self::new_with_transport(
+            key_pair,
+            slots,
+            monitor,
+            handshake_timeout,
+            access_control,
+            None,
+            ex,
+        )
+    }
+
+    /// Like `new`, but listens on the endpoints `transport` supports
+    /// through it (see `Config::transport`).
+    pub fn new_with_transport(
+        key_pair: &KeyPair,
+        slots: usize,
+        monitor: MonitorRef,
+        handshake_timeout: u64,
+        access_control: AccessControlRef,
+        transport: Option<TransportRef>,
+        ex: Executor,
+    ) -> ListenerRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots: Semaphore::new(slots),
@@ -132,7 +154,7 @@ where
             monitor,
             handshake_timeout: Duration::from_secs(handshake_timeout),
             access_control,
-            transport: None,
+            transport,
             _codec: PhantomData,
         })
     }

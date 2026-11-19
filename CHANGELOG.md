@@ -1,6 +1,6 @@
 # Changelog
 
-## karyon_p2p 1.5.0
+## karyon_p2p 1.5.0, karyon_kademlia 0.1.3, karyon_swarm 1.3.3
 
 ### Added
 
@@ -13,6 +13,20 @@
 - **`ConfigBuilder`** (`karyon_p2p`): builds a `Config` from the defaults
   with `with_*` methods (`with_listen_endpoints`, `with_dial_peers`,
   `with_transport`, ...). `Config` fields stay public.
+- **`Connector::new_with_transport`, `Listener::new_with_transport`**
+  (`karyon_p2p`): the discovery-side Connector and Listener can use the
+  node's transport.
+
+### Changed
+
+- **Kademlia over the transport** (`karyon_kademlia`): with
+  `Config::transport` set, lookups dial and listen through it, and the
+  refresh pings each entry over the lookup protocol instead of UDP; the
+  `udp://` discovery endpoint is then not used or advertised.
+- **Refresh without a UDP address** (`karyon_kademlia`): an entry that
+  advertises no UDP address is pinged over the lookup protocol instead
+  of failing its refresh and being evicted.
+- **swarm** (`karyon_swarm`): requires karyon_p2p 1.5.0.
 
 ## karyon_jsonrpc 1.1.7
 

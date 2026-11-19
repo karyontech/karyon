@@ -80,6 +80,28 @@ where
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<C> {
+        Self::new_with_transport(
+            key_pair,
+            max_retries,
+            slots,
+            dial_timeout,
+            None,
+            monitor,
+            ex,
+        )
+    }
+
+    /// Like `new`, but dials the endpoints `transport` supports through it
+    /// (see `Config::transport`).
+    pub fn new_with_transport(
+        key_pair: &KeyPair,
+        max_retries: usize,
+        slots: usize,
+        dial_timeout: u64,
+        transport: Option<TransportRef>,
+        monitor: MonitorRef,
+        ex: Executor,
+    ) -> ConnectorRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
@@ -88,7 +110,7 @@ where
             monitor,
             connection_slots: Semaphore::new(slots),
             conn_queue: None,
-            transport: None,
+            transport,
             _codec: PhantomData,
         })
     }
