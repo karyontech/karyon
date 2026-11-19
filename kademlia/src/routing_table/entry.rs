@@ -25,9 +25,10 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// Returns the primary address (first addr) for subnet checks, if available.
+    /// Returns the primary address (first IP or domain addr) for subnet
+    /// checks, if available. Custom addresses have no subnet.
     pub fn primary_addr(&self) -> Option<&karyon_net::Addr> {
-        self.addrs.first().map(|a| &a.addr)
+        self.addrs.iter().find_map(|a| a.ip_addr())
     }
 }
 

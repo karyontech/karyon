@@ -41,6 +41,9 @@ pub const MAX_ADDRS_PER_PEER: usize = 4;
 /// Legitimate peers only need lookup + refresh.
 pub const MAX_DISCOVERY_ADDRS_PER_PEER: usize = 3;
 
+/// Maximum length of the scheme or the address of a custom peer address.
+pub const MAX_CUSTOM_ADDR_LEN: usize = 255;
+
 /// Endpoints the lookup service advertises and binds to.
 pub struct LookupEndpoints {
     /// Data-plane listen addrs (advertised in PeerMsg.addrs).
@@ -232,7 +235,11 @@ impl LookupService {
     ) -> Result<()> {
         let mut results = FuturesUnordered::new();
         for peer in random_peers.sample(&mut rand::rng(), random_peers.len()) {
-            let endpoint = match pick_endpoint(&peer.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS) {
+            let endpoint = match pick_endpoint(
+                &peer.discovery_addrs,
+                SUPPORTED_LOOKUP_PROTOCOLS,
+                self.config.transport.as_ref(),
+            ) {
                 Some(ep) => ep,
                 None => continue,
             };
@@ -492,10 +499,11 @@ pub(crate) async fn send_shutdown_msg(conn: &mut KadConnRef) -> Result<()> {
 /// `public_ip` when both are the same family.
 fn advertised_addr(ep: &Endpoint, public_ip: Option<IpAddr>) -> Option<PeerAddr> {
     let mut pa = PeerAddr::from_endpoint(ep, 0)?;
-    if let (Some(public), Addr::Ip(ip)) = (public_ip, &pa.addr)
+    if let PeerAddr::Ip { addr, .. } = &mut pa
+        && let (Some(public), Addr::Ip(ip)) = (public_ip, &*addr)
         && public.is_ipv4() == ip.is_ipv4()
     {
-        pa.addr = Addr::Ip(public);
+        *addr = Addr::Ip(public);
     }
     Some(pa)
 }
@@ -515,8 +523,19 @@ fn validate_peer_msg(p: &mut PeerMsg) -> Result<()> {
             p.addrs.len()
         )));
     }
+    let too_long = |a: &PeerAddr| match a {
+        PeerAddr::Custom { scheme, addr, .. } => {
+            scheme.len() > MAX_CUSTOM_ADDR_LEN || addr.len() > MAX_CUSTOM_ADDR_LEN
+        }
+        _ => false,
+    };
+    if p.addrs.iter().chain(&p.discovery_addrs).any(too_long) {
+        return Err(Error::InvalidMsg(format!(
+            "PeerMsg has a custom address longer than {MAX_CUSTOM_ADDR_LEN}"
+        )));
+    }
     p.discovery_addrs
-        .retain(|a| !matches!(a.protocol, Protocol::Tls));
+        .retain(|a| !matches!(a.protocol(), Some(Protocol::Tls)));
     if p.discovery_addrs.len() > MAX_DISCOVERY_ADDRS_PER_PEER {
         return Err(Error::InvalidMsg(format!(
             "PeerMsg.discovery_addrs has {} entries, max {MAX_DISCOVERY_ADDRS_PER_PEER}",
@@ -548,6 +567,21 @@ mod tests {
         peer.discovery_addrs = vec![];
         peer.addrs = vec![addr];
         assert!(is_reachable(&peer));
+    }
+
+    #[test]
+    fn rejects_long_custom_addr() {
+        let long = format!("mem://{}", "a".repeat(MAX_CUSTOM_ADDR_LEN + 1));
+        let mut peer = PeerMsg {
+            peer_id: PeerID::from([1u8; 32]),
+            addrs: vec![PeerAddr::from_endpoint(&long.parse().unwrap(), 0).unwrap()],
+            discovery_addrs: vec![],
+            protocols: Default::default(),
+        };
+        assert!(validate_peer_msg(&mut peer).is_err());
+
+        peer.addrs = vec![PeerAddr::from_endpoint(&"mem://a".parse().unwrap(), 0).unwrap()];
+        assert!(validate_peer_msg(&mut peer).is_ok());
     }
 
     #[test]

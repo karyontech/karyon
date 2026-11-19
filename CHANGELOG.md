@@ -1,5 +1,42 @@
 # Changelog
 
+## karyon_net 2.0.0, karyon_jsonrpc 1.2.0, karyon_stun 0.3.0, karyon_p2p 1.6.0, karyon_kademlia 0.2.0, karyon_swarm 1.4.0
+
+### Breaking changes
+
+- **`Endpoint::Custom` and `#[non_exhaustive]`** (`karyon_net`): an
+  endpoint with a scheme karyon has no built-in transport for, e.g.
+  `mem://node-a`, now parses as `Endpoint::Custom { scheme, addr }`
+  instead of failing with `UnsupportedEndpoint`. `Endpoint` is
+  `#[non_exhaustive]`: a `match` on it needs a `_` arm. `port()`,
+  `addr()` and `SocketAddr::try_from` fail on a custom endpoint.
+  jsonrpc, stun, p2p, kademlia and swarm move to net 2.0; their APIs use
+  `Endpoint`, so code matching on it needs the `_` arm there too.
+- **`PeerAddr` is an enum** (`karyon_p2p`): `PeerAddr::Ip { addr, port,
+  protocol, priority }` for built-in transports and `PeerAddr::Custom {
+  scheme, addr, priority }` for custom endpoints. Use the `priority()`,
+  `protocol()` and `ip_addr()` accessors instead of the old fields.
+  `PeerAddr` and `Protocol` are `#[non_exhaustive]`.
+- **`pick_endpoint` takes the transport** (`karyon_p2p`):
+  `pick_endpoint(addrs, supported, transport)` also picks the custom
+  addresses `transport` supports; pass `None` for built-in only.
+- **Network version 0.3.0** (`karyon_p2p`): `PeerAddr` changed on the
+  wire, so `Config::default().version` is now 0.3.0 and nodes on 0.2.x
+  can not talk to it.
+
+### Added
+
+- **`Endpoint::is_custom`** (`karyon_net`).
+
+### Changed
+
+- **Custom endpoints over the transport** (`karyon_p2p`,
+  `karyon_kademlia`): with a `Config::transport` that supports them, a
+  node listens on, dials and advertises custom endpoints
+  (`scheme://addr`), and Kademlia looks up peers through them.
+- **Custom address length** (`karyon_kademlia`): a `PeerMsg` with a
+  custom scheme or address longer than 255 bytes is rejected.
+
 ## karyon_p2p 1.5.0, karyon_kademlia 0.1.3, karyon_swarm 1.3.3
 
 ### Added

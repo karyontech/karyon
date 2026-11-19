@@ -177,16 +177,16 @@ async {
 
 ```toml
 # QUIC support
-karyon_jsonrpc = { version = "1.0", features = ["quic"] }
+karyon_jsonrpc = { version = "1.2", features = ["quic"] }
 
 # HTTP/1.1 + HTTP/2
-karyon_jsonrpc = { version = "1.0", features = ["http"] }
+karyon_jsonrpc = { version = "1.2", features = ["http"] }
 
 # HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
-karyon_jsonrpc = { version = "1.0", features = ["http3"] }
+karyon_jsonrpc = { version = "1.2", features = ["http3"] }
 
 # All wire formats
-karyon_jsonrpc = { version = "1.0", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
+karyon_jsonrpc = { version = "1.2", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
 ```
 
 ## Architecture

@@ -28,7 +28,8 @@ const DNS_TIMEOUT: Duration = Duration::from_secs(10);
 ///
 /// Transport schemes (TCP, UDP, TLS, QUIC, Unix) carry just address + port.
 /// URL schemes (HTTP, HTTPS, WS, WSS) carry a full `Url` so path, query,
-/// and other URL semantics are preserved.
+/// and other URL semantics are preserved. Any other scheme is `Custom`, for
+/// user transports: `scheme://addr`, with `addr` kept as written.
 ///
 /// # Example
 ///
@@ -43,8 +44,12 @@ const DNS_TIMEOUT: Duration = Duration::from_secs(10);
 /// let endpoint = Endpoint::new_udp_addr(socketaddr);
 ///
 /// let endpoint: Endpoint = "http://example.com:8080/rpc".parse().unwrap();
+///
+/// let endpoint: Endpoint = "mem://node-a".parse().unwrap();
+/// assert!(endpoint.is_custom());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(into = "String"))]
 pub enum Endpoint {
@@ -57,6 +62,11 @@ pub enum Endpoint {
     Ws(Url),
     Wss(Url),
     Unix(PathBuf),
+    /// A scheme karyon has no built-in transport for.
+    Custom {
+        scheme: String,
+        addr: String,
+    },
 }
 
 impl Endpoint {
@@ -139,6 +149,12 @@ impl Endpoint {
         matches!(self, Endpoint::Unix(..))
     }
 
+    #[inline]
+    /// Checks if the `Endpoint` is of type `Custom`.
+    pub fn is_custom(&self) -> bool {
+        matches!(self, Endpoint::Custom { .. })
+    }
+
     /// Returns the port of the endpoint. For URL-family endpoints the
     /// scheme's default port is returned if the URL omits a port.
     pub fn port(&self) -> Result<Port> {
@@ -151,7 +167,7 @@ impl Endpoint {
                 url.port_or_known_default()
                     .ok_or_else(|| Error::ParseEndpoint(format!("port missing: {url}")))
             }
-            Endpoint::Unix(_) => Err(Error::TryFromEndpoint),
+            Endpoint::Unix(_) | Endpoint::Custom { .. } => Err(Error::TryFromEndpoint),
         }
     }
 
@@ -165,7 +181,7 @@ impl Endpoint {
             Endpoint::Http(url) | Endpoint::Https(url) | Endpoint::Ws(url) | Endpoint::Wss(url) => {
                 url_to_addr(url)
             }
-            Endpoint::Unix(_) => Err(Error::TryFromEndpoint),
+            Endpoint::Unix(_) | Endpoint::Custom { .. } => Err(Error::TryFromEndpoint),
         }
     }
 }
@@ -211,6 +227,7 @@ impl Display for Endpoint {
             // No `//` after the scheme: `unix://home/x` would parse `home`
             // as the host.
             Endpoint::Unix(path) => write!(f, "unix:{}", path.to_string_lossy()),
+            Endpoint::Custom { scheme, addr } => write!(f, "{scheme}://{addr}"),
         }
     }
 }
@@ -242,7 +259,7 @@ impl TryFrom<Endpoint> for SocketAddr {
                 let port = endpoint.port()?;
                 resolve(addr, port)
             }
-            Endpoint::Unix(_) => Err(Error::TryFromEndpoint),
+            Endpoint::Unix(_) | Endpoint::Custom { .. } => Err(Error::TryFromEndpoint),
         }
     }
 }
@@ -337,7 +354,18 @@ impl TryFrom<Url> for Endpoint {
                 }
                 Ok(Endpoint::Unix(url.path().into()))
             }
-            _ => Err(Error::UnsupportedEndpoint(url.to_string())),
+            scheme => {
+                // Keep the address as written, after `scheme://`.
+                let rest = &url.as_str()[scheme.len() + 1..];
+                let addr = rest.strip_prefix("//").unwrap_or(rest);
+                if addr.is_empty() {
+                    return Err(Error::ParseEndpoint(format!("address missing: {url}")));
+                }
+                Ok(Endpoint::Custom {
+                    scheme: scheme.to_string(),
+                    addr: addr.to_string(),
+                })
+            }
         }
     }
 }
@@ -460,11 +488,30 @@ mod tests {
             "tls://example.com:3000",
             "quic://[::1]:3000",
             "unix:/home/x/s.socket",
+            "mem://node-a",
+            "onion://abc.onion:9000",
         ] {
             let endpoint: Endpoint = s.parse().unwrap();
             assert_eq!(endpoint.to_string(), s);
             assert_eq!(endpoint.to_string().parse::<Endpoint>().unwrap(), endpoint);
         }
+    }
+
+    #[test]
+    fn test_endpoint_custom() {
+        let endpoint: Endpoint = "mem://node-a".parse().unwrap();
+        assert_eq!(
+            endpoint,
+            Endpoint::Custom {
+                scheme: "mem".into(),
+                addr: "node-a".into()
+            }
+        );
+        assert!(endpoint.port().is_err());
+        assert!(endpoint.addr().is_err());
+        assert!(SocketAddr::try_from(endpoint).is_err());
+
+        assert!("mem://".parse::<Endpoint>().is_err());
     }
 
     #[test]

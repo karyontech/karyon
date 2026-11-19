@@ -20,7 +20,7 @@ use karyon_net::Endpoint;
 
 use karyon_p2p::{
     Connector, DiscoveredPeer, Discovery, DiscoveryContext, PeerConnectionEvent, Protocol, Result,
-    pick_endpoint, protocol::ProtocolFlags,
+    pick_endpoint, protocol::ProtocolFlags, transport::TransportRef,
 };
 
 pub use config::{KademliaConfig, KademliaConfigRef};
@@ -64,6 +64,9 @@ pub struct KademliaDiscovery {
     /// The Kademlia configuration.
     kconfig: KademliaConfigRef,
 
+    /// The node's transport, to pick the custom addresses it supports.
+    transport: Option<TransportRef>,
+
     /// Local bloom of advertised items. Written by `advertise`,
     /// snapshotted on every connect-loop iteration to filter
     /// routing-table entries, and stamped on outgoing PeerMsgs via
@@ -95,7 +98,9 @@ impl KademliaDiscovery {
         let lookup_ep = kconfig
             .discovery_endpoints
             .iter()
-            .find(|e| is_lookup_proto(e))
+            .find(|e| {
+                is_lookup_proto(e) || config.transport.as_ref().is_some_and(|t| t.supports(e))
+            })
             .cloned();
         // With a user transport the node sends no raw UDP: the refresh
         // pings go over the lookup protocol instead.
@@ -155,6 +160,7 @@ impl KademliaDiscovery {
             peer_queue,
             task_group,
             kconfig,
+            transport: config.transport.clone(),
             bloom,
         })
     }
@@ -196,11 +202,14 @@ impl KademliaDiscovery {
     async fn start_seeding(&self) {
         match self.table.random_entry(PENDING_ENTRY | CONNECTED_ENTRY) {
             Some(entry) => {
-                let endpoint =
-                    match pick_endpoint(&entry.discovery_addrs, SUPPORTED_LOOKUP_PROTOCOLS) {
-                        Some(ep) => ep,
-                        None => return,
-                    };
+                let endpoint = match pick_endpoint(
+                    &entry.discovery_addrs,
+                    SUPPORTED_LOOKUP_PROTOCOLS,
+                    self.transport.as_ref(),
+                ) {
+                    Some(ep) => ep,
+                    None => return,
+                };
                 let peer_id = Some(entry.key.into());
                 if let Err(err) = self.lookup_service.start_lookup(&endpoint, peer_id).await {
                     self.table.update_entry(&entry.key, UNSTABLE_ENTRY);
