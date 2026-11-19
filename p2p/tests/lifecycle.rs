@@ -234,8 +234,8 @@ fn simultaneous_dial_keeps_one_connection() {
     });
 }
 
-/// A second connection from the same peer is rejected, and the inbound
-/// slot it took is freed for another peer.
+/// A second connection from the same peer is dropped, both nodes keep the
+/// same one, and the inbound slot it took is freed for another peer.
 #[test]
 fn duplicate_connection_rejected_and_slot_freed() {
     run_test_with_executor(45, |ex| async move {
@@ -251,7 +251,6 @@ fn duplicate_connection_rejected_and_slot_freed() {
             ex.clone(),
         )
         .await;
-        let pool_a = node_a.monitor().register::<PeerPoolEvent>();
         node_a.run().await.unwrap();
 
         // B dials A on both endpoints: two connections, same direction.
@@ -265,13 +264,11 @@ fn duplicate_connection_rejected_and_slot_freed() {
         .await;
         node_b.run().await.unwrap();
 
-        timeout(
-            Duration::from_secs(15),
-            wait_pool(&pool_a, "PeerAlreadyConnected"),
-        )
-        .await
-        .expect("duplicate connection rejected");
-        assert_eq!(node_a.peers().await, 1);
+        // Each node rejects or replaces the second connection, depending
+        // on the order it admits them, so there may be no
+        // `PeerAlreadyConnected` event. Both keep one and the same.
+        wait_peers(&node_a, 1, 15).await;
+        wait_peers(&node_b, 1, 15).await;
 
         // Only one of the two slots is in use, so C gets in.
         let (node_c, _) = probe_node(

@@ -1,5 +1,21 @@
 # Changelog
 
+## karyon_p2p 1.6.1
+
+### Breaking changes
+
+- **Network version 0.4.0**: the handshake `VerMsg` carries a random
+  per-connection nonce, so `Config::default().version` is now 0.4.0 and
+  nodes on 0.3.x can not talk to it.
+
+### Fixed
+
+- **Two connections in the same direction no longer drop the peer**: a
+  node that dials the same peer twice (e.g. on its TCP and TLS
+  endpoints) could keep one connection while the peer kept the other,
+  so both closed and the peer was lost. Both nodes now keep the
+  connection with the smaller key derived from the handshake nonces.
+
 ## karyon_net 2.0.0, karyon_jsonrpc 1.2.0, karyon_stun 0.3.0, karyon_p2p 1.6.0, karyon_kademlia 0.2.0, karyon_swarm 1.4.0
 
 ### Breaking changes

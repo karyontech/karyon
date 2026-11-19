@@ -2,6 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use bincode::{Decode, Encode};
 use log::trace;
+use rand::{TryRng, rngs::SysRng};
 use semver::VersionReq;
 
 use karyon_core::async_util::timeout;
@@ -45,6 +46,8 @@ pub struct VerMsg {
     pub peer_id: PeerID,
     pub version: WireVersion,
     pub protocols: HashMap<ProtocolID, WireVersion>,
+    /// Random per connection. Both nonces give the connection key.
+    pub nonce: u64,
 }
 
 /// Answers a Version message; `ack=false` means the sender rejected
@@ -69,8 +72,16 @@ pub struct HandshakeParams<'a> {
     pub verified_peer_id: Option<&'a PeerID>,
 }
 
-/// Run the handshake on split reader/writer. Returns the remote peer ID
-/// and the set of protocols both sides support.
+/// The result of a successful handshake.
+pub struct Handshaked {
+    pub peer_id: PeerID,
+    pub negotiated: NegotiatedProtocols,
+    /// Same on both sides of the connection: the XOR of both nonces.
+    pub conn_key: u64,
+}
+
+/// Run the handshake on split reader/writer. Returns the remote peer ID,
+/// the set of protocols both sides support and the connection key.
 ///
 /// Both sides send a VerMsg, check the remote one with the same rules,
 /// then send a VerAck. So both sides end up with the same protocol set.
@@ -78,10 +89,11 @@ pub async fn handshake(
     reader: &mut FramedReader<PeerNetMsgCodec>,
     writer: &mut HandshakeWriter,
     p: &HandshakeParams<'_>,
-) -> Result<(PeerID, NegotiatedProtocols)> {
+) -> Result<Handshaked> {
     trace!("Init Handshake");
 
-    send_vermsg(writer, p).await?;
+    let nonce = SysRng.try_next_u64()?;
+    send_vermsg(writer, p, nonce).await?;
 
     let t = Duration::from_secs(p.timeout_secs);
     let msg: PeerNetMsg = timeout(t, reader.recv_msg()).await??;
@@ -97,7 +109,7 @@ pub async fn handshake(
         }
         _ => {}
     };
-    let (pid, shared) = result?;
+    let (pid, shared, remote_nonce) = result?;
 
     let msg: PeerNetMsg = timeout(t, reader.recv_msg()).await??;
     match msg.header.command {
@@ -105,10 +117,18 @@ pub async fn handshake(
         cmd => return Err(Error::InvalidMsg(format!("unexpected msg found {cmd:?}"))),
     }
 
-    Ok((pid, shared))
+    Ok(Handshaked {
+        peer_id: pid,
+        negotiated: shared,
+        conn_key: nonce ^ remote_nonce,
+    })
 }
 
-async fn send_vermsg(writer: &mut HandshakeWriter, p: &HandshakeParams<'_>) -> Result<()> {
+async fn send_vermsg(
+    writer: &mut HandshakeWriter,
+    p: &HandshakeParams<'_>,
+    nonce: u64,
+) -> Result<()> {
     let protocols = p
         .protocols
         .iter()
@@ -119,6 +139,7 @@ async fn send_vermsg(writer: &mut HandshakeWriter, p: &HandshakeParams<'_>) -> R
         peer_id: p.own_id.clone(),
         version: WireVersion::from(p.config_version),
         protocols,
+        nonce,
     };
 
     trace!("Send VerMsg");
@@ -147,7 +168,7 @@ async fn send_verack(writer: &mut HandshakeWriter, own_id: &PeerID, ack: bool) -
 fn validate_version_msg(
     msg: &PeerNetMsg,
     p: &HandshakeParams<'_>,
-) -> Result<(PeerID, NegotiatedProtocols)> {
+) -> Result<(PeerID, NegotiatedProtocols, u64)> {
     let (vermsg, _) = decode::<VerMsg>(&msg.payload)?;
 
     if !mutual_match(p.config_version, &vermsg.version) {
@@ -177,7 +198,7 @@ fn validate_version_msg(
     }
 
     trace!("Received VerMsg from: {}", vermsg.peer_id);
-    Ok((vermsg.peer_id, shared))
+    Ok((vermsg.peer_id, shared, vermsg.nonce))
 }
 
 /// Validates the given verack msg from the peer that sent `pid`'s VerMsg.
