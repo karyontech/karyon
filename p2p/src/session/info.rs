@@ -2,16 +2,16 @@ use std::{collections::HashSet, sync::Arc};
 
 use karyon_net::Endpoint;
 
-use crate::{conn_direction::ConnDirection, peer::PeerID, protocol::ProtocolID};
+use crate::{PeerID, conn_direction::ConnDirection, protocol::ProtocolID};
 
-/// `Arc` reference to a `PeerInfo`.
-pub type PeerInfoRef = Arc<PeerInfo>;
+/// `Arc` reference to a `SessionInfo`.
+pub type SessionInfoRef = Arc<SessionInfo>;
 
-/// What is known about a connected peer once the handshake is done.
-/// Never changes; shared by the pool's session, the peer and every
-/// protocol's `PeerConn`.
+/// What is known about one session with a peer, from the handshake on.
+/// Never changes; a peer that reconnects gets a new one. Shared by the
+/// session and every protocol's `PeerConn`.
 #[derive(Debug)]
-pub struct PeerInfo {
+pub struct SessionInfo {
     /// The remote peer's id.
     pub id: PeerID,
     /// Whether the remote dialed us or we dialed it.
@@ -22,7 +22,7 @@ pub struct PeerInfo {
     pub negotiated: HashSet<ProtocolID>,
 }
 
-impl PeerInfo {
+impl SessionInfo {
     /// True if the remote dialed us.
     pub fn is_inbound(&self) -> bool {
         matches!(self.direction, ConnDirection::Inbound)

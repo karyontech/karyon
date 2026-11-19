@@ -15,7 +15,8 @@ pub(crate) type ConnQueueRef = AsyncQueueRef<Incoming>;
 /// right away, so the queue is rarely full.
 pub(crate) const CONN_QUEUE_SIZE: usize = 64;
 
-/// A connection for the PeerPool to handshake and turn into a `Peer`.
+/// A connection for the PeerPool to handshake and turn into a
+/// `PeerSession`.
 /// Carries the raw split halves plus metadata.
 pub(crate) struct QueuedConn {
     pub reader: FramedReader<PeerNetMsgCodec>,

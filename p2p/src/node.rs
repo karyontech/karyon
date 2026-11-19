@@ -80,7 +80,7 @@ pub struct Node {
     /// Attached protocols, shared with the PeerPool.
     registry: ProtocolRegistryRef,
 
-    /// PeerPool instance.
+    /// Owns the sessions and runs their lifecycle.
     peer_pool: PeerPoolRef,
 
     /// Where the PeerPool reports peer events.

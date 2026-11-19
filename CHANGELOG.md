@@ -7,21 +7,21 @@
 - **`Peer` is no longer public** (`karyon_p2p`): protocols only see their
   `PeerConn`. `PeerConn::inner()` is removed; use `PeerConn::info` instead. To
   send on another protocol, use `Node::send_to` or `Node::broadcast`.
-- **`PeerPool::attach_protocol` and `PeerPool::new` removed from the
-  public API** (`karyon_p2p`): attach protocols with
-  `Node::attach_protocol`.
-- **`PeerPool::register_peer_events` removed** (`karyon_p2p`): use
-  `Node::register_peer_events`, which now returns `PeerEventListener`.
+- **`PeerPool` and `PeerPoolRef` are no longer public** (`karyon_p2p`):
+  attach protocols with `Node::attach_protocol`, register for peer
+  events with `Node::register_peer_events` (now returns
+  `PeerEventListener`), and send or query peers through the `Node`.
 
 ### Added
 
 - **`Node::broadcast`** (`karyon_p2p`): send to every connected peer on a
   protocol, from outside a protocol.
-- **`PeerInfo` / `PeerInfoRef`** (`karyon_p2p`): what is known about a
-  connected peer (id, direction, endpoint, negotiated protocols).
-- **`PeerConn::info`** (`karyon_p2p`): the remote peer's `PeerInfo`.
+- **`SessionInfo` / `SessionInfoRef`** (`karyon_p2p`): what is known about
+  one session with a peer (id, direction, endpoint, negotiated
+  protocols). A peer that reconnects gets a new one.
+- **`PeerConn::info`** (`karyon_p2p`): the session's `SessionInfo`.
 - **`*Ref` aliases** (`karyon_p2p`): `NodeRef`, `ConfigRef`, `MonitorRef`,
-  `PeerPoolRef`, `DiscoveryRef`, `AccessControlRef`, `ConnectorRef`,
+  `DiscoveryRef`, `AccessControlRef`, `ConnectorRef`,
   `ListenerRef`, `protocol::ProtocolRef` and
   `protocol::ProtocolConstructorRef`, each an `Arc` of its type.
 

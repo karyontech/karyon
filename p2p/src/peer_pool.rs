@@ -19,26 +19,28 @@ use karyon_net::Endpoint;
 use crate::{
     Error, PeerID, Result,
     admission::{AdmitConfig, Admitted, admit},
-    peer::{Peer, PeerSession},
     peer_events::PeerEventsRef,
     protocol::{Broadcaster, ProtocolID, ProtocolRegistryRef},
     queued_conn::{ConnQueueRef, Incoming},
+    session::PeerSession,
     sessions::{Sessions, SessionsRef},
 };
 
 /// `Arc` reference to the `PeerPool`.
-pub type PeerPoolRef = Arc<PeerPool>;
+pub(crate) type PeerPoolRef = Arc<PeerPool>;
 
-/// Takes the connections from the listener and the connector, admits
-/// them and runs one `Peer` per admitted connection.
-pub struct PeerPool {
-    /// Peer's ID
-    pub id: PeerID,
+/// Owns the sessions and runs their lifecycle: takes the connections from
+/// the listener and the connector, admits them, runs one `PeerSession` per
+/// admitted connection and removes it once it ends. The Node reaches the
+/// sessions only through the pool.
+pub(crate) struct PeerPool {
+    /// Own peer id, for the handshake and `new_conn_wins`.
+    id: PeerID,
 
     /// Connections handed over by the listener and the connector.
     conn_queue: ConnQueueRef,
 
-    /// One session per running peer.
+    /// One session per running peer. Shared only with the broadcasters.
     sessions: SessionsRef,
 
     /// Next connection id, see `PeerSession::conn_id`.
@@ -84,13 +86,13 @@ impl PeerPool {
     }
 
     /// Starts the [`PeerPool`]
-    pub async fn start(self: &PeerPoolRef) -> Result<()> {
+    pub(crate) async fn start(self: &PeerPoolRef) -> Result<()> {
         self.task_group.spawn(self.clone().run());
         Ok(())
     }
 
     /// Shuts down
-    pub async fn shutdown(&self) {
+    pub(crate) async fn shutdown(&self) {
         // Cancel the task group first. This waits for the run loop to
         // actually stop, so nothing takes from the queue or adds a peer
         // while we clean up.
@@ -111,12 +113,12 @@ impl PeerPool {
     }
 
     /// Broadcast a message to all connected peers.
-    pub async fn broadcast(&self, proto_id: &ProtocolID, msg: Vec<u8>) {
+    pub(crate) async fn broadcast(&self, proto_id: &ProtocolID, msg: Vec<u8>) {
         self.sessions.broadcast(proto_id, msg).await
     }
 
     /// Broadcast a message to a specific set of peers.
-    pub async fn broadcast_to(
+    pub(crate) async fn broadcast_to(
         &self,
         proto_id: &ProtocolID,
         msg: Vec<u8>,
@@ -127,7 +129,7 @@ impl PeerPool {
 
     /// Send a message to a specific peer on the given protocol. Returns
     /// `PeerNotFound` if the peer is not currently in the pool.
-    pub async fn send_to(
+    pub(crate) async fn send_to(
         &self,
         peer_id: &PeerID,
         proto_id: &ProtocolID,
@@ -137,27 +139,27 @@ impl PeerPool {
     }
 
     /// Returns the negotiated protocol set for a peer.
-    pub async fn peer_protocol_set(&self, pid: &PeerID) -> Option<HashSet<ProtocolID>> {
+    pub(crate) async fn peer_protocol_set(&self, pid: &PeerID) -> Option<HashSet<ProtocolID>> {
         self.sessions.negotiated(pid).await
     }
 
-    /// Checks if the peer list contains a peer with the given peer id
-    pub async fn contains_peer(&self, pid: &PeerID) -> bool {
+    /// Checks if the pool has a session with the given peer.
+    pub(crate) async fn contains_peer(&self, pid: &PeerID) -> bool {
         self.sessions.contains(pid).await
     }
 
     /// Returns the number of currently connected peers.
-    pub async fn peers_len(&self) -> usize {
+    pub(crate) async fn peers_len(&self) -> usize {
         self.sessions.len().await
     }
 
     /// Returns a map of inbound peers with their endpoints.
-    pub async fn inbound_peers(&self) -> HashMap<PeerID, Endpoint> {
+    pub(crate) async fn inbound_peers(&self) -> HashMap<PeerID, Endpoint> {
         self.sessions.peers_by(|info| info.is_inbound()).await
     }
 
     /// Returns a map of outbound peers with their endpoints.
-    pub async fn outbound_peers(&self) -> HashMap<PeerID, Endpoint> {
+    pub(crate) async fn outbound_peers(&self) -> HashMap<PeerID, Endpoint> {
         self.sessions.peers_by(|info| !info.is_inbound()).await
     }
 
@@ -171,7 +173,7 @@ impl PeerPool {
         }
     }
 
-    /// Admits a connection and adds its peer. On failure the connection
+    /// Admits a connection and adds its session. On failure the connection
     /// is dropped and its slot freed.
     async fn handle(self: PeerPoolRef, incoming: Incoming) {
         let Incoming { conn, slot } = incoming;
@@ -191,7 +193,7 @@ impl PeerPool {
         }
     }
 
-    /// Builds the peer, adds its session and runs it.
+    /// Builds the session, adds it and runs it.
     async fn add_peer(self: &PeerPoolRef, admitted: Admitted, slot: SemaphoreGuard) -> Result<()> {
         let Admitted {
             info,
@@ -200,22 +202,15 @@ impl PeerPool {
         } = admitted;
         let pid = info.id.clone();
 
-        let peer = Peer::new(
-            info,
-            conn,
-            protocols,
-            Broadcaster::new(self.sessions.clone()),
-            Duration::from_secs(self.config.handshake_timeout),
-            self.executor.clone(),
-        )?;
         let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
-        let session = peer.session(conn_id, slot);
+        let session = PeerSession::new(info, conn, conn_id, slot, self.executor.clone())?;
 
         let replaced = match self.sessions.insert(&self.id, session.clone()).await {
             Ok(replaced) => replaced,
             Err(err) => {
-                // Rejected: cancel the wire tasks `Peer::new` spawned. The
-                // peer is dropped with its connection and slot.
+                // Rejected: cancel the wire tasks `PeerSession::new`
+                // spawned. The session is dropped with its connection and
+                // slot.
                 session.stop().await;
                 if matches!(err, Error::PeerAlreadyConnected) {
                     self.events.already_connected(&pid).await;
@@ -224,6 +219,12 @@ impl PeerPool {
             }
         };
 
+        let run = {
+            let session = session.clone();
+            let broadcaster = Broadcaster::new(self.sessions.clone());
+            let setup_timeout = Duration::from_secs(self.config.handshake_timeout);
+            async move { session.run(protocols, broadcaster, setup_timeout).await }
+        };
         let on_end = {
             let this = self.clone();
             |result: TaskResult<Result<()>>| async move {
@@ -232,7 +233,7 @@ impl PeerPool {
                 }
             }
         };
-        self.task_group.spawn_then(peer.run(), on_end);
+        self.task_group.spawn_then(run, on_end);
 
         // Same peer, now on the connection both nodes keep. It stays in
         // the pool, so no `Removed`/`Added` events.
@@ -247,7 +248,7 @@ impl PeerPool {
         Ok(())
     }
 
-    /// Called once the peer's `run` returns. Stops the session and removes
+    /// Called once the session's `run` returns. Stops the session and removes
     /// it, unless the pool holds another connection under this id (this
     /// one was replaced and already stopped).
     async fn remove_peer(&self, session: PeerSession) {

@@ -6,9 +6,9 @@ use crate::{
     Error, PeerID,
     access_control::{AccessControlRef, Action, PeerCandidate, Subject},
     handshake::{HandshakeParams, handshake},
-    peer::{PeerInfo, PeerInfoRef},
     protocol::{ProtocolID, ProtocolRegistry, ResolvedProtocol},
     queued_conn::QueuedConn,
+    session::{SessionInfo, SessionInfoRef},
     version::Version,
 };
 
@@ -22,9 +22,9 @@ pub(crate) struct AdmitConfig {
 }
 
 /// A connection that passed the handshake and access control, ready to
-/// become a `Peer`.
+/// become a `PeerSession`.
 pub(crate) struct Admitted {
-    pub info: PeerInfoRef,
+    pub info: SessionInfoRef,
     pub conn: QueuedConn,
     /// Constructors of the negotiated protocols.
     pub protocols: Vec<ResolvedProtocol>,
@@ -38,7 +38,8 @@ pub(crate) struct Rejected {
 }
 
 /// Runs the handshake and access control on a new connection. The peer
-/// is not built yet, so a rejected one never gets tasks or streams.
+/// session is not built yet, so a rejected one never gets tasks or
+/// streams.
 pub(crate) async fn admit(
     own_id: &PeerID,
     mut conn: QueuedConn,
@@ -83,7 +84,7 @@ pub(crate) async fn admit(
 
     let negotiated: HashSet<ProtocolID> = negotiated.into_iter().collect();
     let protocols = registry.resolve(&negotiated).await;
-    let info = PeerInfoRef::new(PeerInfo {
+    let info = SessionInfoRef::new(SessionInfo {
         id: pid,
         direction: conn.direction.clone(),
         endpoint: conn.remote_endpoint.clone(),

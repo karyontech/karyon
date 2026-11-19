@@ -11,8 +11,8 @@ use karyon_net::Endpoint;
 use crate::{
     Error, PeerID, Result,
     conn_direction::ConnDirection,
-    peer::{PeerInfo, PeerSession},
     protocol::ProtocolID,
+    session::{PeerSession, SessionInfo},
 };
 
 /// `Arc` reference to the `Sessions` table.
@@ -127,7 +127,7 @@ impl Sessions {
     /// Ids and endpoints of the peers that `keep` accepts.
     pub(crate) async fn peers_by(
         &self,
-        keep: impl Fn(&PeerInfo) -> bool,
+        keep: impl Fn(&SessionInfo) -> bool,
     ) -> HashMap<PeerID, Endpoint> {
         self.map
             .read()
