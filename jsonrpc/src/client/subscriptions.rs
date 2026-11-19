@@ -46,7 +46,7 @@ pub struct Subscription {
     unsub: Option<Sender<Value>>,
 }
 
-/// Shared handle to a `Subscription`.
+/// `Arc` reference to a `Subscription`.
 pub type SubscriptionRef = Arc<Subscription>;
 
 impl Subscription {
@@ -88,7 +88,7 @@ pub(crate) struct Subscriptions {
     sub_buffer_size: usize,
 }
 
-/// Shared handle to the `Subscriptions`.
+/// `Arc` reference to the `Subscriptions`.
 pub(crate) type SubscriptionsRef = Arc<Subscriptions>;
 
 impl Subscriptions {

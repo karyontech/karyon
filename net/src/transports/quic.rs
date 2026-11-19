@@ -367,7 +367,7 @@ pub struct QuicConn {
     local_endpoint: Endpoint,
 }
 
-/// Shared handle to a `QuicConn`.
+/// `Arc` reference to a `QuicConn`.
 pub type QuicConnRef = Arc<QuicConn>;
 
 impl QuicConn {

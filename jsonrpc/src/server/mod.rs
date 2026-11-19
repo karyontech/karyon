@@ -127,7 +127,7 @@ pub struct Server {
     pub(crate) config: ServerConfig,
 }
 
-/// Shared handle to a `Server`.
+/// `Arc` reference to a `Server`.
 pub type ServerRef = Arc<Server>;
 
 impl Server {

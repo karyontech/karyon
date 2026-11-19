@@ -53,7 +53,7 @@ pub struct Swarm {
     task_group: TaskGroup,
 }
 
-/// Shared handle to a `Swarm`.
+/// `Arc` reference to a `Swarm`.
 pub type SwarmRef = Arc<Swarm>;
 
 impl Swarm {

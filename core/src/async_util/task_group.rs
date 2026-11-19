@@ -41,7 +41,7 @@ pub struct TaskGroup {
     inner: InnerRef,
 }
 
-/// Shared handle to a `TaskGroup`.
+/// `Arc` reference to a `TaskGroup`.
 pub type TaskGroupRef = Arc<TaskGroup>;
 
 /// Shared state of a [`TaskGroup`]. Held behind an `Arc` so each task can
@@ -53,7 +53,7 @@ struct Inner {
     executor: Executor,
 }
 
-/// Shared handle to the `Inner` state.
+/// `Arc` reference to the `Inner` state.
 type InnerRef = Arc<Inner>;
 
 impl Inner {

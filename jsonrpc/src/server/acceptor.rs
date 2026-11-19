@@ -50,7 +50,7 @@ pub(super) trait AsyncAcceptor: Send + Sync {
     fn local_endpoint(&self) -> Result<Endpoint>;
 }
 
-/// Shared handle to an `AsyncAcceptor`.
+/// `Arc` reference to an `AsyncAcceptor`.
 pub(super) type AsyncAcceptorRef = Arc<dyn AsyncAcceptor>;
 
 /// A listener that produces byte streams.

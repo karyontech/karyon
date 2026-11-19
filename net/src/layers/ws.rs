@@ -82,7 +82,7 @@ pub struct WsLayer<C> {
     max_msg_size: usize,
 }
 
-/// Shared handle to a `WsLayer`.
+/// `Arc` reference to a `WsLayer`.
 pub type WsLayerRef<C> = Arc<WsLayer<C>>;
 
 impl<C> WsLayer<C>

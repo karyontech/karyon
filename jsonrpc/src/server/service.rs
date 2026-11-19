@@ -13,5 +13,5 @@ pub trait RPCService: Sync + Send {
     fn name(&self) -> String;
 }
 
-/// Shared handle to an `RPCService`.
+/// `Arc` reference to an `RPCService`.
 pub type RPCServiceRef = Arc<dyn RPCService>;

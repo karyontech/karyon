@@ -84,7 +84,7 @@ pub struct EventEmitter<T> {
     listener_buffer_size: usize,
 }
 
-/// Shared handle to an `EventEmitter`.
+/// `Arc` reference to an `EventEmitter`.
 pub type EventEmitterRef<T> = Arc<EventEmitter<T>>;
 
 impl<T> EventEmitter<T>
@@ -368,7 +368,7 @@ pub trait AsEventValue: Any + Send + Sync + std::fmt::Debug {
         Self: Sized;
 }
 
-/// Shared handle to an `AsEventValue`.
+/// `Arc` reference to an `AsEventValue`.
 pub type AsEventValueRef = Arc<dyn AsEventValue>;
 
 /// Trait for events that define their own topic.

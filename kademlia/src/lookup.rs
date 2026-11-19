@@ -79,7 +79,7 @@ pub struct LookupService {
     bloom: BloomRef,
 }
 
-/// Shared handle to a `LookupService`.
+/// `Arc` reference to a `LookupService`.
 pub(crate) type LookupServiceRef = Arc<LookupService>;
 
 impl LookupService {

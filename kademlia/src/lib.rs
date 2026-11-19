@@ -71,7 +71,7 @@ pub struct KademliaDiscovery {
     bloom: BloomRef,
 }
 
-/// Shared handle to a `KademliaDiscovery`.
+/// `Arc` reference to a `KademliaDiscovery`.
 pub type KademliaDiscoveryRef = Arc<KademliaDiscovery>;
 
 impl KademliaDiscovery {

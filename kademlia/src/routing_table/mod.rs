@@ -53,7 +53,7 @@ pub struct RoutingTable {
     buckets: RwLock<Vec<Bucket>>,
 }
 
-/// Shared handle to a `RoutingTable`.
+/// `Arc` reference to a `RoutingTable`.
 pub(crate) type RoutingTableRef = Arc<RoutingTable>;
 
 impl RoutingTable {
