@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["global_executor","spawn"],"mod":["executor","io","lock","net","runtime","spawn","task"],"struct":["Executor","Runnable","Task"],"trait":["Runtime"],"type":["RuntimeRef","SleepFuture"]};

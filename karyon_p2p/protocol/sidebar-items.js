@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProtocolEvent"],"mod":["broadcaster","peer_conn","registry"],"struct":["PeerConn","ProtocolFlags","ProtocolMeta"],"trait":["Protocol"],"type":["ProtocolConstructor","ProtocolConstructorRef","ProtocolID","ProtocolRef"]};

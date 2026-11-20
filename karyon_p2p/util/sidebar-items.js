@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DECODE_LIMIT"],"fn":["bincode_config","decode","encode"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["admit"],"struct":["AdmitConfig","Admitted","Rejected"]};

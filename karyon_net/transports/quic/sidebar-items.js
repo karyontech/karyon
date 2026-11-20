@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_RECEIVE_WINDOW","DEFAULT_STREAM_RECEIVE_WINDOW"],"enum":["ClientSource","ServerSource"],"fn":["build_transport_config"],"struct":["ClientQuicConfig","QuicBiStream","QuicConfig","QuicConn","QuicEndpoint","QuicIncoming","ServerQuicConfig"],"type":["QuicConnRef","QuicRecvStream","QuicSendStream"]};
