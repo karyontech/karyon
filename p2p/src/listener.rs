@@ -231,15 +231,6 @@ where
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
         loop {
-            // Released on `continue` or when the connection ends.
-            let slot = match self.connection_slots.acquire().await {
-                Ok(s) => s,
-                Err(err) => {
-                    error!("Failed to acquire a connection slot: {err}");
-                    return;
-                }
-            };
-
             let stream = match listener.accept().await {
                 Ok(s) => s,
                 Err(err) => {
@@ -266,6 +257,17 @@ where
                 debug!("Rejected inbound lookup connection from {endpoint}");
                 continue;
             }
+
+            // Taken only once a peer is accepted: a slot waiting in an
+            // idle endpoint's accept would block the other endpoints,
+            // which share the slots. Released once the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
@@ -403,15 +405,6 @@ impl Listener<PeerNetMsgCodec> {
         let conn_queue = self.conn_queue();
 
         loop {
-            // Released on `continue` or once the connection is closed.
-            let slot = match self.connection_slots.acquire().await {
-                Ok(s) => s,
-                Err(err) => {
-                    error!("Failed to acquire a connection slot: {err}");
-                    return;
-                }
-            };
-
             let stream = match listener.accept().await {
                 Ok(s) => s,
                 Err(err) => {
@@ -437,6 +430,17 @@ impl Listener<PeerNetMsgCodec> {
                 debug!("Rejected inbound connection from {endpoint}");
                 continue;
             }
+
+            // Taken only once a peer is accepted: a slot waiting in an
+            // idle endpoint's accept would block the other endpoints,
+            // which share the slots. Released once the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             self.monitor
                 .notify(ConnectionKind::Accepted(endpoint.clone()))
@@ -524,15 +528,6 @@ impl Listener<PeerNetMsgCodec> {
         let conn_queue = self.conn_queue();
 
         loop {
-            // Released on `continue` or once the connection is closed.
-            let slot = match self.connection_slots.acquire().await {
-                Ok(s) => s,
-                Err(err) => {
-                    error!("Failed to acquire a connection slot: {err}");
-                    return;
-                }
-            };
-
             // Only the accept runs here. The handshake and the wait for
             // the peer's first stream both happen in the spawned task,
             // so a slow peer cannot stall the loop.
@@ -554,6 +549,17 @@ impl Listener<PeerNetMsgCodec> {
                 debug!("Rejected inbound QUIC connection from {peer_ep}");
                 continue;
             }
+
+            // Taken only once a peer is accepted: a slot waiting in an
+            // idle endpoint's accept would block the other endpoints,
+            // which share the slots. Released once the connection ends.
+            let slot = match self.connection_slots.acquire().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!("Failed to acquire a connection slot: {err}");
+                    return;
+                }
+            };
 
             self.monitor
                 .notify(ConnectionKind::Accepted(peer_ep.clone()))

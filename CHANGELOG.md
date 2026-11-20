@@ -1,5 +1,15 @@
 # Changelog
 
+## karyon_p2p 1.7.1
+
+### Fixed
+
+- **A free inbound slot no longer gets stuck on an idle endpoint**: a node
+  listening on several endpoints (e.g. TCP and TLS) took a slot before
+  each accept, so a freed slot could wait in an endpoint nobody dialed
+  while peers on another endpoint were refused. Slots are now taken after
+  a connection is accepted.
+
 ## karyon_net 2.2.0
 
 ### Added
