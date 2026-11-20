@@ -1,5 +1,13 @@
 # Changelog
 
+## karyon_net 2.3.0
+
+### Added
+
+- **`TcpListener` and `UnixListener` implement `TransportListener`**
+  (`karyon_net`): a crate can hold a built-in listener and a user
+  transport's listener as one `Box<dyn TransportListener>`.
+
 ## karyon_net 2.2.0
 
 ### Added
