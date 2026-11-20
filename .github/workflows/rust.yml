@@ -64,10 +64,16 @@ jobs:
       - uses: actions/checkout@v7
       - run: rustup update stable && rustup default stable
       - run: rustup target add wasm32-wasip2
+      # A pinned release: the install script looks up "latest" and can fail
+      # without failing the step.
       - name: Install wasmtime
+        env:
+          WASMTIME: wasmtime-v50.0.3-x86_64-linux
         run: |
-          curl -sSf https://wasmtime.dev/install.sh | bash
-          echo "$HOME/.wasmtime/bin" >> "$GITHUB_PATH"
+          curl -sSfL "https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.3/$WASMTIME.tar.xz" \
+            | tar -xJ -C "$HOME"
+          echo "$HOME/$WASMTIME" >> "$GITHUB_PATH"
+      - run: wasmtime --version
       - run: >
           cargo test -p karyon_core --test user_runtime --target wasm32-wasip2
           --no-default-features --features tokio
