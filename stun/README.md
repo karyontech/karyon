@@ -98,13 +98,13 @@ println!("public address: {public_addr}");
 
 ```toml
 # Default (tokio + UDP/TCP/TLS/QUIC)
-karyon_stun = "0.3"
+karyon_stun = "0.4"
 
 # UDP only
-karyon_stun = { version = "0.3", default-features = false, features = ["tokio", "udp"] }
+karyon_stun = { version = "0.4", default-features = false, features = ["tokio", "udp"] }
 
 # With smol
-karyon_stun = { version = "0.3", default-features = false, features = ["smol", "udp", "tcp", "tls"] }
+karyon_stun = { version = "0.4", default-features = false, features = ["smol", "udp", "tcp", "tls"] }
 ```
 
 ## Scope

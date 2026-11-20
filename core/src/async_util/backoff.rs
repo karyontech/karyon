@@ -4,6 +4,8 @@ use std::{
     time::Duration,
 };
 
+use crate::async_runtime::Executor;
+
 use super::sleep;
 
 /// Exponential backoff
@@ -40,6 +42,8 @@ pub struct Backoff {
     retries: AtomicU32,
     /// Stop flag
     stop: AtomicBool,
+    /// Runs the timers; `None` uses smol or tokio directly.
+    executor: Option<Executor>,
 }
 
 impl Backoff {
@@ -50,6 +54,23 @@ impl Backoff {
             max_delay,
             retries: AtomicU32::new(0),
             stop: AtomicBool::new(false),
+            executor: None,
+        }
+    }
+
+    /// Creates a new Backoff that waits on `executor`'s timers.
+    pub fn with_executor(base_delay: u64, max_delay: u64, executor: Executor) -> Self {
+        Self {
+            executor: Some(executor),
+            ..Self::new(base_delay, max_delay)
+        }
+    }
+
+    async fn wait(&self, delay: u64) {
+        let delay = Duration::from_millis(delay);
+        match &self.executor {
+            Some(ex) => ex.sleep(delay).await,
+            None => sleep(delay).await,
         }
     }
 
@@ -57,7 +78,7 @@ impl Backoff {
     /// Retruns the delay value.
     pub async fn sleep(&self) -> u64 {
         if self.stop.load(Ordering::SeqCst) {
-            sleep(Duration::from_millis(self.max_delay)).await;
+            self.wait(self.max_delay).await;
             return self.max_delay;
         }
 
@@ -71,7 +92,7 @@ impl Backoff {
 
         self.retries.store(retries + 1, Ordering::SeqCst);
 
-        sleep(Duration::from_millis(delay)).await;
+        self.wait(delay).await;
         delay
     }
 

@@ -94,16 +94,16 @@ async {
 
 ```toml
 # Default (tokio + TCP/TLS)
-karyon_p2p = "1.6"
+karyon_p2p = "1.7"
 
 # With QUIC
-karyon_p2p = { version = "1.6", features = ["quic"] }
+karyon_p2p = { version = "1.7", features = ["quic"] }
 
 # With smol
-karyon_p2p = { version = "1.6", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
+karyon_p2p = { version = "1.7", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
 
 # With the ring provider instead of aws-lc-rs
-karyon_p2p = { version = "1.6", default-features = false, features = ["tokio", "quic", "ring"] }
+karyon_p2p = { version = "1.7", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
 ## Architecture

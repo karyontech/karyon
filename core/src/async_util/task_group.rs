@@ -67,7 +67,7 @@ impl TaskGroup {
     /// Creates a new TaskGroup without providing an executor
     ///
     /// This will spawn tasks onto the process-wide multi-threaded
-    /// global executor.
+    /// global executor. On wasm nothing runs it: use `with_executor`.
     pub fn new() -> Self {
         Self::with_inner(global_executor())
     }
@@ -134,6 +134,11 @@ impl TaskGroup {
     /// caller takes ownership and may cancel it.
     pub fn remove(&self, id: TaskID) -> Option<TaskHandler> {
         self.inner.remove(id)
+    }
+
+    /// The executor this group spawns on; also runs its users' timers.
+    pub fn executor(&self) -> &Executor {
+        &self.inner.executor
     }
 
     /// Checks if the TaskGroup is empty.
