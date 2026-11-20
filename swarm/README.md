@@ -25,7 +25,7 @@ $ cargo add karyon_swarm
 | `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
-karyon_swarm = "1.4"
+karyon_swarm = "1.5"
 ```
 
 ## Example

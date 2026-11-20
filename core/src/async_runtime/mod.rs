@@ -1,11 +1,14 @@
 mod executor;
 pub mod io;
 pub mod lock;
+#[cfg(not(target_family = "wasm"))]
 pub mod net;
+mod runtime;
 mod spawn;
 mod task;
 
 pub use executor::{Executor, global_executor};
+pub use runtime::{Runnable, Runtime, RuntimeRef, SleepFuture};
 pub use spawn::spawn;
 pub use task::Task;
 

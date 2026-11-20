@@ -68,16 +68,16 @@ rustls config passed to karyon_net must be built with an explicit provider
 
 ```toml
 # Default (tokio + all protocols)
-karyon_net = "2.0"
+karyon_net = "2.1"
 
 # With QUIC and proxy
-karyon_net = { version = "2.0", features = ["quic", "proxy"] }
+karyon_net = { version = "2.1", features = ["quic", "proxy"] }
 
 # Smol runtime
-karyon_net = { version = "2.0", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
+karyon_net = { version = "2.1", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
 
 # ring instead of aws-lc-rs
-karyon_net = { version = "2.0", default-features = false, features = ["tokio", "all-protocols", "ring"] }
+karyon_net = { version = "2.1", default-features = false, features = ["tokio", "all-protocols", "ring"] }
 ```
 
 ## Core Traits and Types

@@ -24,15 +24,15 @@ license = "MIT"
 authors = ["hozan23 <hozan23@karyontech.net>"]
 
 [workspace.dependencies]
-karyon_core = { path = "core", version = "1.1.2", default-features = false }
+karyon_core = { path = "core", version = "2.0.0", default-features = false }
 
-karyon_net = { path = "net", version = "2.0.0", default-features = false }
+karyon_net = { path = "net", version = "2.1.0", default-features = false }
 karyon_async_rustls = { path = "net/async_rustls", version = "1.2.0", default-features = false }
 
 karyon_jsonrpc_macro = { path = "jsonrpc/impl", version = "1.0.1", default-features = false }
 
-karyon_p2p = { path = "p2p", version = "1.6.0", default-features = false }
-karyon_kademlia = { path = "kademlia", version = "0.2.0", default-features = false }
+karyon_p2p = { path = "p2p", version = "1.7.0", default-features = false }
+karyon_kademlia = { path = "kademlia", version = "0.3.0", default-features = false }
 
 karyon_eventemitter = { path = "./utils/eventemitter", version = "1.0.4", default-features = false }
 karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "1.0.1", default-features = false }
@@ -44,6 +44,7 @@ rand = "0.10"
 url = "2.5"
 parking_lot = "0.13"
 once_cell = "1.21"
+async-task = "4.7"
 semver = "1.0"
 sha2 = "0.11"
 siphasher = "1.0"

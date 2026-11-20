@@ -13,5 +13,5 @@ pub use condvar::CondVar;
 pub use condwait::{CondWait, CondWaitRef};
 pub use select::{Either, select};
 pub use sleep::sleep;
-pub use task_group::{TaskGroup, TaskGroupRef, TaskResult};
+pub use task_group::{TaskGroup, TaskGroupRef, TaskID, TaskResult};
 pub use timeout::timeout;

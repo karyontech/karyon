@@ -1,5 +1,39 @@
 # Changelog
 
+## karyon_core 2.0.0, karyon_net 2.1.0, karyon_jsonrpc 1.3.0, karyon_stun 0.4.0, karyon_p2p 1.7.0, karyon_kademlia 0.3.0, karyon_swarm 1.5.0
+
+### Breaking changes
+
+- **`Executor::handle()` returns `Option<&Handle>`** (`karyon_core`,
+  tokio): `None` on a user runtime.
+- **karyon_core 2.0** (net, jsonrpc, stun, p2p, kademlia, swarm): these
+  crates now build on karyon_core 2.0; code that also uses karyon_core
+  directly must move to 2.0 too.
+- **tokio features trimmed** (`karyon_core`): karyon_core enables only
+  the tokio features it uses (`sync`, `io-util`, `rt`, `rt-multi-thread`,
+  `time`, `net`) instead of `full`. An app that used other tokio features
+  (e.g. `macros`, `fs`, `signal`) through karyon must enable them on its
+  own tokio dependency.
+
+### Added
+
+- **Bring your own runtime** (`karyon_core`): implement the `Runtime`
+  trait (`schedule` a task, `sleep`) and pass it as
+  `Executor::from(runtime)`. `Executor::spawn`,
+  `Executor::sleep`, `Executor::timeout`, `Backoff::with_executor` and
+  `TaskGroup::with_executor` then run on it. `TaskGroup::executor()`
+  returns the executor of a group. The free `spawn`, `sleep` and
+  `timeout` stay on smol or tokio. Locks and IO still come from the
+  `smol` or `tokio` feature.
+- **WASI build** (`karyon_core`): with the `tokio` feature it builds for
+  `wasm32-wasip1`/`wasip2`, without the `net` module; tasks and timers
+  come from a user runtime.
+- **`Executor::from(Handle)`** (`karyon_core`, tokio): share the tokio
+  runtime the app already runs, e.g. `Handle::current()` under
+  `#[tokio::main]`, so karyon, hyper and the rest of the app use one
+  runtime.
+- **`TaskID`** is exported from `async_util` (`karyon_core`).
+
 ## karyon_p2p 1.6.1
 
 ### Breaking changes
