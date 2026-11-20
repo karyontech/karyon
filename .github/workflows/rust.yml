@@ -77,6 +77,12 @@ jobs:
       - run: >
           cargo test -p karyon_core --test user_runtime --target wasm32-wasip2
           --no-default-features --features tokio
+      - run: >
+          cargo test -p karyon_net --test custom_transport --target wasm32-wasip2
+          --no-default-features --features tokio,framing
+      - run: >
+          cargo run -p karyon_net --example custom_transport --target wasm32-wasip2
+          --no-default-features --features tokio,framing
 
   test-net:
     name: Integration Tests (net)

@@ -1,5 +1,23 @@
 # Changelog
 
+## karyon_net 2.2.0
+
+### Added
+
+- **WASI build** (`karyon_net`): with the `tokio` and `ring` features it
+  builds for `wasm32-wasip1`/`wasip2`. There are no OS sockets there: the
+  TCP, UDP, Unix and QUIC transports and `TlsListener` are left out;
+  framing, codecs, `Endpoint`, and the TLS and SOCKS5 layers remain.
+  The `ws` feature does not build on wasm.
+- **`transport::Transport`** (`karyon_net`): one trait for a user
+  supplied way to dial and listen (`supports`, `dial`, `listen`, with
+  `TransportListener` and `TransportRef`), for crates on karyon_net to
+  take instead of their built-in transports, e.g. a custom `mem://`
+  endpoint, sockets from another runtime, or WASI.
+- **`examples/custom_transport.rs`** (`karyon_net`): a `mem://`
+  transport over in-memory pipes with framed messages; runs natively and
+  under wasmtime.
+
 ## karyon_core 2.0.0, karyon_net 2.1.0, karyon_jsonrpc 1.3.0, karyon_stun 0.4.0, karyon_p2p 1.7.0, karyon_kademlia 0.3.0, karyon_swarm 1.5.0
 
 ### Breaking changes

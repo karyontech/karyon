@@ -13,7 +13,9 @@ use karyon_core::async_runtime::{
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
 
-use crate::{ByteStream, Endpoint, Result, endpoint::resolve_endpoint};
+use crate::{ByteStream, Endpoint, Result};
+
+use super::resolve::resolve_endpoint;
 
 /// TCP config.
 #[derive(Clone)]

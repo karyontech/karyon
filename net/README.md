@@ -68,16 +68,16 @@ rustls config passed to karyon_net must be built with an explicit provider
 
 ```toml
 # Default (tokio + all protocols)
-karyon_net = "2.1"
+karyon_net = "2.2"
 
 # With QUIC and proxy
-karyon_net = { version = "2.1", features = ["quic", "proxy"] }
+karyon_net = { version = "2.2", features = ["quic", "proxy"] }
 
 # Smol runtime
-karyon_net = { version = "2.1", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
+karyon_net = { version = "2.2", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
 
 # ring instead of aws-lc-rs
-karyon_net = { version = "2.1", default-features = false, features = ["tokio", "all-protocols", "ring"] }
+karyon_net = { version = "2.2", default-features = false, features = ["tokio", "all-protocols", "ring"] }
 ```
 
 ## Core Traits and Types
@@ -233,6 +233,16 @@ loop {
 # }
 ```
 
+## Custom Transport
+
+Implement `transport::Transport` (`supports`, `dial`, `listen`) to bring
+your own streams: in-memory pipes, sockets from another runtime, or a WASI
+host's sockets. It can take a custom scheme (`mem://node-a` parses as
+`Endpoint::Custom`) or a built-in one. The streams it returns are used as
+is; framing, TLS and SOCKS5 work on top of them. See
+[examples/custom_transport.rs](examples/custom_transport.rs): a `mem://`
+transport over in-memory pipes, natively and on WASI.
+
 ## Endpoint URL Schemes
 
 | Scheme | Transport |
@@ -250,3 +260,16 @@ loop {
 ## Runtime Support
 
 Supports both **tokio** (default) and **smol** async runtimes.
+
+### WASI
+
+karyon_net builds for `wasm32-wasip1` and `wasm32-wasip2` with the `tokio`
+feature only, plus `ring` for TLS (aws-lc-rs does not build for wasm).
+There are no OS sockets there: the TCP, UDP, Unix and QUIC transports and
+`TlsListener` are left out, and the `ws` feature does not build. Framing,
+codecs, `Endpoint` and the TLS and SOCKS5 layers work over streams you
+bring, e.g. a custom `Endpoint`.
+
+```toml
+karyon_net = { version = "2.2", default-features = false, features = ["tokio", "tls", "ring"] }
+```
