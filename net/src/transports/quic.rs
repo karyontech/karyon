@@ -20,13 +20,13 @@ use karyon_core::{
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncWrite as TokioAsyncWrite, ReadBuf};
 
+// On smol these are the futures-io traits quinn's streams implement.
 #[cfg(feature = "smol")]
-use futures_util::io::{AsyncRead as FutAsyncRead, AsyncWrite as FutAsyncWrite};
+use karyon_core::async_runtime::io::{AsyncRead as FutAsyncRead, AsyncWrite as FutAsyncWrite};
 
-use crate::{
-    ACCEPT_HANDSHAKE_TIMEOUT, Bytes, Endpoint, Error, Result, endpoint::resolve_endpoint,
-    stream::ByteStream, stream_mux::StreamMux,
-};
+use crate::{Bytes, Endpoint, Error, Result, stream::ByteStream, stream_mux::StreamMux};
+
+use super::{ACCEPT_HANDSHAKE_TIMEOUT, resolve::resolve_endpoint};
 
 /// Default max unacked bytes a peer may send on one stream.
 const DEFAULT_STREAM_RECEIVE_WINDOW: u32 = 1024 * 1024; // 1MB

@@ -3,10 +3,12 @@
 #[cfg(all(feature = "quic", not(any(feature = "aws-lc-rs", feature = "ring"))))]
 compile_error!("The `quic` feature needs a rustls crypto provider: enable `aws-lc-rs` or `ring`.");
 
-#[cfg(any(feature = "tls", feature = "quic"))]
-use std::time::Duration;
-
+// The OS socket transports. None on wasm, which has no OS sockets.
+#[cfg(not(target_family = "wasm"))]
 mod transports;
+
+/// User supplied dial and listen (`Transport`).
+pub mod transport;
 
 mod error;
 
@@ -54,22 +56,17 @@ pub use endpoint::{Addr, Endpoint, Port, ToEndpoint};
 // Error types
 pub use error::{Error, Result};
 
-/// Max time the `accept` helpers of TLS and QUIC wait for a handshake.
-#[cfg(any(feature = "tls", feature = "quic"))]
-const ACCEPT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
-
-// Base transports
-#[cfg(feature = "tcp")]
-pub use transports::tcp;
-
-#[cfg(feature = "udp")]
-pub use transports::udp;
-
-#[cfg(all(feature = "unix", target_family = "unix"))]
-pub use transports::unix;
-
-#[cfg(feature = "quic")]
-pub use transports::quic;
+// Base transports: tcp, udp, unix, quic, as enabled.
+#[cfg(all(
+    not(target_family = "wasm"),
+    any(
+        feature = "tcp",
+        feature = "udp",
+        feature = "quic",
+        all(feature = "unix", target_family = "unix")
+    )
+))]
+pub use transports::*;
 
 // Layers
 #[cfg(feature = "proxy")]

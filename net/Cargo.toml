@@ -1,7 +1,7 @@
 [package]
 name = "karyon_net"
 description = "A layered async networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5, and codec-based message framing."
-version = "2.1.0"
+version = "2.2.0"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -15,10 +15,10 @@ categories = ["network-programming", "asynchronous"]
 [features]
 default = ["tokio", "all-protocols", "aws-lc-rs"]
 all-protocols = ["tcp", "tls", "ws", "udp", "unix", "proxy", "quic"]
-framing = ["futures-util"]
+framing = []
 tcp = ["framing"]
 tls = ["tcp", "karyon_async_rustls", "rustls-pki-types"]
-ws = ["tcp", "async-tungstenite"]
+ws = ["tcp", "async-tungstenite", "futures-util"]
 udp = []
 quic = ["quinn", "rustls-pki-types", "framing", "karyon_async_rustls"]
 unix = ["framing"]
@@ -51,6 +51,7 @@ url = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 bincode = { workspace = true, features = ["derive"] }
 bytes = { workspace = true }
+async-trait = { workspace = true }
 
 # async
 futures-util = { workspace = true, features = [
@@ -71,7 +72,17 @@ rustls-pki-types = { workspace = true, optional = true }
 # quic
 quinn = { workspace = true, optional = true, default-features = false, features = ["log"] }
 
+# The custom_transport example and test: in-memory pipes and a
+# current-thread runtime, also on wasm.
 [dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "io-util"] }
+
+# The socket tests; wasm has no sockets.
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 karyon_core = { workspace = true, features = ["testing"] }
 smol = { workspace = true }
 futures-util = { workspace = true, features = ["io"] }
+
+[[example]]
+name = "custom_transport"
+required-features = ["tokio", "framing"]

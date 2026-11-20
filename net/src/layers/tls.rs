@@ -1,28 +1,26 @@
 use std::{
     io,
-    net::{IpAddr, Ipv4Addr},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use rustls_pki_types::{self as pki_types, CertificateDer};
 
-use karyon_core::{
-    async_runtime::io::{AsyncRead, AsyncWrite},
-    async_util::timeout,
-};
+use karyon_core::async_runtime::io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
 
 use crate::{
-    ACCEPT_HANDSHAKE_TIMEOUT, Addr, ByteStream, Endpoint, Error, Result,
+    ByteStream, Endpoint, Error, Result,
     async_rustls::{TlsAcceptor, TlsConnector, TlsStream, rustls},
     layer::{ClientLayer, ServerLayer},
-    transports::tcp::TcpListener,
 };
+
+// Wraps a TCP listener, so not on wasm.
+#[cfg(not(target_family = "wasm"))]
+pub use crate::transports::tls_listener::TlsListener;
 
 /// TLS client config.
 #[derive(Clone)]
@@ -210,53 +208,5 @@ impl AsyncWrite for TlsByteStream {
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
-    }
-}
-
-/// TLS listener. Wraps a TCP listener with TLS acceptance.
-pub struct TlsListener {
-    inner: TcpListener,
-    layer: TlsLayer,
-    /// Max time `accept` waits for a handshake.
-    handshake_timeout: Duration,
-}
-
-impl TlsListener {
-    /// Create a TLS listener from a TCP listener and TLS config.
-    pub fn new(inner: TcpListener, config: ServerTlsConfig) -> Self {
-        Self {
-            inner,
-            layer: TlsLayer::server(config),
-            handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
-        }
-    }
-
-    /// Set the max time `accept` waits for a handshake. Defaults to 10s.
-    pub fn with_handshake_timeout(mut self, timeout: Duration) -> Self {
-        self.handshake_timeout = timeout;
-        self
-    }
-
-    /// Accept a new TLS connection. The handshake runs inline and fails
-    /// after the handshake timeout (10s by default), so a slow client
-    /// stalls a plain accept loop for up to that long. Servers should accept on a `TcpListener` and run
-    /// `TlsLayer::handshake` in a separate task instead.
-    pub async fn accept(&self) -> Result<Box<dyn ByteStream>> {
-        let stream = self.inner.accept().await?;
-        timeout(
-            self.handshake_timeout,
-            ServerLayer::handshake(&self.layer, stream),
-        )
-        .await?
-    }
-
-    /// Local endpoint this listener is bound to.
-    pub fn local_endpoint(&self) -> Result<Endpoint> {
-        let tcp_ep = self.inner.local_endpoint()?;
-        let port = tcp_ep.port().unwrap_or(0);
-        let addr = tcp_ep
-            .addr()
-            .unwrap_or(Addr::Ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)));
-        Ok(Endpoint::Tls(addr, port))
     }
 }
