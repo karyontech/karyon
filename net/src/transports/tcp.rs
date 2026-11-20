@@ -13,7 +13,9 @@ use karyon_core::async_runtime::{
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
 
-use crate::{ByteStream, Endpoint, Result};
+use async_trait::async_trait;
+
+use crate::{ByteStream, Endpoint, Result, transport::TransportListener};
 
 use super::resolve::resolve_endpoint;
 
@@ -92,6 +94,19 @@ impl TcpListener {
     }
 }
 
+// A built-in listener is a transport listener too, so crates can hold it
+// and a user transport's listener as one `Box<dyn TransportListener>`.
+#[async_trait]
+impl TransportListener for TcpListener {
+    async fn accept(&self) -> Result<Box<dyn ByteStream>> {
+        TcpListener::accept(self).await
+    }
+
+    fn local_endpoint(&self) -> Result<Endpoint> {
+        TcpListener::local_endpoint(self)
+    }
+}
+
 // -- AsyncRead / AsyncWrite delegation --
 
 #[cfg(feature = "smol")]
@@ -151,5 +166,28 @@ impl AsyncWrite for TcpByteStream {
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use karyon_core::testing::run_test;
+
+    use super::*;
+
+    #[test]
+    fn tcp_listener_as_transport_listener() {
+        run_test(10, async {
+            let ep: Endpoint = "tcp://127.0.0.1:0".parse().unwrap();
+            let listener = TcpListener::bind(&ep, TcpConfig::default()).await.unwrap();
+            let listener: Box<dyn TransportListener> = Box::new(listener);
+
+            let bound = listener.local_endpoint().unwrap();
+            let client = connect(&bound, TcpConfig::default()).await.unwrap();
+            let server = listener.accept().await.unwrap();
+
+            assert_eq!(server.peer_endpoint(), client.local_endpoint());
+            assert_eq!(server.local_endpoint(), Some(bound));
+        });
     }
 }

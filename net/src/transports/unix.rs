@@ -13,7 +13,9 @@ use karyon_core::async_runtime::{
 #[cfg(feature = "tokio")]
 use tokio::io::ReadBuf;
 
-use crate::{ByteStream, Endpoint, Error, Result};
+use async_trait::async_trait;
+
+use crate::{ByteStream, Endpoint, Error, Result, transport::TransportListener};
 
 /// Unix stream implementing `ByteStream`.
 pub struct UnixByteStream {
@@ -92,6 +94,19 @@ impl UnixListener {
                     "unnamed unix socket",
                 ))
             })
+    }
+}
+
+// A built-in listener is a transport listener too, so crates can hold it
+// and a user transport's listener as one `Box<dyn TransportListener>`.
+#[async_trait]
+impl TransportListener for UnixListener {
+    async fn accept(&self) -> Result<Box<dyn ByteStream>> {
+        UnixListener::accept(self).await
+    }
+
+    fn local_endpoint(&self) -> Result<Endpoint> {
+        UnixListener::local_endpoint(self)
     }
 }
 
