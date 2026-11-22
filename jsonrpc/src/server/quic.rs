@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::{debug, error};
 
-use karyon_core::async_util::{Either, TaskResult, select, timeout};
+use karyon_core::async_util::{Either, TaskResult, select};
 
 use karyon_net::{
     Endpoint, FramedConn, StreamMux, framed,
@@ -46,7 +46,7 @@ pub(crate) struct QuicServer<C> {
 impl<C: JsonRpcCodec> QuicAcceptor for QuicServer<C> {
     async fn accept_loop(&self, server: Arc<Server>) -> Result<()> {
         // Back off on accept errors, so the loop does not spin.
-        let backoff = accept_backoff();
+        let backoff = accept_backoff(server.task_group.executor());
         loop {
             match self.endpoint.accept_incoming().await {
                 Ok(incoming) => {
@@ -134,7 +134,13 @@ async fn handle_quic_stream<C: JsonRpcCodec>(
     // `read_timeout`. Only this first read: after it, a pubsub stream
     // waits for its unsubscribe, which is idle by design.
     let msg = match server.config.read_timeout {
-        Some(t) => timeout(t, conn.recv_msg()).await??,
+        Some(t) => {
+            server
+                .task_group
+                .executor()
+                .timeout(t, conn.recv_msg())
+                .await??
+        }
         None => conn.recv_msg().await?,
     };
 

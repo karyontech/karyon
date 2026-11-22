@@ -8,19 +8,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use karyon_net::{ByteStream, Endpoint, framed};
+use karyon_net::{ByteStream, Endpoint, framed, transport::TransportListener};
 
-use crate::{
-    codec::JsonRpcCodec,
-    error::{Error, Result},
-    server::Server,
-};
+use crate::{codec::JsonRpcCodec, error::Result, server::Server};
 
 #[cfg(any(feature = "tls", feature = "ws"))]
 use std::time::Duration;
-
-#[cfg(any(feature = "tls", feature = "ws"))]
-use karyon_core::async_util::timeout;
 
 #[cfg(feature = "tls")]
 use karyon_net::tls::TlsLayer;
@@ -38,7 +31,7 @@ use karyon_net::{
 use karyon_net::ServerLayer;
 
 #[cfg(feature = "ws")]
-use crate::codec::JsonRpcWsCodec;
+use crate::{codec::JsonRpcWsCodec, error::Error};
 
 /// Accepts raw streams and upgrades/handles them.
 #[async_trait]
@@ -53,38 +46,10 @@ pub(super) trait AsyncAcceptor: Send + Sync {
 /// `Arc` reference to an `AsyncAcceptor`.
 pub(super) type AsyncAcceptorRef = Arc<dyn AsyncAcceptor>;
 
-/// A listener that produces byte streams.
-#[async_trait]
-pub(super) trait StreamListener: Send + Sync {
-    async fn accept(&self) -> karyon_net::Result<Box<dyn ByteStream>>;
-    fn local_endpoint(&self) -> karyon_net::Result<Endpoint>;
-}
-
-#[cfg(feature = "tcp")]
-#[async_trait]
-impl StreamListener for karyon_net::tcp::TcpListener {
-    async fn accept(&self) -> karyon_net::Result<Box<dyn ByteStream>> {
-        self.accept().await
-    }
-    fn local_endpoint(&self) -> karyon_net::Result<Endpoint> {
-        self.local_endpoint()
-    }
-}
-
-#[cfg(all(feature = "unix", target_family = "unix"))]
-#[async_trait]
-impl StreamListener for karyon_net::unix::UnixListener {
-    async fn accept(&self) -> karyon_net::Result<Box<dyn ByteStream>> {
-        self.accept().await
-    }
-    fn local_endpoint(&self) -> karyon_net::Result<Endpoint> {
-        self.local_endpoint()
-    }
-}
-
 /// Byte-stream acceptor, with an optional TLS handshake.
 pub(super) struct StreamAcceptor<C> {
-    pub(super) listener: Box<dyn StreamListener>,
+    /// A built-in TCP/Unix listener or a user transport's.
+    pub(super) listener: Box<dyn TransportListener>,
     pub(super) codec: C,
     /// Set for `tls://` endpoints; applied in `handle`.
     #[cfg(feature = "tls")]
@@ -99,18 +64,21 @@ where
     C: JsonRpcCodec,
 {
     async fn accept(&self) -> Result<Box<dyn ByteStream>> {
-        self.listener.accept().await.map_err(Error::from)
+        Ok(self.listener.accept().await?)
     }
 
     async fn handle(&self, stream: Box<dyn ByteStream>, server: &Arc<Server>) -> Result<()> {
         #[cfg(feature = "tls")]
         let stream = match &self.tls {
             Some(layer) => {
-                timeout(
-                    self.handshake_timeout,
-                    ServerLayer::handshake(layer, stream),
-                )
-                .await??
+                server
+                    .task_group
+                    .executor()
+                    .timeout(
+                        self.handshake_timeout,
+                        ServerLayer::handshake(layer, stream),
+                    )
+                    .await??
             }
             None => stream,
         };
@@ -122,7 +90,7 @@ where
     }
 
     fn local_endpoint(&self) -> Result<Endpoint> {
-        let ep = self.listener.local_endpoint().map_err(Error::from)?;
+        let ep = self.listener.local_endpoint()?;
         // The listener is plain TCP; report the TLS scheme.
         #[cfg(feature = "tls")]
         if self.tls.is_some() {
@@ -135,7 +103,7 @@ where
 /// WebSocket acceptor, with an optional TLS handshake for `wss://`.
 #[cfg(feature = "ws")]
 pub(super) struct WsAcceptor<W> {
-    pub(super) listener: Box<dyn StreamListener>,
+    pub(super) listener: Box<dyn TransportListener>,
     pub(super) layer: WsLayerRef<W>,
     /// Set for `wss://` endpoints; applied before the WS handshake.
     #[cfg(feature = "tls")]
@@ -167,12 +135,16 @@ where
     W: JsonRpcWsCodec,
 {
     async fn accept(&self) -> Result<Box<dyn ByteStream>> {
-        self.listener.accept().await.map_err(Error::from)
+        Ok(self.listener.accept().await?)
     }
 
     async fn handle(&self, stream: Box<dyn ByteStream>, server: &Arc<Server>) -> Result<()> {
         // One budget for both handshakes.
-        let conn = timeout(self.handshake_timeout, self.upgrade(stream)).await??;
+        let conn = server
+            .task_group
+            .executor()
+            .timeout(self.handshake_timeout, self.upgrade(stream))
+            .await??;
         let peer = conn.peer_endpoint();
         let (reader, writer) = conn.split();
         server.handle_message_conn(reader, writer, peer);
@@ -182,7 +154,7 @@ where
     fn local_endpoint(&self) -> Result<Endpoint> {
         // The listener reports `tcp://...`; rewrite to the WS scheme so
         // a client building from this endpoint runs the WS handshake.
-        let inner = self.listener.local_endpoint().map_err(Error::from)?;
+        let inner = self.listener.local_endpoint()?;
         let addr = SocketAddr::try_from(inner.clone()).map_err(Error::from)?;
         #[cfg(feature = "tls")]
         let scheme = if self.tls.is_some() { "wss" } else { "ws" };

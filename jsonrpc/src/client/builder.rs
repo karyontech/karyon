@@ -1,5 +1,5 @@
 use karyon_core::async_runtime::Executor;
-use karyon_net::ToEndpoint;
+use karyon_net::{ToEndpoint, transport::TransportRef};
 
 #[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]
 use karyon_net::Endpoint;
@@ -75,6 +75,7 @@ impl<B: JsonRpcCodec> ClientBuilder<B, JsonCodec> {
             inner: ClientConfig {
                 endpoint,
                 timeout: Some(DEFAULT_TIMEOUT),
+                transport: None,
                 #[cfg(feature = "tcp")]
                 tcp_config: Default::default(),
                 #[cfg(feature = "tls")]
@@ -192,6 +193,15 @@ where
     }
 
     /// Set an executor. Used for the client's task group.
+    /// Dial with `transport` for the endpoints it supports (see
+    /// `karyon_net::transport::Transport`), e.g. on WASI.
+    pub fn with_transport(mut self, transport: TransportRef) -> Self {
+        self.inner.transport = Some(transport);
+        self
+    }
+
+    /// Run the client's tasks and timers on `ex`. A user runtime goes
+    /// here as `Executor::from(runtime)`.
     pub fn with_executor(mut self, ex: Executor) -> Self {
         self.executor = Some(ex);
         self

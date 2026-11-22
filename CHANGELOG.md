@@ -1,5 +1,24 @@
 # Changelog
 
+## karyon_jsonrpc 1.4.0
+
+### Added
+
+- **Custom transport** (`karyon_jsonrpc`): `ClientBuilder::with_transport`
+  and `ServerBuilder::with_transport` take a
+  `karyon_net::transport::Transport`; the client and server use it for the
+  endpoints it supports, e.g. a custom `mem://` endpoint, and frame
+  JSON-RPC messages over its streams.
+- **User runtime and WASI build** (`karyon_jsonrpc`): clients and servers
+  built `with_executor(Executor::from(runtime))` run their call and read
+  timeouts, handshakes and accept backoff on it. With only the `tokio`
+  feature it builds for `wasm32-wasip1`/`wasip2`, connecting only through
+  a custom transport; the socket features (`tcp`, `unix`, `ws`, `quic`,
+  `http`) are a compile error there.
+- **`examples/custom_runtime.rs`** (`karyon_jsonrpc`): a server and a
+  client calling it, on a single-thread runtime you supply (also under
+  wasmtime), connected through in-memory pipes.
+
 ## karyon_net 2.4.0, karyon_p2p 1.8.0, karyon_kademlia 0.3.1, karyon_jsonrpc 1.3.1
 
 ### Added

@@ -24,11 +24,11 @@ use karyon_core::{
     },
     async_util::{
         AsyncQueue, AsyncQueueRef, Backoff, CondWait, CondWaitRef, Either, TaskGroup, TaskGroupRef,
-        TaskResult, select, timeout,
+        TaskResult, select,
     },
 };
 
-use karyon_net::{Endpoint, MessageRx, MessageTx};
+use karyon_net::{Endpoint, MessageRx, MessageTx, transport::TransportRef};
 
 #[cfg(feature = "ws")]
 use karyon_net::layers::ws::WsLayer;
@@ -94,6 +94,9 @@ pub(crate) struct ServerConfig {
     pub tls_config: Option<karyon_net::tls::ServerTlsConfig>,
     #[cfg(feature = "quic")]
     pub quic_config: Option<karyon_net::quic::ServerQuicConfig>,
+    /// Listens on the endpoints it supports instead of the built-in
+    /// transports.
+    pub transport: Option<TransportRef>,
     pub services: HashMap<String, RPCServiceRef>,
     pub pubsub_services: HashMap<String, PubSubRPCServiceRef>,
     /// `None` (the default) means never. Set via
@@ -145,7 +148,7 @@ impl Server {
 
     async fn accept_loop(self: &Arc<Self>) -> Result<()> {
         // Back off on accept errors, so the loop does not spin.
-        let backoff = accept_backoff();
+        let backoff = accept_backoff(self.task_group.executor());
         match &self.backend {
             ServerBackend::StreamAcceptor(acceptor) => loop {
                 match acceptor.accept().await {
@@ -318,6 +321,24 @@ where
     W: WsCodec,
 {
     let endpoint = config.endpoint.clone();
+    // Only the WS backend uses the WS codec.
+    #[cfg(not(feature = "ws"))]
+    drop(ws_codec);
+    // Only QUIC and HTTP/3 use the executor.
+    #[cfg(not(feature = "quic"))]
+    let _ = ex;
+
+    if let Some(transport) = config.transport.as_ref().filter(|t| t.supports(&endpoint)) {
+        return Ok(ServerBackend::StreamAcceptor(Arc::new(StreamAcceptor {
+            listener: transport.listen(&endpoint).await?,
+            codec: byte_codec,
+            #[cfg(feature = "tls")]
+            tls: None,
+            #[cfg(feature = "tls")]
+            handshake_timeout: config.handshake_timeout,
+        })));
+    }
+
     match endpoint {
         #[cfg(feature = "http")]
         Endpoint::Http(..) => {
@@ -452,6 +473,7 @@ where
     R: MessageRx<Message = serde_json::Value> + Send,
 {
     let permits = Semaphore::new(MAX_CONCURRENT_REQUESTS);
+    let ex = server.task_group.executor().clone();
     loop {
         // Wait for a free slot, so one client cannot start an unbounded
         // number of request tasks.
@@ -461,7 +483,7 @@ where
         // socket open forever.
         let recv = async {
             match read_timeout {
-                Some(t) => timeout(t, reader.recv_msg()).await?,
+                Some(t) => ex.timeout(t, reader.recv_msg()).await?,
                 None => reader.recv_msg().await,
             }
         };
@@ -491,6 +513,6 @@ async fn request_task(
     Ok(())
 }
 
-pub(super) fn accept_backoff() -> Backoff {
-    Backoff::new(ACCEPT_BACKOFF_BASE, ACCEPT_BACKOFF_MAX)
+pub(super) fn accept_backoff(ex: &Executor) -> Backoff {
+    Backoff::with_executor(ACCEPT_BACKOFF_BASE, ACCEPT_BACKOFF_MAX, ex.clone())
 }

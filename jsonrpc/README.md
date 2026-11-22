@@ -177,17 +177,91 @@ async {
 
 ```toml
 # QUIC support
-karyon_jsonrpc = { version = "1.3", features = ["quic"] }
+karyon_jsonrpc = { version = "1.4", features = ["quic"] }
 
 # HTTP/1.1 + HTTP/2
-karyon_jsonrpc = { version = "1.3", features = ["http"] }
+karyon_jsonrpc = { version = "1.4", features = ["http"] }
 
 # HTTP/3 (includes HTTP/1.1+2 fallback and QUIC)
-karyon_jsonrpc = { version = "1.3", features = ["http3"] }
+karyon_jsonrpc = { version = "1.4", features = ["http3"] }
 
 # All wire formats
-karyon_jsonrpc = { version = "1.3", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
+karyon_jsonrpc = { version = "1.4", features = ["tcp", "tls", "ws", "quic", "http3", "unix"] }
 ```
+
+## Custom Transport
+
+The client and server dial and listen with karyon_net's built-in transports.
+To bring your own streams (in-memory pipes, sockets from another runtime, a
+WASI host), implement `karyon_net::transport::Transport` (`supports`,
+`dial`, `listen`) and pass it to both builders. Endpoints it supports, e.g.
+a custom `mem://calc`, go through it; the rest use the built-in transports.
+
+```rust
+use karyon_jsonrpc::{client::ClientBuilder, server::ServerBuilder};
+use karyon_net::transport::TransportRef;
+# use karyon_jsonrpc::error::Result;
+
+# async fn run(transport: TransportRef) -> Result<()> {
+let server = ServerBuilder::new("mem://calc")?
+    .with_transport(transport.clone())
+    .build()
+    .await?;
+server.clone().start();
+
+let client = ClientBuilder::new("mem://calc")?
+    .with_transport(transport)
+    .build()
+    .await?;
+# let _ = client;
+# Ok(())
+# }
+```
+
+## Custom Runtime
+
+To run the client or server tasks and timers on your own executor,
+implement `karyon_core::async_runtime::Runtime` (`schedule` a task, `sleep`)
+and pass it as an `Executor`:
+
+```rust
+use karyon_core::async_runtime::{Executor, RuntimeRef};
+use karyon_jsonrpc::client::ClientBuilder;
+# use karyon_jsonrpc::error::Result;
+
+# async fn run(runtime: RuntimeRef) -> Result<()> {
+let client = ClientBuilder::new("tcp://127.0.0.1:6000")?
+    .with_executor(Executor::from(runtime))
+    .build()
+    .await?;
+# let _ = client;
+# Ok(())
+# }
+```
+
+`ServerBuilder::with_executor` works the same way.
+
+## WASI
+
+karyon_jsonrpc builds for `wasm32-wasip1` and `wasm32-wasip2` with the
+`tokio` feature only; the socket features (`tcp`, `unix`, `ws`, `quic`,
+`http`) do not build there. Bring a custom transport and runtime as above.
+
+```toml
+karyon_jsonrpc = { version = "1.4", default-features = false, features = ["tokio"] }
+```
+
+## Examples
+
+- [examples/custom_runtime.rs](examples/custom_runtime.rs): a server and a
+  client on a single-thread runtime, connected through in-memory pipes. It
+  also runs on WASI:
+
+  ```text
+  CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_jsonrpc \
+      --example custom_runtime --target wasm32-wasip2 \
+      --no-default-features --features tokio
+  ```
 
 ## Architecture
 
