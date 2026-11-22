@@ -1620,7 +1620,7 @@ dependencies = [
 
 [[package]]
 name = "karyon_net"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "async-trait",
  "async-tungstenite",

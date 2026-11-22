@@ -1,5 +1,22 @@
 # Changelog
 
+## karyon_net 2.5.0
+
+### Changed
+
+- **A clean close is `Error::ConnectionClosed`** (`karyon_net`):
+  `FramedConn::recv_msg` and `FramedReader::recv_msg` return
+  `Error::ConnectionClosed` when the peer closes the stream after a
+  complete frame, like the WebSocket reader. It was an IO error of kind
+  `ConnectionAborted`. A close in the middle of a frame is still an IO
+  error of kind `UnexpectedEof`.
+
+### Added
+
+- **`FramedConn::close` and `FramedWriter::close`** (`karyon_net`): flush
+  and shut down the write side of the stream, so the peer reads a clean
+  close instead of waiting for the connection to be dropped.
+
 ## karyon_p2p 2.0.0, karyon_kademlia 0.4.0, karyon_swarm 2.0.0
 
 ### Breaking changes

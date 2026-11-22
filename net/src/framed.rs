@@ -3,7 +3,7 @@ use std::io::{self, ErrorKind};
 use karyon_core::async_runtime::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf, split};
 
 use crate::{
-    Buffer, ByteBuffer, Endpoint, Result,
+    Buffer, ByteBuffer, Endpoint, Error, Result,
     codec::Codec,
     message::{MessageRx, MessageTx},
     stream::ByteStream,
@@ -56,7 +56,8 @@ where
     C::Message: Send + Sync + 'static,
     C::Error: From<io::Error> + Into<crate::Error> + Send + Sync,
 {
-    /// Receive one complete message.
+    /// Receive one complete message. Returns `Error::ConnectionClosed`
+    /// when the peer closed the stream at a frame boundary.
     pub async fn recv_msg(&mut self) -> Result<C::Message> {
         self.reader.recv_msg().await
     }
@@ -64,6 +65,11 @@ where
     /// Send one complete message.
     pub async fn send_msg(&mut self, msg: C::Message) -> Result<()> {
         self.writer.send_msg(msg).await
+    }
+
+    /// Flush and shut down the write side. See `FramedWriter::close`.
+    pub async fn close(&mut self) -> Result<()> {
+        self.writer.close().await
     }
 
     /// Remote peer address.
@@ -108,7 +114,9 @@ where
         self.local_endpoint.clone()
     }
 
-    /// Receive one complete message.
+    /// Receive one complete message. Returns `Error::ConnectionClosed`
+    /// when the peer closed the stream at a frame boundary, and an
+    /// `UnexpectedEof` IO error when it closed in the middle of a frame.
     pub async fn recv_msg(&mut self) -> Result<C::Message> {
         // Try decoding from buffered data first.
         if let Some((n, item)) = self.decoder.decode(&mut self.buffer).map_err(Into::into)? {
@@ -122,7 +130,8 @@ where
 
             if n == 0 {
                 if self.buffer.is_empty() {
-                    return Err(io::Error::from(ErrorKind::ConnectionAborted).into());
+                    // Clean close between frames.
+                    return Err(Error::ConnectionClosed);
                 } else {
                     return Err(io::Error::new(
                         ErrorKind::UnexpectedEof,
@@ -199,6 +208,17 @@ where
         }
 
         self.inner.flush().await?;
+        Ok(())
+    }
+
+    /// Flush and shut down the write side, so the peer reads a clean
+    /// close (`Error::ConnectionClosed`). The read side stays open.
+    pub async fn close(&mut self) -> Result<()> {
+        self.inner.flush().await?;
+        #[cfg(feature = "smol")]
+        self.inner.close().await?;
+        #[cfg(feature = "tokio")]
+        self.inner.shutdown().await?;
         Ok(())
     }
 }
