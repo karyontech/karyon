@@ -33,6 +33,12 @@ default features and enable the `smol` feature.
 - **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets.
 - **[karyon_eventemitter](./utils/eventemitter)**: Lightweight asynchronous event emitter for strongly typed pub/sub communication.
 
+## Custom Runtime, Transport and WASI
+
+You can run the crates on your own runtime and over your own transport,
+instead of tokio or smol and OS sockets. This is how they build for WASI
+(`wasm32-wasip1`/`wasip2`), all but karyon_stun do. See each crate's README.
+
 ## Docs
 
 - [karyon_p2p](https://docs.rs/karyon_p2p/latest/karyon_p2p/)
