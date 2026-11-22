@@ -5,6 +5,9 @@ compile_error!("`quic` is not supported on wasm; bring the sockets with `Config:
 
 mod access_control;
 mod admission;
+// The built-in TCP, TLS and QUIC; wasm has none.
+#[cfg_attr(target_family = "wasm", path = "builtin_transports_wasm.rs")]
+mod builtin_transports;
 mod codec;
 mod config;
 mod conn_direction;
