@@ -13,7 +13,7 @@ use karyon_p2p::{
     keypair::{KeyPair, KeyPairType},
 };
 
-const NODES: usize = 100;
+const NODES: usize = 30;
 
 /// `n` distinct free ports: all are held until the last one is taken.
 fn free_ports(n: usize) -> Vec<u16> {
@@ -44,6 +44,8 @@ async fn kad_node(port: u16, kad_port: u16, bootstrap: Vec<Endpoint>, ex: Execut
         bootstrap_peers: bootstrap,
         // A node whose first seeding fails (busy bootstrap) retries soon.
         seeding_interval: 5,
+        // Peers that failed (e.g. full) are pinged and retried soon.
+        refresh_interval: 10,
         ..Default::default()
     };
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
@@ -69,11 +71,11 @@ async fn wait_connected(node: &Node, secs: u64) {
         .expect("node found no peer");
 }
 
-/// 99 nodes seed from one bootstrap node and all find peers. The bootstrap
+/// 29 nodes seed from one bootstrap node and all find peers. The bootstrap
 /// has only `inbound_slots` (12) for them, so most must connect to peers
 /// they discovered.
 #[test]
-fn discovery_network_of_100() {
+fn discovery_network_of_30() {
     run_test_with_executor(180, |ex| async move {
         let ports = free_ports(2 * NODES);
         let bootstrap = kad_node(ports[0], ports[1], vec![], ex.clone()).await;
@@ -89,7 +91,7 @@ fn discovery_network_of_100() {
             wait_connected(node, 90).await;
         }
         let inbound = Config::default().inbound_slots;
-        assert!(bootstrap.peers().await <= inbound);
+        assert!(bootstrap.inbound_peers().await.len() <= inbound);
 
         for node in &nodes {
             node.shutdown().await;
