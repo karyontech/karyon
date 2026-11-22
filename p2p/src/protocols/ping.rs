@@ -8,7 +8,10 @@ use bincode::{Decode, Encode};
 use log::trace;
 use rand::{TryRng, rngs::SysRng};
 
-use karyon_core::async_util::{Either, select, sleep, timeout};
+use karyon_core::{
+    async_runtime::Executor,
+    async_util::{Either, select},
+};
 
 use crate::{
     Error, Result,
@@ -35,15 +38,23 @@ pub struct PingProtocol {
     peer: PeerConn,
     ping_interval: u64,
     ping_timeout: u64,
+    /// Runs the ping timers.
+    executor: Executor,
 }
 
 impl PingProtocol {
     /// `ping_interval` and `ping_timeout` are in seconds.
-    pub(crate) fn new(peer: PeerConn, ping_interval: u64, ping_timeout: u64) -> Self {
+    pub(crate) fn new(
+        peer: PeerConn,
+        ping_interval: u64,
+        ping_timeout: u64,
+        executor: Executor,
+    ) -> Self {
         Self {
             ping_interval,
             ping_timeout,
             peer,
+            executor,
         }
     }
 
@@ -88,7 +99,9 @@ impl PingProtocol {
         let mut retry = 0;
 
         while retry < MAX_FAILURES {
-            sleep(Duration::from_secs(self.ping_interval)).await;
+            self.executor
+                .sleep(Duration::from_secs(self.ping_interval))
+                .await;
 
             let mut nonce: [u8; 32] = [0; 32];
             SysRng.try_fill_bytes(&mut nonce)?;
@@ -98,7 +111,7 @@ impl PingProtocol {
             self.peer.send(bytes).await?;
 
             let d = Duration::from_secs(self.ping_timeout);
-            let pong = match timeout(d, chan.recv()).await {
+            let pong = match self.executor.timeout(d, chan.recv()).await {
                 Ok(m) => m?,
                 Err(_) => {
                     retry += 1;

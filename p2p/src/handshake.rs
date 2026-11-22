@@ -5,7 +5,7 @@ use log::trace;
 use rand::{TryRng, rngs::SysRng};
 use semver::VersionReq;
 
-use karyon_core::async_util::timeout;
+use karyon_core::async_runtime::Executor;
 
 use karyon_net::{FramedReader, FramedWriter};
 
@@ -66,6 +66,8 @@ pub struct HandshakeParams<'a> {
     /// version negotiation and the mandatory-subset check.
     pub protocols: &'a HashMap<ProtocolID, ProtocolMeta>,
     pub timeout_secs: u64,
+    /// Runs the handshake timeouts.
+    pub executor: &'a Executor,
     /// PeerID derived from the secure transport (TLS cert), if any.
     /// When `Some`, the handshake asserts the peer's claimed `vermsg.peer_id`
     /// matches it - so a peer can't claim an identity it can't prove.
@@ -96,7 +98,7 @@ pub async fn handshake(
     send_vermsg(writer, p, nonce).await?;
 
     let t = Duration::from_secs(p.timeout_secs);
-    let msg: PeerNetMsg = timeout(t, reader.recv_msg()).await??;
+    let msg: PeerNetMsg = p.executor.timeout(t, reader.recv_msg()).await??;
     let result = match msg.header.command {
         PeerNetCmd::Version => validate_version_msg(&msg, p),
         cmd => Err(Error::InvalidMsg(format!("unexpected msg found {cmd:?}"))),
@@ -111,7 +113,7 @@ pub async fn handshake(
     };
     let (pid, shared, remote_nonce) = result?;
 
-    let msg: PeerNetMsg = timeout(t, reader.recv_msg()).await??;
+    let msg: PeerNetMsg = p.executor.timeout(t, reader.recv_msg()).await??;
     match msg.header.command {
         PeerNetCmd::Verack => validate_verack_msg(&msg, &pid)?,
         cmd => return Err(Error::InvalidMsg(format!("unexpected msg found {cmd:?}"))),

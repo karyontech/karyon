@@ -305,7 +305,8 @@ impl Node {
     async fn attach_core_protocols(&self) -> Result<()> {
         let interval = self.config.ping_interval;
         let timeout = self.config.ping_timeout;
-        self.attach_protocol(move |peer| PingProtocol::new(peer, interval, timeout))
+        let ex = self.task_group.executor().clone();
+        self.attach_protocol(move |peer| PingProtocol::new(peer, interval, timeout, ex.clone()))
             .await
     }
 

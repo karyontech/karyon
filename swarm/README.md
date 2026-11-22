@@ -25,7 +25,17 @@ $ cargo add karyon_swarm
 | `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
-karyon_swarm = "1.5"
+karyon_swarm = "2.0"
+```
+
+### WASI
+
+karyon_swarm builds for `wasm32-wasip1` and `wasm32-wasip2` with the
+`tokio` and `ring` features, on a karyon_p2p node with your own runtime
+and transport (see karyon_p2p's README).
+
+```toml
+karyon_swarm = { version = "2.0", default-features = false, features = ["tokio", "ring"] }
 ```
 
 ## Example

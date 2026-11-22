@@ -8,7 +8,7 @@ use log::{error, trace};
 
 use karyon_core::{
     async_runtime::{Executor, lock::SemaphoreGuard},
-    async_util::{TaskGroup, TaskGroupRef, TaskResult, timeout},
+    async_util::{TaskGroup, TaskGroupRef, TaskResult},
 };
 
 use crate::{
@@ -83,7 +83,10 @@ impl PeerSession {
         // QUIC opens its protocol streams here. A peer that does not open
         // them in time is stopped, like on any other connection error.
         let setup = self.wire.setup(&self.task_group, self.stop_tx.clone());
-        timeout(setup_timeout, setup).await??;
+        self.task_group
+            .executor()
+            .timeout(setup_timeout, setup)
+            .await??;
 
         for (proto_id, constructor) in protocols {
             trace!("peer {} run protocol {proto_id}", self.info.id);

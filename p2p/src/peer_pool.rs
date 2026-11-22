@@ -179,7 +179,15 @@ impl PeerPool {
         let Incoming { conn, slot } = incoming;
         let endpoint = conn.remote_endpoint.clone();
 
-        let res = match admit(&self.id, conn, &self.registry, &self.config).await {
+        let res = match admit(
+            &self.id,
+            conn,
+            &self.registry,
+            &self.config,
+            self.task_group.executor(),
+        )
+        .await
+        {
             Ok(admitted) => self.add_session(admitted, slot).await,
             Err(rejected) => {
                 self.events.handshake_failed(rejected.peer_id).await;

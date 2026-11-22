@@ -7,19 +7,26 @@ use karyon_core::{
         Executor,
         lock::{Semaphore, SemaphoreGuard},
     },
-    async_util::{Backoff, TaskGroup, timeout},
+    async_util::{Backoff, TaskGroup},
     crypto::KeyPair,
 };
-use karyon_net::{ByteBuffer, ClientLayer, Endpoint, FramedConn, codec::Codec, framed, tcp};
+use karyon_net::{ByteBuffer, Endpoint, FramedConn, codec::Codec, framed};
+
+#[cfg(not(target_family = "wasm"))]
+use karyon_net::{
+    ClientLayer, tcp,
+    tls::{ClientTlsConfig, TlsLayer},
+};
 
 use crate::{
     Error, PeerID, Result,
     codec::PeerNetMsgCodec,
     config::Config,
     conn_direction::ConnDirection,
+    discovery::DiscoveryContext,
     monitor::{ConnectionKind, MonitorRef},
+    peer_cert::peer_id_from_certs,
     queued_conn::{ConnQueueRef, Incoming, QueuedConn},
-    tls_config::{peer_id_from_certs, tls_client_config},
     transport::TransportRef,
 };
 
@@ -32,6 +39,10 @@ use karyon_net::{
 #[cfg(feature = "quic")]
 use crate::tls_config::quic_client_config;
 
+#[cfg(not(target_family = "wasm"))]
+use crate::tls_config::tls_client_config;
+
+#[cfg(not(target_family = "wasm"))]
 static DNS_NAME: &str = "karyontech.net";
 
 /// Internal dial result. Generic over the codec used to frame the
@@ -54,6 +65,8 @@ pub type ConnectorRef<C> = Arc<Connector<C>>;
 /// (TLS, retries, slots, monitor events) serves both the peer
 /// data-plane (`PeerNetMsgCodec`) and a discovery's own messages.
 pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
+    /// For the built-in TLS and QUIC configs; none on wasm.
+    #[cfg(not(target_family = "wasm"))]
     key_pair: KeyPair,
     task_group: TaskGroup,
     connection_slots: Semaphore,
@@ -76,64 +89,43 @@ impl<C> Connector<C>
 where
     C: Codec<ByteBuffer, Error = karyon_net::Error> + Default + Clone + Send + Sync + 'static,
 {
-    /// Create a new Connector not tied to the PeerPool, for plain `connect`
-    /// calls such as a discovery's queries. `dial_timeout` is in seconds.
-    pub fn new(
-        key_pair: &KeyPair,
-        max_retries: usize,
-        slots: usize,
-        dial_timeout: u64,
-        monitor: MonitorRef,
-        ex: Executor,
-    ) -> ConnectorRef<C> {
-        Self::new_with_transport(
-            key_pair,
+    /// Create a Connector for a discovery's own connections. The key
+    /// pair, monitor, executor and the dial timeout (`handshake_timeout`),
+    /// transport and QUIC runtime of the node's config come from `ctx`.
+    pub fn new(ctx: &DiscoveryContext, max_retries: usize, slots: usize) -> ConnectorRef<C> {
+        Self::build(
+            &ctx.key_pair,
+            &ctx.config,
             max_retries,
             slots,
-            dial_timeout,
             None,
-            monitor,
-            ex,
+            ctx.monitor.clone(),
+            ctx.executor.clone(),
         )
     }
 
-    /// Like `new`, but dials the endpoints `transport` supports through it
-    /// (see `Config::transport`).
-    pub fn new_with_transport(
-        key_pair: &KeyPair,
-        max_retries: usize,
-        slots: usize,
-        dial_timeout: u64,
-        transport: Option<TransportRef>,
-        monitor: MonitorRef,
-        ex: Executor,
-    ) -> ConnectorRef<C> {
-        let config = Config {
-            handshake_timeout: dial_timeout,
-            transport,
-            ..Config::default()
-        };
-        Self::new_with_config(key_pair, &config, max_retries, slots, monitor, ex)
-    }
-
-    /// Like `new`, but takes the dial timeout (`handshake_timeout`), the
-    /// transport and the QUIC runtime from `config`.
-    pub fn new_with_config(
+    /// Builds a Connector. `conn_queue` is set only on the Node's own.
+    fn build(
         key_pair: &KeyPair,
         config: &Config,
         max_retries: usize,
         slots: usize,
+        conn_queue: Option<ConnQueueRef>,
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<C> {
+        // No built-in TLS or QUIC on wasm, so the key pair is not kept.
+        #[cfg(target_family = "wasm")]
+        let _ = key_pair;
         Arc::new(Self {
+            #[cfg(not(target_family = "wasm"))]
             key_pair: key_pair.clone(),
             max_retries,
             dial_timeout: Duration::from_secs(config.handshake_timeout),
             task_group: TaskGroup::with_executor(ex),
             monitor,
             connection_slots: Semaphore::new(slots),
-            conn_queue: None,
+            conn_queue,
             transport: config.transport.clone(),
             #[cfg(feature = "quic")]
             quic_runtime: config.quic_runtime.clone(),
@@ -174,9 +166,13 @@ where
         peer_id: &Option<PeerID>,
     ) -> Result<DialResult<C>> {
         let mut retry = 0;
-        let backoff = Backoff::new(500, 2000);
+        let ex = self.task_group.executor();
+        let backoff = Backoff::with_executor(500, 2000, ex.clone());
         while retry < self.max_retries {
-            let dial = async { timeout(self.dial_timeout, self.dial(endpoint, peer_id)).await? };
+            let dial = async {
+                ex.timeout(self.dial_timeout, self.dial(endpoint, peer_id))
+                    .await?
+            };
             match dial.await {
                 Ok(result) => {
                     self.monitor
@@ -216,6 +212,16 @@ where
             return Ok(DialResult::Channel(framed(stream, C::default()), vpid));
         }
 
+        self.dial_builtin(endpoint, peer_id).await
+    }
+
+    /// Dial with the built-in TCP, TLS or QUIC.
+    #[cfg(not(target_family = "wasm"))]
+    async fn dial_builtin(
+        &self,
+        endpoint: &Endpoint,
+        peer_id: &Option<PeerID>,
+    ) -> Result<DialResult<C>> {
         match endpoint {
             Endpoint::Tcp(..) => {
                 let stream = tcp::connect(endpoint, Default::default()).await?;
@@ -223,12 +229,12 @@ where
                 Ok(DialResult::Channel(conn, None))
             }
             Endpoint::Tls(..) => {
-                let tls_config = karyon_net::tls::ClientTlsConfig {
+                let tls_config = ClientTlsConfig {
                     client_config: tls_client_config(&self.key_pair, peer_id.clone())?,
                     dns_name: DNS_NAME.to_string(),
                 };
                 let stream = tcp::connect(endpoint, Default::default()).await?;
-                let tls_layer = karyon_net::tls::TlsLayer::client(tls_config);
+                let tls_layer = TlsLayer::client(tls_config);
                 let tls_stream = ClientLayer::handshake(&tls_layer, stream).await?;
                 // Extract the peer cert before framing consumes the stream.
                 let vpid = tls_stream
@@ -263,6 +269,16 @@ where
             _ => Err(Error::UnsupportedEndpoint(endpoint.to_string())),
         }
     }
+
+    /// wasm has no built-in transports: only `Config::transport` dials.
+    #[cfg(target_family = "wasm")]
+    async fn dial_builtin(
+        &self,
+        endpoint: &Endpoint,
+        _peer_id: &Option<PeerID>,
+    ) -> Result<DialResult<C>> {
+        Err(Error::UnsupportedEndpoint(endpoint.to_string()))
+    }
 }
 
 // `connect_and_queue` only lives on the peer-plane Connector since the
@@ -276,19 +292,15 @@ impl Connector<PeerNetMsgCodec> {
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<PeerNetMsgCodec> {
-        Arc::new(Self {
-            key_pair: key_pair.clone(),
-            max_retries: config.max_connect_retries,
-            dial_timeout: Duration::from_secs(config.handshake_timeout),
-            task_group: TaskGroup::with_executor(ex),
+        Self::build(
+            key_pair,
+            config,
+            config.max_connect_retries,
+            config.outbound_slots,
+            Some(conn_queue),
             monitor,
-            connection_slots: Semaphore::new(config.outbound_slots),
-            conn_queue: Some(conn_queue),
-            transport: config.transport.clone(),
-            #[cfg(feature = "quic")]
-            quic_runtime: config.quic_runtime.clone(),
-            _codec: PhantomData,
-        })
+            ex,
+        )
     }
 
     /// Connect and hand the connection to the PeerPool, which handshakes

@@ -1,79 +1,43 @@
-use std::{
-    collections::HashMap,
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
-use log::{error, info, trace};
-use rand::{TryRng, rngs::SysRng};
+#[cfg(target_family = "wasm")]
+use log::warn;
+use log::{error, trace};
 
 use karyon_core::{
     async_runtime::Executor,
-    async_util::{Backoff, TaskGroup, TaskResult, sleep, timeout},
+    async_util::{TaskGroup, TaskResult},
 };
 
-use karyon_net::{Endpoint, udp};
+use karyon_net::Endpoint;
 
 use karyon_p2p::{
-    Action, Config, ConnDirection, ConnectorRef, Error, PeerID, Protocol, Result, Subject,
-    VersionInt,
+    Action, Config, ConnDirection, ConnectorRef, Error, PeerID, Result, Subject, VersionInt,
     monitor::{ConnectionKind, Monitor},
     pick_endpoint,
-    util::{decode, encode},
+    util::decode,
 };
+
+#[cfg(not(target_family = "wasm"))]
+use karyon_p2p::Protocol;
 
 use crate::{
     KademliaConfigRef, SUPPORTED_LOOKUP_PROTOCOLS,
     event::DiscoveryKind,
     lookup::{KadConnRef, send_ping_msg, send_shutdown_msg},
-    messages::RefreshMsg,
     messages::{KadNetCmd, KadNetMsg, KadNetMsgCodec, PongMsg},
     routing_table::{BucketEntry, Entry, PENDING_ENTRY, RoutingTableRef, UNREACHABLE_ENTRY},
 };
 
+// The UDP refresh. No UDP on wasm.
+#[cfg(not(target_family = "wasm"))]
+mod udp;
+
 /// Maximum failures for an entry before removing it from the routing table.
 pub const MAX_FAILURES: u32 = 3;
 
-// Max UDP datagram payload size for refresh messages.
-const MAX_UDP_BUF: usize = 1024;
-
 // Max entries pulled from each bucket per refresh round.
 const REFRESH_PER_BUCKET: usize = 8;
-
-// Token-bucket parameters for the per-IP rate limit on incoming pings.
-// Capacity allows small bursts; refill rate caps sustained traffic.
-const RL_CAPACITY: u32 = 5;
-const RL_REFILL_PER_SEC: f64 = 0.5;
-
-/// Per-IP token bucket used by `listen_to_ping_msg` to drop floods.
-struct RateBucket {
-    tokens: f64,
-    last_refill: Instant,
-}
-
-impl RateBucket {
-    fn new() -> Self {
-        Self {
-            tokens: RL_CAPACITY as f64,
-            last_refill: Instant::now(),
-        }
-    }
-
-    /// Refill and try to take one token. Returns true if allowed.
-    fn allow(&mut self) -> bool {
-        let now = Instant::now();
-        let elapsed = now.duration_since(self.last_refill).as_secs_f64();
-        self.tokens = (self.tokens + elapsed * RL_REFILL_PER_SEC).min(RL_CAPACITY as f64);
-        self.last_refill = now;
-        if self.tokens >= 1.0 {
-            self.tokens -= 1.0;
-            true
-        } else {
-            false
-        }
-    }
-}
 
 pub struct RefreshService {
     /// Routing table
@@ -126,6 +90,7 @@ impl RefreshService {
 
     /// Start the refresh service
     pub async fn start(self: &Arc<Self>) -> Result<()> {
+        #[cfg(not(target_family = "wasm"))]
         if let Some(endpoint) = self.listen_endpoint.clone() {
             self.task_group.spawn_then(
                 {
@@ -138,6 +103,11 @@ impl RefreshService {
                     }
                 },
             );
+        }
+
+        #[cfg(target_family = "wasm")]
+        if let Some(endpoint) = &self.listen_endpoint {
+            warn!("No UDP on wasm; refresh pings use the lookup protocol, not {endpoint}");
         }
 
         self.task_group.spawn_then(
@@ -163,7 +133,10 @@ impl RefreshService {
     /// Periodically refresh the routing table by pinging the oldest entries.
     async fn refresh_loop(self: Arc<Self>) -> Result<()> {
         loop {
-            sleep(Duration::from_secs(self.kconfig.refresh_interval)).await;
+            self.task_group
+                .executor()
+                .sleep(Duration::from_secs(self.kconfig.refresh_interval))
+                .await;
             trace!("Start refreshing the routing table...");
 
             self.monitor.notify(DiscoveryKind::RefreshStarted).await;
@@ -232,42 +205,25 @@ impl RefreshService {
     }
 
     /// Pings the entry: over UDP with retries, or over the lookup protocol
-    /// when the node has a user transport (no raw UDP besides it) or the
-    /// entry has no UDP address.
+    /// when the node has a user transport (no raw UDP besides it), the
+    /// entry has no UDP address, or on wasm (no UDP).
     async fn connect(&self, entry: &Entry) -> Result<()> {
-        let udp = match self.config.transport {
-            Some(_) => None,
-            None => pick_endpoint(&entry.discovery_addrs, &[Protocol::Udp], None),
-        };
-        let Some(endpoint) = udp else {
-            let endpoint = pick_endpoint(
-                &entry.discovery_addrs,
-                SUPPORTED_LOOKUP_PROTOCOLS,
-                self.config.transport.as_ref(),
-            )
-            .ok_or(Error::Lookup("No discovery address available".into()))?;
+        #[cfg(not(target_family = "wasm"))]
+        if self.config.transport.is_none()
+            && let Some(endpoint) = pick_endpoint(&entry.discovery_addrs, &[Protocol::Udp], None)
+        {
             self.allow_probe(&endpoint)?;
-            return self.stream_ping(endpoint, entry.key.into()).await;
-        };
-        self.allow_probe(&endpoint)?;
-
-        let mut retry = 0;
-        let conn = udp::dial(&endpoint, Default::default()).await?;
-        let peer_addr = SocketAddr::try_from(endpoint.clone())?;
-        let backoff = Backoff::new(100, 5000);
-        while retry < self.kconfig.refresh_connect_retries {
-            match self.send_ping_msg(&conn, peer_addr).await {
-                Ok(()) => return Ok(()),
-                Err(Error::Timeout) => {
-                    retry += 1;
-                    backoff.sleep().await;
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            }
+            return self.udp_ping(endpoint).await;
         }
-        Err(Error::Timeout)
+
+        let endpoint = pick_endpoint(
+            &entry.discovery_addrs,
+            SUPPORTED_LOOKUP_PROTOCOLS,
+            self.config.transport.as_ref(),
+        )
+        .ok_or(Error::Lookup("No discovery address available".into()))?;
+        self.allow_probe(&endpoint)?;
+        self.stream_ping(endpoint, entry.key.into()).await
     }
 
     /// Pings the peer at `endpoint` over the lookup protocol.
@@ -275,7 +231,8 @@ impl RefreshService {
         // The slot is released when `_slot` drops at the end.
         let (mut conn, _slot) = self.connector.connect(&endpoint, &Some(peer_id)).await?;
         let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
-        let result = ping_conn(&mut conn, &self.config.version.v, t).await;
+        let ex = self.task_group.executor();
+        let result = ping_conn(&mut conn, &self.config.version.v, t, ex).await;
 
         self.monitor
             .notify(ConnectionKind::Disconnected(endpoint))
@@ -295,118 +252,6 @@ impl RefreshService {
             Err(Error::AccessDenied)
         }
     }
-
-    /// Listen on UDP for Ping messages.
-    async fn listen_loop(self: Arc<Self>, endpoint: Endpoint) -> Result<()> {
-        let conn = match udp::listen(&endpoint, Default::default()).await {
-            Ok(c) => {
-                self.monitor
-                    .notify(ConnectionKind::Listening(endpoint.clone()))
-                    .await;
-                c
-            }
-            Err(err) => {
-                self.monitor
-                    .notify(ConnectionKind::ListenFailed(endpoint.clone()))
-                    .await;
-                return Err(err.into());
-            }
-        };
-        info!("Start listening on {endpoint}");
-
-        // Per-IP rate limit. Lives on the listen task, no lock needed:
-        // listen_to_ping_msg is only ever called from this loop.
-        let mut rate_limiter: HashMap<IpAddr, RateBucket> = HashMap::new();
-
-        loop {
-            let res = self.listen_to_ping_msg(&conn, &mut rate_limiter).await;
-            if let Err(err) = res {
-                trace!("Failed to handle ping msg {err}");
-                self.monitor.notify(ConnectionKind::AcceptFailed).await;
-            }
-        }
-    }
-
-    /// Listen for a Ping message and respond with a Pong message.
-    /// Drops pings from sources not in the routing table or that
-    /// exceed the per-IP rate limit.
-    async fn listen_to_ping_msg(
-        &self,
-        conn: &udp::UdpConn,
-        rate_limiter: &mut HashMap<IpAddr, RateBucket>,
-    ) -> Result<()> {
-        let mut buf = vec![0u8; MAX_UDP_BUF];
-        let (n, sender) = conn.recv_from(&mut buf).await?;
-
-        let sender_ip = sender.ip();
-        if !self.table.has_discovery_ip(&sender_ip) {
-            trace!("Drop refresh ping from unknown source {sender_ip}");
-            return Ok(());
-        }
-
-        let allowed = rate_limiter
-            .entry(sender_ip)
-            .or_insert_with(RateBucket::new)
-            .allow();
-        if !allowed {
-            trace!("Drop rate-limited refresh ping from {sender_ip}");
-            return Ok(());
-        }
-
-        let sender_ep = Endpoint::new_udp_addr(sender);
-
-        if !self.config.access_control.allow(
-            &Subject::Endpoint(&sender_ep),
-            Action::Probe(ConnDirection::Inbound),
-        ) {
-            trace!("Drop refresh ping from denied source {sender_ip}");
-            return Ok(());
-        }
-
-        self.monitor
-            .notify(ConnectionKind::Accepted(sender_ep.clone()))
-            .await;
-
-        let (msg, _) = decode::<RefreshMsg>(&buf[..n])?;
-        match msg {
-            RefreshMsg::Ping(m) => {
-                let pong_msg = RefreshMsg::Pong(m);
-                let encoded = encode(&pong_msg)?;
-                conn.send_to(&encoded, sender).await?;
-            }
-            RefreshMsg::Pong(_) => return Err(Error::InvalidMsg("Unexpected pong msg".into())),
-        }
-
-        self.monitor
-            .notify(ConnectionKind::Disconnected(sender_ep))
-            .await;
-        Ok(())
-    }
-
-    /// Sends a Ping msg and waits for the Pong response.
-    async fn send_ping_msg(&self, conn: &udp::UdpConn, peer_addr: SocketAddr) -> Result<()> {
-        let mut nonce: [u8; 32] = [0; 32];
-        SysRng.try_fill_bytes(&mut nonce)?;
-
-        let ping = RefreshMsg::Ping(nonce);
-        let encoded = encode(&ping)?;
-        conn.send_to(&encoded, peer_addr).await?;
-
-        let t = Duration::from_secs(self.kconfig.refresh_response_timeout);
-        let mut buf = vec![0u8; MAX_UDP_BUF];
-        let (n, _) = timeout(t, conn.recv_from(&mut buf)).await??;
-        let (msg, _) = decode::<RefreshMsg>(&buf[..n])?;
-
-        match msg {
-            RefreshMsg::Pong(n) => {
-                if n != nonce {
-                    return Err(Error::InvalidPongMsg);
-                }
-                Ok(())
-            }
-            _ => Err(Error::InvalidMsg("Unexpected ping msg".into())),
-        }
-    }
 }
 
 /// Pings the peer on a lookup connection, checks its Pong and closes the
@@ -415,9 +260,12 @@ async fn ping_conn(
     conn: &mut KadConnRef,
     version: &VersionInt,
     response_timeout: Duration,
+    executor: &Executor,
 ) -> Result<()> {
     let ping_msg = send_ping_msg(conn, version).await?;
-    let msg: KadNetMsg = timeout(response_timeout, conn.recv_msg()).await??;
+    let msg: KadNetMsg = executor
+        .timeout(response_timeout, conn.recv_msg())
+        .await??;
     match msg.header.command {
         KadNetCmd::Pong => {
             let (pong_msg, _) = decode::<PongMsg>(&msg.payload)?;
