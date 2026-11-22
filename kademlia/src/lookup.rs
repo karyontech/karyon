@@ -100,13 +100,11 @@ impl LookupService {
         let monitor = ctx.monitor.clone();
         let ex = ctx.executor.clone();
         // Lookups go through the node's transport too, if it has one.
-        let listener = Listener::new_with_transport(
+        let listener = Listener::new_with_config(
             key_pair,
+            &config,
             kconfig.lookup_inbound_slots,
             monitor.clone(),
-            config.handshake_timeout,
-            config.access_control.clone(),
-            config.transport.clone(),
             ex,
         );
 

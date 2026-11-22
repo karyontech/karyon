@@ -2,6 +2,9 @@ use std::sync::Arc;
 
 use karyon_net::Endpoint;
 
+#[cfg(feature = "quic")]
+use karyon_net::quic::QuicRuntimeRef;
+
 use crate::{
     Version,
     access_control::{AccessControlRef, AllowAll},
@@ -74,6 +77,10 @@ pub struct Config {
     /// A user transport for the endpoints it supports; the others use the
     /// built-in TCP, TLS and QUIC. `None` uses only the built-in ones.
     pub transport: Option<TransportRef>,
+    /// Runs the built-in QUIC on your own I/O reactor: its tasks, timers
+    /// and UDP sockets. `None` runs its tasks on the node's executor.
+    #[cfg(feature = "quic")]
+    pub quic_runtime: Option<QuicRuntimeRef>,
 }
 
 impl Default for Config {
@@ -94,6 +101,8 @@ impl Default for Config {
             outbound_slots: 12,
             max_connect_retries: 3,
             transport: None,
+            #[cfg(feature = "quic")]
+            quic_runtime: None,
         }
     }
 }
@@ -190,6 +199,13 @@ impl ConfigBuilder {
     /// See `Config::transport`.
     pub fn with_transport(mut self, transport: TransportRef) -> Self {
         self.config.transport = Some(transport);
+        self
+    }
+
+    /// See `Config::quic_runtime`.
+    #[cfg(feature = "quic")]
+    pub fn with_quic_runtime(mut self, runtime: QuicRuntimeRef) -> Self {
+        self.config.quic_runtime = Some(runtime);
         self
     }
 

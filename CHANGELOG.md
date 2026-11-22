@@ -1,5 +1,40 @@
 # Changelog
 
+## karyon_net 2.4.0, karyon_p2p 1.8.0, karyon_kademlia 0.3.1, karyon_jsonrpc 1.3.1
+
+### Added
+
+- **`ServerQuicConfig::with_executor` and `ClientQuicConfig::with_executor`**
+  (`karyon_net`): run a QUIC endpoint's connections on the given
+  `Executor`.
+- **`ServerQuicConfig::with_runtime` and `ClientQuicConfig::with_runtime`**
+  (`karyon_net`): run QUIC on your own I/O reactor, as a `QuicRuntime`
+  (quinn's `Runtime`: tasks, timers and UDP sockets).
+- **`Config::quic_runtime`** (`karyon_p2p`): the `QuicRuntime` for the
+  node's QUIC listener and dialer, also used by discovery. Set it with
+  `ConfigBuilder::with_quic_runtime`.
+- **`Connector::new_with_config` and `Listener::new_with_config`**
+  (`karyon_p2p`): build a discovery's connector or listener from the
+  node's `Config`, so it uses the node's transport and QUIC runtime.
+- **Kademlia lookups use `Config::quic_runtime`** (`karyon_kademlia`):
+  QUIC lookups run on the node's QUIC runtime and executor.
+
+### Fixed
+
+- **QUIC on smol uses the node's executor** (`karyon_p2p`): with the
+  `smol` feature, every QUIC connection ran on smol's global executor,
+  one thread by default, so many peers at once made handshakes time out.
+  The QUIC listener and dialer now run on the node's executor.
+- **QUIC and HTTP/3 use the jsonrpc executor** (`karyon_jsonrpc`): the
+  server and client run their QUIC connections on the executor from
+  `with_executor` (the global one if none is set), not on smol's global
+  executor. A runtime set with `with_runtime` on the QUIC config still
+  wins.
+- **A failed handshake names the dialed peer** (`karyon_p2p`): on TCP a
+  dial whose handshake failed was reported to discovery with no peer id,
+  so discovery kept that peer marked as connected and never tried it
+  again. `HandshakeFailed` now carries the dialed peer id.
+
 ## karyon_net 2.3.0
 
 ### Added

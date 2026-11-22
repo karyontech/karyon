@@ -68,16 +68,16 @@ rustls config passed to karyon_net must be built with an explicit provider
 
 ```toml
 # Default (tokio + all protocols)
-karyon_net = "2.3"
+karyon_net = "2.4"
 
 # With QUIC and proxy
-karyon_net = { version = "2.3", features = ["quic", "proxy"] }
+karyon_net = { version = "2.4", features = ["quic", "proxy"] }
 
 # Smol runtime
-karyon_net = { version = "2.3", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
+karyon_net = { version = "2.4", default-features = false, features = ["smol", "tcp", "tls", "aws-lc-rs"] }
 
 # ring instead of aws-lc-rs
-karyon_net = { version = "2.3", default-features = false, features = ["tokio", "all-protocols", "ring"] }
+karyon_net = { version = "2.4", default-features = false, features = ["tokio", "all-protocols", "ring"] }
 ```
 
 ## Core Traits and Types
@@ -271,5 +271,5 @@ codecs, `Endpoint` and the TLS and SOCKS5 layers work over streams you
 bring, e.g. a custom `Endpoint`.
 
 ```toml
-karyon_net = { version = "2.3", default-features = false, features = ["tokio", "tls", "ring"] }
+karyon_net = { version = "2.4", default-features = false, features = ["tokio", "tls", "ring"] }
 ```

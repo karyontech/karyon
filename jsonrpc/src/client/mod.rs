@@ -255,7 +255,7 @@ where
 
         #[cfg(feature = "quic")]
         if let Endpoint::Quic(..) = &config.endpoint {
-            let backend = quic_stream::build_backend(&config).await?;
+            let backend = quic_stream::build_backend(&config, task_group.executor()).await?;
             return Ok(Self::with_backend(config, task_group, backend, byte_codec));
         }
 

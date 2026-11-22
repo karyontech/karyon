@@ -82,7 +82,10 @@ impl StreamListener {
 }
 
 #[cfg(feature = "quic")]
-use karyon_net::{StreamMux, quic, quic::QuicIncoming};
+use karyon_net::{
+    StreamMux, quic,
+    quic::{QuicIncoming, QuicRuntimeRef},
+};
 
 #[cfg(feature = "quic")]
 use crate::tls_config::quic_server_config;
@@ -107,6 +110,9 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     /// Listens on the endpoints it supports instead of the built-in
     /// transports.
     transport: Option<TransportRef>,
+    /// Runs the built-in QUIC (see `Config::quic_runtime`).
+    #[cfg(feature = "quic")]
+    quic_runtime: Option<QuicRuntimeRef>,
     _codec: PhantomData<C>,
 }
 
@@ -146,15 +152,35 @@ where
         transport: Option<TransportRef>,
         ex: Executor,
     ) -> ListenerRef<C> {
+        let config = Config {
+            handshake_timeout,
+            access_control,
+            transport,
+            ..Config::default()
+        };
+        Self::new_with_config(key_pair, &config, slots, monitor, ex)
+    }
+
+    /// Like `new`, but takes the handshake timeout, access control,
+    /// transport and QUIC runtime from `config`.
+    pub fn new_with_config(
+        key_pair: &KeyPair,
+        config: &Config,
+        slots: usize,
+        monitor: MonitorRef,
+        ex: Executor,
+    ) -> ListenerRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             connection_slots: Semaphore::new(slots),
             conn_queue: None,
             task_group: TaskGroup::with_executor(ex),
             monitor,
-            handshake_timeout: Duration::from_secs(handshake_timeout),
-            access_control,
-            transport,
+            handshake_timeout: Duration::from_secs(config.handshake_timeout),
+            access_control: config.access_control.clone(),
+            transport: config.transport.clone(),
+            #[cfg(feature = "quic")]
+            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -346,6 +372,8 @@ impl Listener<PeerNetMsgCodec> {
             handshake_timeout: Duration::from_secs(config.handshake_timeout),
             access_control: config.access_control.clone(),
             transport: config.transport.clone(),
+            #[cfg(feature = "quic")]
+            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -485,7 +513,11 @@ impl Listener<PeerNetMsgCodec> {
         endpoint: Endpoint,
     ) -> Result<Endpoint> {
         let rustls_config = quic_server_config(&self.key_pair)?;
-        let server_config = quic::ServerQuicConfig::from_rustls(rustls_config);
+        let mut server_config = quic::ServerQuicConfig::from_rustls(rustls_config)
+            .with_executor(self.task_group.executor().clone());
+        if let Some(runtime) = &self.quic_runtime {
+            server_config = server_config.with_runtime(runtime.clone());
+        }
 
         let quic_endpoint = match quic::QuicEndpoint::listen(&endpoint, server_config).await {
             Ok(ep) => {
