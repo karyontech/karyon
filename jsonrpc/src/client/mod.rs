@@ -14,17 +14,14 @@ use std::{
 };
 
 use async_channel::{Receiver, Sender};
-use log::info;
-use serde::{Serialize, de::DeserializeOwned};
-use serde_json::json;
-
 use karyon_core::{
     async_runtime::Executor,
     async_util::{TaskGroup, TaskGroupRef},
-    util::random_32,
 };
+use log::info;
+use serde::{Serialize, de::DeserializeOwned};
 
-use karyon_net::Endpoint;
+use karyon_net::{Endpoint, transport::TransportRef};
 
 #[cfg(feature = "tcp")]
 use karyon_net::tcp::TcpConfig;
@@ -32,8 +29,17 @@ use karyon_net::tcp::TcpConfig;
 use crate::{
     codec::{JsonCodec, JsonRpcCodec},
     error::{Error, Result},
-    message::{self, SubscriptionID},
+    message::SubscriptionID,
 };
+
+#[cfg(feature = "quic")]
+use serde_json::json;
+
+#[cfg(feature = "quic")]
+use karyon_core::util::random_32;
+
+#[cfg(feature = "quic")]
+use crate::message;
 
 #[cfg(feature = "quic")]
 use karyon_net::quic::{ClientQuicConfig, QuicConnRef};
@@ -77,6 +83,8 @@ pub(crate) struct ClientConfig {
     #[cfg(feature = "http")]
     pub http_config: HttpConfig,
     pub timeout: Option<u64>,
+    /// Dials the endpoints it supports instead of the built-in transports.
+    pub transport: Option<TransportRef>,
     pub subscription_buffer_size: usize,
     /// Set via `ClientBuilder::with_notification_decoder`.
     pub notification_decoder: NotificationDecoder,
@@ -239,6 +247,9 @@ where
         executor: Option<Executor>,
     ) -> Result<ClientRef<B, W>> {
         info!("Connecting to RPC endpoint: {}", config.endpoint);
+        // Only the WS backend uses the WS codec.
+        #[cfg(not(feature = "ws"))]
+        drop(ws_codec);
 
         // Build task_group early so backends (HTTP driver tasks) can
         // spawn into the same group that Client::stop cancels.

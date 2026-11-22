@@ -25,10 +25,7 @@ use hyper_util::client::legacy::{Client as HyperClient, connect::HttpConnector};
 #[cfg(feature = "tokio")]
 use crate::hyper_exec::HyperExecutor;
 
-use karyon_core::{
-    async_util::{TaskGroupRef, timeout},
-    util::random_32,
-};
+use karyon_core::{async_util::TaskGroupRef, util::random_32};
 
 #[cfg(feature = "http3")]
 use karyon_core::async_util::TaskResult;
@@ -286,11 +283,13 @@ where
 
         let response = match self.config.timeout {
             Some(t) => {
-                timeout(
-                    Duration::from_millis(t),
-                    http_backend.send_request(msg, &self.codec),
-                )
-                .await?
+                self.task_group
+                    .executor()
+                    .timeout(
+                        Duration::from_millis(t),
+                        http_backend.send_request(msg, &self.codec),
+                    )
+                    .await?
             }
             None => http_backend.send_request(msg, &self.codec).await,
         }?;

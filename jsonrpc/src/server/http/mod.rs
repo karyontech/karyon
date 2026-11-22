@@ -116,11 +116,11 @@ impl<C: JsonRpcCodec> HttpAcceptor for HttpServer<C> {
     async fn accept_loop(&self, server: Arc<Server>) -> Result<()> {
         let codec = &self.codec;
         // Back off on accept errors, so the loop does not spin.
-        let tcp_backoff = accept_backoff();
+        let tcp_backoff = accept_backoff(server.task_group.executor());
 
         #[cfg(feature = "http3")]
         if let Some(ref quic_ep) = self.quic_endpoint {
-            let quic_backoff = accept_backoff();
+            let quic_backoff = accept_backoff(server.task_group.executor());
             loop {
                 select(
                     h1h2::accept_tcp(&server, &self.tcp_listener, codec, &tcp_backoff),

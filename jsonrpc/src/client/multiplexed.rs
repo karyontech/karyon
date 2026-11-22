@@ -10,11 +10,14 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 use karyon_core::{
-    async_util::{Either, TaskResult, select, timeout},
+    async_util::{Either, TaskResult, select},
     util::random_32,
 };
 
-use karyon_net::{Endpoint, FramedConn, MessageRx, MessageTx, framed};
+use karyon_net::{FramedConn, MessageRx, MessageTx, framed};
+
+#[cfg(any(feature = "tcp", feature = "unix", feature = "ws"))]
+use karyon_net::Endpoint;
 
 #[cfg(feature = "ws")]
 use karyon_net::{ClientLayer, layers::ws::WsConn};
@@ -103,14 +106,17 @@ where
                 error!("Client stopped: {err}");
             }
             this.disconnect.store(true, Ordering::Relaxed);
-            if let ClientBackend::Multiplexed {
-                subscriptions,
-                message_dispatcher,
-                ..
-            } = &this.backend
-            {
-                subscriptions.clear().await;
-                message_dispatcher.clear().await;
+            match &this.backend {
+                ClientBackend::Multiplexed {
+                    subscriptions,
+                    message_dispatcher,
+                    ..
+                } => {
+                    subscriptions.clear().await;
+                    message_dispatcher.clear().await;
+                }
+                #[cfg(any(feature = "http", feature = "quic"))]
+                _ => {}
             }
         },
     );
@@ -123,13 +129,14 @@ where
     R: MessageRx<Message = serde_json::Value> + Send,
     Wr: MessageTx<Message = serde_json::Value> + Send,
 {
-    let ClientBackend::Multiplexed {
-        message_dispatcher,
-        subscriptions,
-        send_chan,
-    } = &client.backend
-    else {
-        return Err(Error::InvalidState("not in multiplexed mode".into()));
+    let (message_dispatcher, subscriptions, send_chan) = match &client.backend {
+        ClientBackend::Multiplexed {
+            message_dispatcher,
+            subscriptions,
+            send_chan,
+        } => (message_dispatcher, subscriptions, send_chan),
+        #[cfg(any(feature = "http", feature = "quic"))]
+        _ => return Err(Error::InvalidState("not in multiplexed mode".into())),
     };
 
     run_io_loop(
@@ -204,6 +211,10 @@ where
 {
     let endpoint = config.endpoint.clone();
 
+    if let Some(transport) = config.transport.as_ref().filter(|t| t.supports(&endpoint)) {
+        return Ok(framed(transport.dial(&endpoint).await?, codec));
+    }
+
     match &endpoint {
         #[cfg(feature = "tcp")]
         Endpoint::Tcp(..) => {
@@ -264,13 +275,14 @@ where
     W: WsCodec,
     T: Serialize + DeserializeOwned,
 {
-    let ClientBackend::Multiplexed {
-        message_dispatcher,
-        send_chan,
-        ..
-    } = &client.backend
-    else {
-        return Err(Error::InvalidState("not in multiplexed mode".into()));
+    let (message_dispatcher, send_chan) = match &client.backend {
+        ClientBackend::Multiplexed {
+            message_dispatcher,
+            send_chan,
+            ..
+        } => (message_dispatcher, send_chan),
+        #[cfg(any(feature = "http", feature = "quic"))]
+        _ => return Err(Error::InvalidState("not in multiplexed mode".into())),
     };
 
     let id: RequestID = random_32();
@@ -293,7 +305,12 @@ where
     }
 
     let result = match client.config.timeout {
-        Some(t) => match timeout(Duration::from_millis(t), rx.recv()).await {
+        Some(t) => match client
+            .task_group
+            .executor()
+            .timeout(Duration::from_millis(t), rx.recv())
+            .await
+        {
             Ok(res) => res.map_err(Error::from),
             Err(err) => Err(Error::from(err)),
         },

@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use karyon_core::async_runtime::Executor;
 
-use karyon_net::ToEndpoint;
+use karyon_net::{ToEndpoint, transport::TransportRef};
 
 #[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]
 use karyon_net::Endpoint;
@@ -147,7 +147,15 @@ where
         }
     }
 
-    /// Set an executor.
+    /// Listen with `transport` for the endpoints it supports (see
+    /// `karyon_net::transport::Transport`), e.g. on WASI.
+    pub fn with_transport(mut self, transport: TransportRef) -> Self {
+        self.config.transport = Some(transport);
+        self
+    }
+
+    /// Run the server's tasks and timers on `ex`. A user runtime goes
+    /// here as `Executor::from(runtime)`.
     pub fn with_executor(mut self, ex: Executor) -> Self {
         self.executor = Some(ex);
         self
@@ -208,6 +216,7 @@ impl<B: JsonRpcCodec> ServerBuilder<B, JsonCodec> {
         Ok(ServerBuilder {
             config: ServerConfig {
                 endpoint,
+                transport: None,
                 services: HashMap::new(),
                 pubsub_services: HashMap::new(),
                 #[cfg(feature = "tcp")]
