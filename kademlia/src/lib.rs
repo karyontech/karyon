@@ -115,12 +115,11 @@ impl KademliaDiscovery {
 
         // One lookup connector for lookups and the refresh pings, through
         // the node's transport if it has one.
-        let connector = Connector::new_with_transport(
+        let connector = Connector::new_with_config(
             &ctx.key_pair,
+            &config,
             kconfig.lookup_connect_retries,
             kconfig.lookup_outbound_slots,
-            config.handshake_timeout,
-            config.transport.clone(),
             monitor.clone(),
             ex.clone(),
         );

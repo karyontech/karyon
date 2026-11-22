@@ -8,6 +8,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 
 use karyon_core::{
+    async_runtime::Executor,
     async_util::{Either, TaskResult, select},
     util::random_32,
 };
@@ -30,12 +31,14 @@ use crate::{
     message::{self, SubscriptionID},
 };
 
-/// Build the QUIC backend by dialing the server.
-pub(super) async fn build_backend(config: &ClientConfig) -> Result<ClientBackend> {
+/// Build the QUIC backend by dialing the server. The connection runs
+/// on `ex`, the client's executor.
+pub(super) async fn build_backend(config: &ClientConfig, ex: &Executor) -> Result<ClientBackend> {
     let quic_config = config
         .quic_config
         .clone()
-        .ok_or(Error::QUICConfigRequired)?;
+        .ok_or(Error::QUICConfigRequired)?
+        .with_executor(ex.clone());
     let quic_conn = QuicEndpoint::dial(&config.endpoint, quic_config).await?;
 
     info!(

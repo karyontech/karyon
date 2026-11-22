@@ -1,19 +1,32 @@
 use std::{
-    io,
-    net::SocketAddr,
+    fmt, io,
+    net::{SocketAddr, UdpSocket},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use quinn::{Incoming, VarInt};
+use quinn::{
+    AsyncTimer, AsyncUdpSocket, Endpoint as QuinnEndpoint, EndpointConfig, Incoming, VarInt,
+    default_runtime,
+};
+
+/// quinn's runtime: spawns its tasks, and gives its timers and UDP
+/// sockets. Implement it to run QUIC on your own I/O reactor.
+pub use quinn::Runtime as QuicRuntime;
+
+/// `Arc` reference to a `QuicRuntime`.
+pub type QuicRuntimeRef = Arc<dyn QuicRuntime>;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::async_rustls::rustls;
 
 use karyon_core::{
-    async_runtime::io::{AsyncRead, AsyncWrite},
+    async_runtime::{
+        Executor,
+        io::{AsyncRead, AsyncWrite},
+    },
     async_util::timeout,
 };
 
@@ -82,6 +95,10 @@ pub struct ServerQuicConfig {
     config: QuicConfig,
     /// Max time `QuicEndpoint::accept` waits for a handshake.
     handshake_timeout: Duration,
+    /// Runs quinn's tasks. `None` uses quinn's default for the runtime.
+    executor: Option<Executor>,
+    /// A user runtime for tasks, timers and sockets; wins over `executor`.
+    runtime: Option<QuicRuntimeRef>,
 }
 
 #[derive(Clone)]
@@ -106,6 +123,8 @@ impl ServerQuicConfig {
             },
             config: QuicConfig::default(),
             handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
+            executor: None,
+            runtime: None,
         }
     }
 
@@ -116,6 +135,8 @@ impl ServerQuicConfig {
             source: ServerSource::Rustls(Box::new(rustls_config)),
             config: QuicConfig::default(),
             handshake_timeout: ACCEPT_HANDSHAKE_TIMEOUT,
+            executor: None,
+            runtime: None,
         }
     }
 
@@ -129,6 +150,20 @@ impl ServerQuicConfig {
     /// Defaults to 10s.
     pub fn with_handshake_timeout(mut self, timeout: Duration) -> Self {
         self.handshake_timeout = timeout;
+        self
+    }
+
+    /// Run the endpoint's connections on `executor`. Without it, smol
+    /// builds run them on smol's global executor, one thread by default.
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Run the endpoint on `runtime`: its tasks, timers and sockets.
+    /// Wins over `with_executor`.
+    pub fn with_runtime(mut self, runtime: QuicRuntimeRef) -> Self {
+        self.runtime = Some(runtime);
         self
     }
 
@@ -157,6 +192,10 @@ pub struct ClientQuicConfig {
     source: ClientSource,
     server_name: String,
     config: QuicConfig,
+    /// Runs quinn's tasks. `None` uses quinn's default for the runtime.
+    executor: Option<Executor>,
+    /// A user runtime for tasks, timers and sockets; wins over `executor`.
+    runtime: Option<QuicRuntimeRef>,
 }
 
 #[derive(Clone)]
@@ -172,6 +211,8 @@ impl ClientQuicConfig {
             source: ClientSource::Roots(root_certs),
             server_name: server_name.into(),
             config: QuicConfig::default(),
+            executor: None,
+            runtime: None,
         }
     }
 
@@ -185,12 +226,28 @@ impl ClientQuicConfig {
             source: ClientSource::Rustls(Box::new(rustls_config)),
             server_name: server_name.into(),
             config: QuicConfig::default(),
+            executor: None,
+            runtime: None,
         }
     }
 
     /// Override the QUIC transport parameters.
     pub fn with_config(mut self, config: QuicConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Run the connection on `executor`. Without it, smol builds run it
+    /// on smol's global executor, one thread by default.
+    pub fn with_executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Run the connection on `runtime`: its tasks, timers and sockets.
+    /// Wins over `with_executor`.
+    pub fn with_runtime(mut self, runtime: QuicRuntimeRef) -> Self {
+        self.runtime = Some(runtime);
         self
     }
 
@@ -253,6 +310,49 @@ fn build_transport_config(config: &QuicConfig) -> quinn::TransportConfig {
     transport
 }
 
+/// The user `runtime` if given, else quinn's runtime for the enabled
+/// async runtime, with its tasks spawned on `executor` when one is given.
+fn quinn_runtime(
+    runtime: Option<QuicRuntimeRef>,
+    executor: Option<Executor>,
+) -> Result<QuicRuntimeRef> {
+    if let Some(runtime) = runtime {
+        return Ok(runtime);
+    }
+    let inner = default_runtime().ok_or_else(|| io::Error::other("no async runtime found"))?;
+    Ok(match executor {
+        Some(executor) => Arc::new(ExecutorRuntime { executor, inner }),
+        None => inner,
+    })
+}
+
+/// Spawns quinn's tasks on a karyon `Executor`; timers and sockets come
+/// from quinn's own runtime.
+struct ExecutorRuntime {
+    executor: Executor,
+    inner: QuicRuntimeRef,
+}
+
+impl fmt::Debug for ExecutorRuntime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ExecutorRuntime").finish_non_exhaustive()
+    }
+}
+
+impl QuicRuntime for ExecutorRuntime {
+    fn new_timer(&self, i: Instant) -> Pin<Box<dyn AsyncTimer>> {
+        self.inner.new_timer(i)
+    }
+
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        self.executor.spawn(future).detach();
+    }
+
+    fn wrap_udp_socket(&self, t: UdpSocket) -> io::Result<Arc<dyn AsyncUdpSocket>> {
+        self.inner.wrap_udp_socket(t)
+    }
+}
+
 /// A QUIC endpoint that can listen for and initiate connections.
 pub struct QuicEndpoint {
     inner: quinn::Endpoint,
@@ -265,8 +365,15 @@ impl QuicEndpoint {
     pub async fn listen(endpoint: &Endpoint, config: ServerQuicConfig) -> Result<Self> {
         let addr = SocketAddr::try_from(endpoint.clone())?;
         let handshake_timeout = config.handshake_timeout;
+        let runtime = quinn_runtime(config.runtime.clone(), config.executor.clone())?;
         let server_config = config.build()?;
-        let inner = quinn::Endpoint::server(server_config, addr)?;
+        let socket = UdpSocket::bind(addr)?;
+        let inner = QuinnEndpoint::new(
+            EndpointConfig::default(),
+            Some(server_config),
+            socket,
+            runtime,
+        )?;
         let local_addr = inner.local_addr()?;
         let local_endpoint = Endpoint::new_quic_addr(local_addr);
         Ok(Self {
@@ -280,6 +387,7 @@ impl QuicEndpoint {
     pub async fn dial(endpoint: &Endpoint, config: ClientQuicConfig) -> Result<QuicConn> {
         let addr = resolve_endpoint(endpoint).await?;
         let server_name = config.server_name.clone();
+        let runtime = quinn_runtime(config.runtime.clone(), config.executor.clone())?;
         let client_config = config.build()?;
         // Bind the client socket in the same address family as the target.
         let bind_addr: SocketAddr = if addr.is_ipv6() {
@@ -287,7 +395,9 @@ impl QuicEndpoint {
         } else {
             "0.0.0.0:0".parse().unwrap()
         };
-        let mut quinn_endpoint = quinn::Endpoint::client(bind_addr)?;
+        let socket = UdpSocket::bind(bind_addr)?;
+        let mut quinn_endpoint =
+            QuinnEndpoint::new(EndpointConfig::default(), None, socket, runtime)?;
         quinn_endpoint.set_default_client_config(client_config);
 
         let connection = quinn_endpoint.connect(addr, &server_name)?.await?;

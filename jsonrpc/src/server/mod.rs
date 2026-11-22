@@ -282,7 +282,7 @@ impl Server {
             None => TaskGroup::new(),
         });
 
-        let backend = create_backend(&config, byte_codec, ws_codec).await?;
+        let backend = create_backend(&config, task_group.executor(), byte_codec, ws_codec).await?;
         info!("RPC server listens to the endpoint: {}", config.endpoint);
 
         Ok(Arc::new(Server {
@@ -306,8 +306,10 @@ pub trait WsCodec: Clone + Send + Sync + 'static {}
 #[cfg(not(feature = "ws"))]
 impl<T: Clone + Send + Sync + 'static> WsCodec for T {}
 
+/// QUIC and HTTP/3 run on `ex`, the server's executor.
 async fn create_backend<B, W>(
     config: &ServerConfig,
+    ex: &Executor,
     byte_codec: B,
     ws_codec: W,
 ) -> Result<ServerBackend>
@@ -321,7 +323,10 @@ where
         Endpoint::Http(..) => {
             #[cfg(feature = "http3")]
             let http_server = match config.quic_config.clone() {
-                Some(quic_cfg) => HttpServer::new_h3(&endpoint, quic_cfg, byte_codec).await?,
+                Some(quic_cfg) => {
+                    let quic_cfg = quic_cfg.with_executor(ex.clone());
+                    HttpServer::new_h3(&endpoint, quic_cfg, byte_codec).await?
+                }
                 None => HttpServer::new(&endpoint, byte_codec).await?,
             };
             #[cfg(not(feature = "http3"))]
@@ -331,8 +336,8 @@ where
         #[cfg(feature = "quic")]
         Endpoint::Quic(..) => match &config.quic_config {
             Some(conf) => {
-                let quic_endpoint =
-                    karyon_net::quic::QuicEndpoint::listen(&endpoint, conf.clone()).await?;
+                let conf = conf.clone().with_executor(ex.clone());
+                let quic_endpoint = karyon_net::quic::QuicEndpoint::listen(&endpoint, conf).await?;
                 Ok(ServerBackend::Quic(Arc::new(QuicServer {
                     endpoint: quic_endpoint,
                     codec: byte_codec,

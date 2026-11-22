@@ -24,7 +24,10 @@ use crate::{
 };
 
 #[cfg(feature = "quic")]
-use karyon_net::{StreamMux, quic};
+use karyon_net::{
+    StreamMux,
+    quic::{self, QuicRuntimeRef},
+};
 
 #[cfg(feature = "quic")]
 use crate::tls_config::quic_client_config;
@@ -62,6 +65,9 @@ pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     conn_queue: Option<ConnQueueRef>,
     /// Dials the endpoints it supports instead of the built-in transports.
     transport: Option<TransportRef>,
+    /// Runs the built-in QUIC (see `Config::quic_runtime`).
+    #[cfg(feature = "quic")]
+    quic_runtime: Option<QuicRuntimeRef>,
     monitor: MonitorRef,
     _codec: PhantomData<C>,
 }
@@ -102,15 +108,35 @@ where
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<C> {
+        let config = Config {
+            handshake_timeout: dial_timeout,
+            transport,
+            ..Config::default()
+        };
+        Self::new_with_config(key_pair, &config, max_retries, slots, monitor, ex)
+    }
+
+    /// Like `new`, but takes the dial timeout (`handshake_timeout`), the
+    /// transport and the QUIC runtime from `config`.
+    pub fn new_with_config(
+        key_pair: &KeyPair,
+        config: &Config,
+        max_retries: usize,
+        slots: usize,
+        monitor: MonitorRef,
+        ex: Executor,
+    ) -> ConnectorRef<C> {
         Arc::new(Self {
             key_pair: key_pair.clone(),
             max_retries,
-            dial_timeout: Duration::from_secs(dial_timeout),
+            dial_timeout: Duration::from_secs(config.handshake_timeout),
             task_group: TaskGroup::with_executor(ex),
             monitor,
             connection_slots: Semaphore::new(slots),
             conn_queue: None,
-            transport,
+            transport: config.transport.clone(),
+            #[cfg(feature = "quic")]
+            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -215,7 +241,12 @@ where
             #[cfg(feature = "quic")]
             Endpoint::Quic(..) => {
                 let rustls_config = quic_client_config(&self.key_pair, peer_id.clone())?;
-                let client_config = quic::ClientQuicConfig::from_rustls(rustls_config, DNS_NAME);
+                let mut client_config =
+                    quic::ClientQuicConfig::from_rustls(rustls_config, DNS_NAME)
+                        .with_executor(self.task_group.executor().clone());
+                if let Some(runtime) = &self.quic_runtime {
+                    client_config = client_config.with_runtime(runtime.clone());
+                }
                 let quic_conn = quic::QuicEndpoint::dial(endpoint, client_config).await?;
 
                 let vpid = quic_conn
@@ -254,6 +285,8 @@ impl Connector<PeerNetMsgCodec> {
             connection_slots: Semaphore::new(config.outbound_slots),
             conn_queue: Some(conn_queue),
             transport: config.transport.clone(),
+            #[cfg(feature = "quic")]
+            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -280,7 +313,7 @@ impl Connector<PeerNetMsgCodec> {
             }
         };
 
-        match conn {
+        match conn.map(|c| c.with_dialed(peer_id.clone())) {
             Ok(conn) => {
                 conn_queue.push(Incoming { conn, slot }).await;
                 Ok(())

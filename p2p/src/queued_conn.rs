@@ -28,6 +28,9 @@ pub(crate) struct QueuedConn {
     /// The application handshake asserts `vermsg.peer_id == this` when
     /// `Some`, so a peer can't claim a PeerID it can't prove.
     pub verified_peer_id: Option<PeerID>,
+    /// PeerID an outbound dial was for, as discovery gave it. Not
+    /// verified; it only tells discovery which peer failed.
+    pub dialed_peer_id: Option<PeerID>,
     #[cfg(feature = "quic")]
     pub quic_conn: Option<QuicConn>,
 }
@@ -50,9 +53,16 @@ impl QueuedConn {
             direction,
             remote_endpoint,
             verified_peer_id,
+            dialed_peer_id: None,
             #[cfg(feature = "quic")]
             quic_conn: None,
         })
+    }
+
+    /// Records the PeerID an outbound dial was for.
+    pub(crate) fn with_dialed(mut self, peer_id: Option<PeerID>) -> Self {
+        self.dialed_peer_id = peer_id;
+        self
     }
 
     /// Adds the QUIC connection that carries the protocol streams.

@@ -67,7 +67,12 @@ pub(crate) async fn admit(
     } = handshake(&mut conn.reader, &mut conn.writer, &params)
         .await
         .map_err(|error| Rejected {
-            peer_id: conn.verified_peer_id.clone(),
+            // On TCP only the dialed id is known; discovery needs it to
+            // mark the peer failed.
+            peer_id: conn
+                .verified_peer_id
+                .clone()
+                .or_else(|| conn.dialed_peer_id.clone()),
             error,
         })?;
 

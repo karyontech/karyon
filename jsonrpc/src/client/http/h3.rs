@@ -36,7 +36,11 @@ pub(super) async fn connect(
     task_group: TaskGroupRef,
 ) -> Result<H3SendRequest> {
     let quic_ep = Endpoint::new_quic_addr(SocketAddr::try_from(endpoint.clone())?);
-    let quic_conn = karyon_net::quic::QuicEndpoint::dial(&quic_ep, quic_config.clone()).await?;
+    // The connection runs on the client's executor.
+    let quic_config = quic_config
+        .clone()
+        .with_executor(task_group.executor().clone());
+    let quic_conn = karyon_net::quic::QuicEndpoint::dial(&quic_ep, quic_config).await?;
 
     let h3_conn = h3_quinn::Connection::new(quic_conn.inner().clone());
     let (driver, send_request) = h3::client::new(h3_conn)
