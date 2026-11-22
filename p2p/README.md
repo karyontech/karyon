@@ -89,8 +89,8 @@ async {
 | `smol` | Use smol async runtime |
 | `quic` | Enable QUIC transport |
 | `serde` | Enable serde support for p2p types |
-| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
-| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
+| `aws-lc-rs` | Default rustls crypto provider: aws-lc-rs (default) |
+| `ring` | Default rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
 # Default (tokio + TCP/TLS)
@@ -103,8 +103,16 @@ karyon_p2p = { version = "2.0", features = ["quic"] }
 karyon_p2p = { version = "2.0", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
 
 # With the ring provider instead of aws-lc-rs
-karyon_p2p = { version = "2.0", default-features = false, features = ["tokio", "quic", "ring"] }
+karyon_p2p = { version = "2.1", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
+
+The built-in TLS and QUIC use the rustls `CryptoProvider` set in
+`Config::crypto_provider` (or `ConfigBuilder::with_crypto_provider`).
+When it is `None`, they use the provider of the `aws-lc-rs` or `ring`
+feature, or without either the process default
+(`CryptoProvider::install_default`). The provider must have the TLS 1.3
+ChaCha20-Poly1305 suite (and AES-128-GCM for QUIC), X25519 and Ed25519
+keys. TLS works with no provider feature; `quic` needs one of them.
 
 ## Architecture
 
@@ -165,19 +173,19 @@ single-thread runtime, connected through in-memory pipes.
 
 ### WASI
 
-karyon_p2p builds for `wasm32-wasip2` (and `wasip1`) with the `tokio` and
-`ring` features (aws-lc-rs does not build for wasm). There are no
-built-in TCP, TLS or QUIC transports there: bring your own `Runtime` and
-`Transport` as above. The example runs under wasmtime:
+karyon_p2p builds for `wasm32-wasip2` (and `wasip1`) with only the
+`tokio` feature: no crypto provider and no C toolchain are needed. There
+are no built-in TCP, TLS or QUIC transports there: bring your own
+`Runtime` and `Transport` as above. The example runs under wasmtime:
 
 ```toml
-karyon_p2p = { version = "2.0", default-features = false, features = ["tokio", "ring"] }
+karyon_p2p = { version = "2.1", default-features = false, features = ["tokio"] }
 ```
 
 ```text
 CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_p2p \
     --example custom_runtime --target wasm32-wasip2 \
-    --no-default-features --features tokio,ring
+    --no-default-features --features tokio
 ```
 
 ### Discovery

@@ -4,12 +4,14 @@
 use karyon_core::crypto::KeyPair;
 use karyon_net::Endpoint;
 
-use crate::{Error, PeerID, Result, connector::DialResult, listener::StreamListener};
+use crate::{
+    Error, PeerID, Result, config::Config, connector::DialResult, listener::StreamListener,
+};
 
 pub(crate) struct BuiltinTransports;
 
 impl BuiltinTransports {
-    pub(crate) fn new(_key_pair: &KeyPair) -> Self {
+    pub(crate) fn new(_key_pair: &KeyPair, _config: &Config) -> Self {
         Self
     }
 

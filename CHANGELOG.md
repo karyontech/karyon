@@ -1,5 +1,25 @@
 # Changelog
 
+## karyon_p2p 2.1.0, karyon_kademlia 0.4.1, karyon_swarm 2.0.1
+
+### Added
+
+- **`Config::crypto_provider`** (`karyon_p2p`): the rustls
+  `CryptoProvider` for the built-in TLS and QUIC, also
+  `ConfigBuilder::with_crypto_provider` and the `CryptoProviderRef` alias.
+  The `aws-lc-rs` and `ring` features now only supply the default when it
+  is `None`; with neither, the process default
+  (`CryptoProvider::install_default`) is used. TLS builds with no provider
+  feature; `quic` still needs one.
+
+### Changed
+
+- **WASI build without a crypto provider** (`karyon_p2p`,
+  `karyon_kademlia`, `karyon_swarm`): they build for
+  `wasm32-wasip1`/`wasip2` with only the `tokio` feature, so no `ring`
+  and no clang for wasm. The TLS certificate is signed with a
+  `karyon_core` key pair; rcgen no longer needs ring or aws-lc-rs.
+
 ## karyon_net 2.5.0
 
 ### Changed

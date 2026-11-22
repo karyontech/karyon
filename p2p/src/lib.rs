@@ -53,7 +53,7 @@ pub mod transport {
 pub use access_control::{
     AccessControl, AccessControlRef, Action, AllowAll, PeerCandidate, Subject,
 };
-pub use config::{Config, ConfigBuilder, ConfigRef};
+pub use config::{Config, ConfigBuilder, ConfigRef, CryptoProviderRef};
 pub use conn_direction::ConnDirection;
 pub use discovery::{
     DiscoveredPeer, Discovery, DiscoveryContext, DiscoveryRef, PeerConnectionEvent,

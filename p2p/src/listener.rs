@@ -140,11 +140,7 @@ where
         ex: Executor,
     ) -> ListenerRef<C> {
         Arc::new(Self {
-            builtin: BuiltinTransports::new(
-                key_pair,
-                #[cfg(feature = "quic")]
-                config.quic_runtime.clone(),
-            ),
+            builtin: BuiltinTransports::new(key_pair, config),
             connection_slots: Semaphore::new(slots),
             conn_queue,
             task_group: TaskGroup::with_executor(ex),

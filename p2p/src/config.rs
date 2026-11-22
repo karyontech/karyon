@@ -1,6 +1,12 @@
 use std::sync::Arc;
 
+#[cfg(feature = "smol")]
+use futures_rustls::rustls;
+#[cfg(feature = "tokio")]
+use tokio_rustls::rustls;
+
 use karyon_net::Endpoint;
+use rustls::crypto::CryptoProvider;
 
 #[cfg(feature = "quic")]
 use karyon_net::quic::QuicRuntimeRef;
@@ -13,6 +19,9 @@ use crate::{
 
 /// `Arc` reference to a `Config`.
 pub type ConfigRef = Arc<Config>;
+
+/// `Arc` reference to a rustls `CryptoProvider`.
+pub type CryptoProviderRef = Arc<CryptoProvider>;
 
 /// Configuration for the p2p network.
 ///
@@ -81,6 +90,12 @@ pub struct Config {
     /// and UDP sockets. `None` runs its tasks on the node's executor.
     #[cfg(feature = "quic")]
     pub quic_runtime: Option<QuicRuntimeRef>,
+    /// The rustls crypto for the built-in TLS and QUIC. It needs the
+    /// TLS 1.3 ChaCha20-Poly1305 suite (and AES-128-GCM for QUIC), X25519
+    /// and Ed25519 keys. `None` uses the provider of the `aws-lc-rs` or
+    /// `ring` feature, or without one the process default
+    /// (`CryptoProvider::install_default`).
+    pub crypto_provider: Option<CryptoProviderRef>,
 }
 
 impl Default for Config {
@@ -103,6 +118,7 @@ impl Default for Config {
             transport: None,
             #[cfg(feature = "quic")]
             quic_runtime: None,
+            crypto_provider: None,
         }
     }
 }
@@ -206,6 +222,12 @@ impl ConfigBuilder {
     #[cfg(feature = "quic")]
     pub fn with_quic_runtime(mut self, runtime: QuicRuntimeRef) -> Self {
         self.config.quic_runtime = Some(runtime);
+        self
+    }
+
+    /// See `Config::crypto_provider`.
+    pub fn with_crypto_provider(mut self, provider: CryptoProviderRef) -> Self {
+        self.config.crypto_provider = Some(provider);
         self
     }
 

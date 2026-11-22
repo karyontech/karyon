@@ -92,11 +92,7 @@ where
         ex: Executor,
     ) -> ConnectorRef<C> {
         Arc::new(Self {
-            builtin: BuiltinTransports::new(
-                key_pair,
-                #[cfg(feature = "quic")]
-                config.quic_runtime.clone(),
-            ),
+            builtin: BuiltinTransports::new(key_pair, config),
             max_retries,
             dial_timeout: Duration::from_secs(config.handshake_timeout),
             task_group: TaskGroup::with_executor(ex),

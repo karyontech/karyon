@@ -88,13 +88,13 @@ jobs:
           --no-default-features --features tokio
       - run: >
           cargo test -p karyon_p2p --test mem_transport --target wasm32-wasip2
-          --no-default-features --features tokio,ring
+          --no-default-features --features tokio
       - run: >
           cargo run -p karyon_p2p --example custom_runtime --target wasm32-wasip2
-          --no-default-features --features tokio,ring
+          --no-default-features --features tokio
       - run: >
           cargo clippy -p karyon_kademlia -p karyon_swarm --target wasm32-wasip2
-          --no-default-features --features tokio,ring -- -D warnings
+          --no-default-features --features tokio -- -D warnings
 
   test-net:
     name: Integration Tests (net)

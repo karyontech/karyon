@@ -10,6 +10,7 @@ use karyon_net::{
 
 use crate::{
     Error, PeerID, Result,
+    config::{Config, CryptoProviderRef},
     connector::DialResult,
     listener::StreamListener,
     peer_cert::peer_id_from_certs,
@@ -33,20 +34,20 @@ static DNS_NAME: &str = "karyontech.net";
 pub(crate) struct BuiltinTransports {
     /// Signs the TLS and QUIC certificates.
     key_pair: KeyPair,
+    /// The rustls crypto (see `Config::crypto_provider`).
+    crypto_provider: Option<CryptoProviderRef>,
     /// Runs the built-in QUIC (see `Config::quic_runtime`).
     #[cfg(feature = "quic")]
     quic_runtime: Option<QuicRuntimeRef>,
 }
 
 impl BuiltinTransports {
-    pub(crate) fn new(
-        key_pair: &KeyPair,
-        #[cfg(feature = "quic")] quic_runtime: Option<QuicRuntimeRef>,
-    ) -> Self {
+    pub(crate) fn new(key_pair: &KeyPair, config: &Config) -> Self {
         Self {
             key_pair: key_pair.clone(),
+            crypto_provider: config.crypto_provider.clone(),
             #[cfg(feature = "quic")]
-            quic_runtime,
+            quic_runtime: config.quic_runtime.clone(),
         }
     }
 
@@ -63,7 +64,11 @@ impl BuiltinTransports {
             }
             Endpoint::Tls(..) => {
                 let tls_config = ClientTlsConfig {
-                    client_config: tls_client_config(&self.key_pair, peer_id.clone())?,
+                    client_config: tls_client_config(
+                        &self.key_pair,
+                        peer_id.clone(),
+                        self.crypto_provider.as_ref(),
+                    )?,
                     dns_name: DNS_NAME.to_string(),
                 };
                 let stream = tcp::connect(endpoint, Default::default()).await?;
@@ -87,7 +92,11 @@ impl BuiltinTransports {
         peer_id: &Option<PeerID>,
         ex: &Executor,
     ) -> Result<DialResult> {
-        let rustls_config = quic_client_config(&self.key_pair, peer_id.clone())?;
+        let rustls_config = quic_client_config(
+            &self.key_pair,
+            peer_id.clone(),
+            self.crypto_provider.as_ref(),
+        )?;
         let mut config =
             ClientQuicConfig::from_rustls(rustls_config, DNS_NAME).with_executor(ex.clone());
         if let Some(runtime) = &self.quic_runtime {
@@ -111,7 +120,10 @@ impl BuiltinTransports {
             }
             Endpoint::Tls(..) => {
                 let tls_config = ServerTlsConfig {
-                    server_config: tls_server_config(&self.key_pair)?,
+                    server_config: tls_server_config(
+                        &self.key_pair,
+                        self.crypto_provider.as_ref(),
+                    )?,
                 };
                 let listener = TcpListener::bind(endpoint, Default::default()).await?;
                 Ok(StreamListener {
@@ -126,7 +138,7 @@ impl BuiltinTransports {
     /// The config of a built-in QUIC listener.
     #[cfg(feature = "quic")]
     pub(crate) fn quic_server_config(&self, ex: &Executor) -> Result<ServerQuicConfig> {
-        let rustls_config = quic_server_config(&self.key_pair)?;
+        let rustls_config = quic_server_config(&self.key_pair, self.crypto_provider.as_ref())?;
         let mut config = ServerQuicConfig::from_rustls(rustls_config).with_executor(ex.clone());
         if let Some(runtime) = &self.quic_runtime {
             config = config.with_runtime(runtime.clone());

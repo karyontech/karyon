@@ -91,14 +91,14 @@ Kademlia posts `DiscoveryEvent`s to the node's monitor
 
 ## WASI
 
-karyon_kademlia builds for `wasm32-wasip1` and `wasm32-wasip2` with the
-`tokio` and `ring` features (`quic` and aws-lc-rs do not build for wasm).
+karyon_kademlia builds for `wasm32-wasip1` and `wasm32-wasip2` with only
+the `tokio` feature (`quic` does not build for wasm).
 Lookups dial and listen only through the node's `Config::transport`, and
 refresh pings over the lookup protocol (no UDP). See karyon_p2p's README
 for the runtime and transport.
 
 ```toml
-karyon_kademlia = { version = "0.4", default-features = false, features = ["tokio", "ring"] }
+karyon_kademlia = { version = "0.4", default-features = false, features = ["tokio"] }
 ```
 
 ## Examples
