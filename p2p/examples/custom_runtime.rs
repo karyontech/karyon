@@ -9,7 +9,7 @@
 //! # on WASI
 //! CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_p2p \
 //!     --example custom_runtime --target wasm32-wasip2 \
-//!     --no-default-features --features tokio,ring
+//!     --no-default-features --features tokio
 //! ```
 
 #[path = "support/mem_transport.rs"]
