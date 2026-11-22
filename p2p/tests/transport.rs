@@ -8,10 +8,13 @@ use std::sync::{
 use async_trait::async_trait;
 
 use karyon_core::testing::run_test_with_executor;
-use karyon_net::tcp::{self, TcpListener};
+use karyon_net::{
+    Result,
+    tcp::{self, TcpListener},
+};
 
 use karyon_p2p::{
-    ConfigBuilder, Result,
+    ConfigBuilder,
     endpoint::Endpoint,
     monitor::PeerPoolEvent,
     transport::{ByteStream, Transport, TransportListener, TransportRef},
@@ -59,7 +62,7 @@ impl TransportListener for CountingListener {
     }
 
     fn local_endpoint(&self) -> Result<Endpoint> {
-        Ok(self.inner.local_endpoint()?)
+        self.inner.local_endpoint()
     }
 }
 

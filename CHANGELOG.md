@@ -1,5 +1,44 @@
 # Changelog
 
+## karyon_p2p 2.0.0, karyon_kademlia 0.4.0, karyon_swarm 2.0.0
+
+### Breaking changes
+
+- **`karyon_p2p::transport` is karyon_net's `Transport`** (`karyon_p2p`):
+  p2p's own `Transport` and `TransportListener` are gone; the module now
+  re-exports `karyon_net::transport::{Transport, TransportListener,
+  TransportRef}` and `ByteStream`. The methods are the same; an
+  implementation now returns `karyon_net::Result`.
+- **`Connector` and `Listener` are built from a `DiscoveryContext`**
+  (`karyon_p2p`): `Connector::new(ctx, max_retries, slots)` and
+  `Listener::new(ctx, slots)`. The key pair, monitor, executor, and the
+  node config's handshake timeout, transport, QUIC runtime and access
+  control come from `ctx`. The old `new`, `new_with_transport` and
+  `new_with_config` are removed:
+  `Connector::new_with_config(&ctx.key_pair, &ctx.config, retries, slots,
+  ctx.monitor.clone(), ctx.executor.clone())` becomes
+  `Connector::new(ctx, retries, slots)`, and
+  `Listener::new_with_config(&ctx.key_pair, &ctx.config, slots, ..)`
+  becomes `Listener::new(ctx, slots)`.
+- **karyon_p2p 2.0** (`karyon_kademlia`, `karyon_swarm`): both now build
+  on karyon_p2p 2.0.
+
+### Added
+
+- **WASI build** (`karyon_p2p`, `karyon_kademlia`, `karyon_swarm`): with
+  the `tokio` and `ring` features they build for `wasm32-wasip1`/`wasip2`.
+  There are no built-in TCP, TLS or QUIC transports there: the node dials
+  and listens only through `Config::transport`, and Kademlia refreshes
+  over the lookup protocol instead of UDP. `quic` and aws-lc-rs are not
+  supported on wasm.
+- **Timers on the node's executor** (`karyon_p2p`, `karyon_kademlia`):
+  dial and handshake timeouts, backoff, pings, session setup, lookups and
+  refreshes run on the node's `Executor`, so they work on a user
+  `Runtime` (e.g. a single-thread WASI host), not only on smol or tokio.
+- **`examples/custom_runtime.rs`** (`karyon_p2p`): two nodes on a
+  single-thread runtime you supply, connected through in-memory pipes;
+  runs natively and under wasmtime.
+
 ## karyon_jsonrpc 1.4.0
 
 ### Added

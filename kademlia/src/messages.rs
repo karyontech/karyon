@@ -145,6 +145,7 @@ pub struct PeersMsg {
 
 /// Refresh-plane message sent directly over UDP. No envelope/codec
 /// because each datagram carries one self-describing message.
+#[cfg(not(target_family = "wasm"))]
 #[derive(Decode, Encode, Debug, Clone)]
 pub enum RefreshMsg {
     Ping([u8; 32]),

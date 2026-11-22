@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use log::warn;
 
+use karyon_core::async_runtime::Executor;
+
 use crate::{
     Error, PeerID,
     access_control::{AccessControlRef, Action, PeerCandidate, Subject},
@@ -47,6 +49,7 @@ pub(crate) async fn admit(
     mut conn: QueuedConn,
     registry: &ProtocolRegistry,
     config: &AdmitConfig,
+    executor: &Executor,
 ) -> Result<Admitted, Rejected> {
     // Snapshot the protocol metadata so we don't hold a lock across the
     // handshake. Drives both version negotiation and the
@@ -58,6 +61,7 @@ pub(crate) async fn admit(
         config_version: &config.version,
         protocols: &meta,
         timeout_secs: config.handshake_timeout,
+        executor,
         verified_peer_id: conn.verified_peer_id.as_ref(),
     };
     let Handshaked {

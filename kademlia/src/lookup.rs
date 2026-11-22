@@ -4,7 +4,7 @@ use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{error, trace};
 use rand::{TryRng, rngs::SysRng, seq::IndexedRandom};
 
-use karyon_core::async_util::timeout;
+use karyon_core::async_runtime::Executor;
 
 use karyon_net::{Addr, Endpoint};
 
@@ -80,6 +80,9 @@ pub struct LookupService {
 
     /// Shared local bloom. Snapshotted on every outgoing PeerMsg.
     bloom: BloomRef,
+
+    /// Runs the lookup timeouts.
+    executor: Executor,
 }
 
 /// `Arc` reference to a `LookupService`.
@@ -100,13 +103,7 @@ impl LookupService {
         let monitor = ctx.monitor.clone();
         let ex = ctx.executor.clone();
         // Lookups go through the node's transport too, if it has one.
-        let listener = Listener::new_with_config(
-            key_pair,
-            &config,
-            kconfig.lookup_inbound_slots,
-            monitor.clone(),
-            ex,
-        );
+        let listener = Listener::new(ctx, kconfig.lookup_inbound_slots);
 
         let id = key_pair
             .public()
@@ -122,6 +119,7 @@ impl LookupService {
             kconfig,
             monitor,
             bloom,
+            executor: ex,
         }
     }
 
@@ -295,7 +293,7 @@ impl LookupService {
 
         loop {
             let t = Duration::from_secs(self.kconfig.lookup_response_timeout);
-            let msg: KadNetMsg = timeout(t, conn.recv_msg()).await??;
+            let msg: KadNetMsg = self.executor.timeout(t, conn.recv_msg()).await??;
             match msg.header.command {
                 KadNetCmd::Pong => {
                     let (pong_msg, _) = decode::<PongMsg>(&msg.payload)?;
@@ -353,7 +351,9 @@ impl LookupService {
             let this = self.clone();
             |conn: KadConnRef| async move {
                 let t = Duration::from_secs(this.kconfig.lookup_connection_lifespan);
-                timeout(t, this.handle_inbound(conn)).await??;
+                this.executor
+                    .timeout(t, this.handle_inbound(conn))
+                    .await??;
                 Ok(())
             }
         };

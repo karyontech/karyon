@@ -115,13 +115,10 @@ impl KademliaDiscovery {
 
         // One lookup connector for lookups and the refresh pings, through
         // the node's transport if it has one.
-        let connector = Connector::new_with_config(
-            &ctx.key_pair,
-            &config,
+        let connector = Connector::new(
+            ctx,
             kconfig.lookup_connect_retries,
             kconfig.lookup_outbound_slots,
-            monitor.clone(),
-            ex.clone(),
         );
 
         let lookup_endpoints = LookupEndpoints {
@@ -168,7 +165,11 @@ impl KademliaDiscovery {
     /// send it as a DiscoveredPeer for the Node to connect to.
     /// If the routing table is empty, it will start the seeding process.
     async fn connect_loop(self: Arc<Self>) -> Result<()> {
-        let backoff = Backoff::new(500, self.kconfig.seeding_interval * 1000);
+        let backoff = Backoff::with_executor(
+            500,
+            self.kconfig.seeding_interval * 1000,
+            self.task_group.executor().clone(),
+        );
         loop {
             let local = self.bloom.snapshot();
             match self.table.random_entry_filtered(PENDING_ENTRY, &local) {
@@ -285,12 +286,9 @@ impl Discovery for KademliaDiscovery {
 
 /// Returns true if the endpoint can serve the Kademlia lookup service.
 fn is_lookup_proto(e: &Endpoint) -> bool {
-    if e.is_tcp() {
-        return true;
-    }
     #[cfg(feature = "quic")]
     if e.is_quic() {
         return true;
     }
-    false
+    e.is_tcp()
 }

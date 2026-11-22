@@ -94,16 +94,16 @@ async {
 
 ```toml
 # Default (tokio + TCP/TLS)
-karyon_p2p = "1.7"
+karyon_p2p = "2.0"
 
 # With QUIC
-karyon_p2p = { version = "1.7", features = ["quic"] }
+karyon_p2p = { version = "2.0", features = ["quic"] }
 
 # With smol
-karyon_p2p = { version = "1.7", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
+karyon_p2p = { version = "2.0", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
 
 # With the ring provider instead of aws-lc-rs
-karyon_p2p = { version = "1.7", default-features = false, features = ["tokio", "quic", "ring"] }
+karyon_p2p = { version = "2.0", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
 ## Architecture
@@ -140,8 +140,9 @@ Configuration uses endpoint URLs (`tcp://`, `tls://`, `quic://`); TLS
 uses self-signed certs derived from the node's keypair, and QUIC
 multiplexes one stream per protocol.
 
-To bring your own transport, implement `transport::Transport` (dial and
-listen, both give a byte stream) and set it with
+To bring your own transport, implement `karyon_net::transport::Transport`
+(re-exported as `karyon_p2p::transport`; dial and listen, both give a byte
+stream) and set it with
 `ConfigBuilder::with_transport` (or the `Config::transport` field). The node
 uses it for the endpoints it `supports` and the built-in transports for
 the others. A transport can also claim its own scheme: `Endpoint::Custom`
@@ -150,6 +151,34 @@ the others. A transport can also claim its own scheme: `Endpoint::Custom`
 streams carry the peer's karyon certificate
 (`ByteStream::peer_certificates`), the handshake checks the peer's id
 against it, as with TLS.
+
+### Runtime
+
+karyon runs on smol or tokio, picked with a feature. To run it on your
+own executor instead (e.g. a single-threaded WASI host), implement
+`karyon_core::async_runtime::Runtime` (`schedule` a task, `sleep`) and
+pass it to the node as `Executor::from(runtime)`: the node's tasks and
+timers then run on it.
+Bring the sockets with a `Transport` (see above). See
+[examples/custom_runtime.rs](examples/custom_runtime.rs): two nodes on a
+single-thread runtime, connected through in-memory pipes.
+
+### WASI
+
+karyon_p2p builds for `wasm32-wasip2` (and `wasip1`) with the `tokio` and
+`ring` features (aws-lc-rs does not build for wasm). There are no
+built-in TCP, TLS or QUIC transports there: bring your own `Runtime` and
+`Transport` as above. The example runs under wasmtime:
+
+```toml
+karyon_p2p = { version = "2.0", default-features = false, features = ["tokio", "ring"] }
+```
+
+```text
+CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_p2p \
+    --example custom_runtime --target wasm32-wasip2 \
+    --no-default-features --features tokio,ring
+```
 
 ### Discovery
 
@@ -200,4 +229,6 @@ for mutual authentication.
 ## Examples
 
 See [karyon_kademlia's examples](../kademlia/examples) for a basic peer
-node and a chat application.
+node and a chat application, and
+[examples/custom_runtime.rs](examples/custom_runtime.rs) for nodes on a
+runtime and transport you supply (also on WASI).

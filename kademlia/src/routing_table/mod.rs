@@ -217,6 +217,7 @@ impl RoutingTable {
 
     /// Returns true if any entry has a discovery address with the given IP.
     /// Used by the refresh listen loop to drop pings from unknown sources.
+    #[cfg(not(target_family = "wasm"))]
     pub fn has_discovery_ip(&self, ip: &IpAddr) -> bool {
         let buckets = self.buckets.read();
         for bucket in buckets.iter() {

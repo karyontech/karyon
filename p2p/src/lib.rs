@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(all(feature = "quic", target_family = "wasm"))]
+compile_error!("`quic` is not supported on wasm; bring the sockets with `Config::transport`.");
+
 mod access_control;
 mod admission;
 mod codec;
@@ -13,12 +16,16 @@ mod listener;
 mod message;
 mod node;
 mod peer;
+mod peer_cert;
 mod peer_events;
 mod peer_pool;
 mod protocols;
 mod queued_conn;
 mod session;
 mod sessions;
+// The built-in TLS and QUIC configs. Not on wasm, which has no built-in
+// transports.
+#[cfg(not(target_family = "wasm"))]
 mod tls_config;
 mod version;
 
@@ -31,9 +38,14 @@ pub mod monitor;
 /// Defines the protocol trait.
 /// [`Read More`](./protocol/trait.Protocol.html)
 pub mod protocol;
-/// User supplied dial and listen.
+/// User supplied dial and listen: karyon_net's `Transport`.
 /// [`Read More`](./transport/trait.Transport.html)
-pub mod transport;
+pub mod transport {
+    pub use karyon_net::{
+        ByteStream,
+        transport::{Transport, TransportListener, TransportRef},
+    };
+}
 
 pub use access_control::{
     AccessControl, AccessControlRef, Action, AllowAll, PeerCandidate, Subject,

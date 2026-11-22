@@ -60,7 +60,8 @@ With `Config::transport` set, lookups dial and listen through it too, and
 the node sends no raw UDP: the refresh service pings each entry over the
 lookup protocol instead, and the `udp://` discovery endpoint is not used.
 Without a transport, refresh uses UDP, and pings over the lookup protocol
-only entries that have no UDP address.
+only entries that have no UDP address. On wasm there is no UDP: refresh
+always pings over the lookup protocol.
 
 ## Advertised items
 
@@ -87,6 +88,18 @@ Kademlia posts `DiscoveryEvent`s to the node's monitor
 | `quic` | Lookups over QUIC too (default) |
 | `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
 | `ring` | rustls crypto provider: ring. Use with `default-features = false` |
+
+## WASI
+
+karyon_kademlia builds for `wasm32-wasip1` and `wasm32-wasip2` with the
+`tokio` and `ring` features (`quic` and aws-lc-rs do not build for wasm).
+Lookups dial and listen only through the node's `Config::transport`, and
+refresh pings over the lookup protocol (no UDP). See karyon_p2p's README
+for the runtime and transport.
+
+```toml
+karyon_kademlia = { version = "0.4", default-features = false, features = ["tokio", "ring"] }
+```
 
 ## Examples
 
