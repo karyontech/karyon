@@ -11,21 +11,20 @@ use karyon_core::{
     crypto::KeyPair,
 };
 
-use karyon_net::{ByteBuffer, ByteStream, Endpoint, FramedConn, codec::Codec, framed};
-
-#[cfg(not(target_family = "wasm"))]
 use karyon_net::{
-    ServerLayer,
-    tcp::TcpListener,
-    tls::{ServerTlsConfig, TlsLayer},
+    ByteBuffer, ByteStream, Endpoint, FramedConn, ServerLayer, codec::Codec, framed, tls::TlsLayer,
 };
 
-#[cfg(not(target_family = "wasm"))]
-use crate::tls_config::tls_server_config;
+#[cfg(feature = "quic")]
+use karyon_net::{
+    StreamMux,
+    quic::{QuicEndpoint, QuicIncoming},
+};
 
 use crate::{
-    Error, PeerID, Result,
+    PeerID, Result,
     access_control::{AccessControlRef, Action, Subject},
+    builtin_transports::BuiltinTransports,
     codec::PeerNetMsgCodec,
     config::Config,
     conn_direction::ConnDirection,
@@ -42,21 +41,16 @@ type StreamListenerRef = Arc<StreamListener>;
 /// Listener for byte-stream transports (TCP, TLS, a user `Transport`).
 /// Accepting is split in two phases: `accept` does only the cheap accept,
 /// `handshake` runs the TLS upgrade. QUIC uses a separate `StreamMux` path.
-struct StreamListener {
-    inner: Box<dyn TransportListener>,
+pub(crate) struct StreamListener {
+    pub(crate) inner: Box<dyn TransportListener>,
     /// Upgrades the accepted streams of a TLS endpoint.
-    #[cfg(not(target_family = "wasm"))]
-    tls: Option<Box<TlsLayer>>,
+    pub(crate) tls: Option<Box<TlsLayer>>,
 }
 
 impl StreamListener {
     /// A listener whose streams are used as accepted.
-    fn plain(inner: Box<dyn TransportListener>) -> Self {
-        Self {
-            inner,
-            #[cfg(not(target_family = "wasm"))]
-            tls: None,
-        }
+    pub(crate) fn plain(inner: Box<dyn TransportListener>) -> Self {
+        Self { inner, tls: None }
     }
 
     /// Kernel accept only. Returns the raw stream before any handshake.
@@ -64,19 +58,7 @@ impl StreamListener {
         Ok(self.inner.accept().await?)
     }
 
-    /// No TLS upgrade on wasm: the user transport hands over ready streams.
-    #[cfg(target_family = "wasm")]
-    async fn handshake(
-        &self,
-        stream: Box<dyn ByteStream>,
-        _handshake_timeout: Duration,
-        _executor: &Executor,
-    ) -> Result<Box<dyn ByteStream>> {
-        Ok(stream)
-    }
-
     /// TLS upgrade, if this is a TLS listener. Runs off the accept loop.
-    #[cfg(not(target_family = "wasm"))]
     async fn handshake(
         &self,
         stream: Box<dyn ByteStream>,
@@ -98,22 +80,12 @@ impl StreamListener {
         let ep = self.inner.local_endpoint()?;
         // A TLS listener is plain TCP; report the TLS scheme so peers
         // dialling this endpoint run the handshake.
-        #[cfg(not(target_family = "wasm"))]
         if self.tls.is_some() {
             return Ok(Endpoint::Tls(ep.addr()?, ep.port()?));
         }
         Ok(ep)
     }
 }
-
-#[cfg(feature = "quic")]
-use karyon_net::{
-    StreamMux, quic,
-    quic::{QuicIncoming, QuicRuntimeRef},
-};
-
-#[cfg(feature = "quic")]
-use crate::tls_config::quic_server_config;
 
 /// `Arc` reference to a `Listener`.
 pub type ListenerRef<C> = Arc<Listener<C>>;
@@ -123,9 +95,8 @@ pub type ListenerRef<C> = Arc<Listener<C>>;
 /// machinery serves the peer data-plane (`PeerNetMsgCodec`) and a
 /// discovery's own messages.
 pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
-    /// For the built-in TLS and QUIC configs; none on wasm.
-    #[cfg(not(target_family = "wasm"))]
-    key_pair: KeyPair,
+    /// Listens on the endpoints `transport` does not support.
+    builtin: BuiltinTransports,
     task_group: TaskGroup,
     connection_slots: Semaphore,
     /// Hands accepted connections to the PeerPool. Only on the Node's
@@ -137,9 +108,6 @@ pub struct Listener<C: Codec<ByteBuffer> + Default + Clone> {
     /// Listens on the endpoints it supports instead of the built-in
     /// transports.
     transport: Option<TransportRef>,
-    /// Runs the built-in QUIC (see `Config::quic_runtime`).
-    #[cfg(feature = "quic")]
-    quic_runtime: Option<QuicRuntimeRef>,
     _codec: PhantomData<C>,
 }
 
@@ -171,12 +139,12 @@ where
         monitor: MonitorRef,
         ex: Executor,
     ) -> ListenerRef<C> {
-        // No built-in TLS or QUIC on wasm, so the key pair is not kept.
-        #[cfg(target_family = "wasm")]
-        let _ = key_pair;
         Arc::new(Self {
-            #[cfg(not(target_family = "wasm"))]
-            key_pair: key_pair.clone(),
+            builtin: BuiltinTransports::new(
+                key_pair,
+                #[cfg(feature = "quic")]
+                config.quic_runtime.clone(),
+            ),
             connection_slots: Semaphore::new(slots),
             conn_queue,
             task_group: TaskGroup::with_executor(ex),
@@ -184,8 +152,6 @@ where
             handshake_timeout: Duration::from_secs(config.handshake_timeout),
             access_control: config.access_control.clone(),
             transport: config.transport.clone(),
-            #[cfg(feature = "quic")]
-            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -332,31 +298,13 @@ where
         }
     }
 
-    /// Create a listener for TCP/TLS.
+    /// Listen with the user transport if it supports `endpoint`, else
+    /// with the built-in TCP or TLS.
     async fn listen(&self, endpoint: &Endpoint) -> Result<StreamListener> {
         if let Some(transport) = self.transport.as_ref().filter(|t| t.supports(endpoint)) {
             return Ok(StreamListener::plain(transport.listen(endpoint).await?));
         }
-
-        match endpoint {
-            #[cfg(not(target_family = "wasm"))]
-            Endpoint::Tcp(..) => {
-                let listener = TcpListener::bind(endpoint, Default::default()).await?;
-                Ok(StreamListener::plain(Box::new(listener)))
-            }
-            #[cfg(not(target_family = "wasm"))]
-            Endpoint::Tls(..) => {
-                let tls_config = ServerTlsConfig {
-                    server_config: tls_server_config(&self.key_pair)?,
-                };
-                let tcp_listener = TcpListener::bind(endpoint, Default::default()).await?;
-                Ok(StreamListener {
-                    inner: Box::new(tcp_listener),
-                    tls: Some(Box::new(TlsLayer::server(tls_config))),
-                })
-            }
-            _ => Err(Error::UnsupportedEndpoint(endpoint.to_string())),
-        }
+        self.builtin.listen(endpoint).await
     }
 }
 
@@ -516,14 +464,10 @@ impl Listener<PeerNetMsgCodec> {
         self: &ListenerRef<PeerNetMsgCodec>,
         endpoint: Endpoint,
     ) -> Result<Endpoint> {
-        let rustls_config = quic_server_config(&self.key_pair)?;
-        let mut server_config = quic::ServerQuicConfig::from_rustls(rustls_config)
-            .with_executor(self.task_group.executor().clone());
-        if let Some(runtime) = &self.quic_runtime {
-            server_config = server_config.with_runtime(runtime.clone());
-        }
-
-        let quic_endpoint = match quic::QuicEndpoint::listen(&endpoint, server_config).await {
+        let server_config = self
+            .builtin
+            .quic_server_config(self.task_group.executor())?;
+        let quic_endpoint = match QuicEndpoint::listen(&endpoint, server_config).await {
             Ok(ep) => {
                 self.monitor
                     .notify(ConnectionKind::Listening(endpoint.clone()))
@@ -539,7 +483,7 @@ impl Listener<PeerNetMsgCodec> {
             }
         };
 
-        let resolved: Endpoint = quic_endpoint.local_endpoint().map_err(Error::from)?;
+        let resolved = quic_endpoint.local_endpoint()?;
         info!("Start listening on {resolved}");
 
         self.task_group.spawn_then(
@@ -557,10 +501,7 @@ impl Listener<PeerNetMsgCodec> {
 
     /// QUIC accept loop.
     #[cfg(feature = "quic")]
-    async fn listen_loop_quic(
-        self: ListenerRef<PeerNetMsgCodec>,
-        quic_endpoint: quic::QuicEndpoint,
-    ) {
+    async fn listen_loop_quic(self: ListenerRef<PeerNetMsgCodec>, quic_endpoint: QuicEndpoint) {
         let conn_queue = self.conn_queue();
 
         loop {

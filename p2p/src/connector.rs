@@ -10,16 +10,14 @@ use karyon_core::{
     async_util::{Backoff, TaskGroup},
     crypto::KeyPair,
 };
-use karyon_net::{ByteBuffer, Endpoint, FramedConn, codec::Codec, framed};
+use karyon_net::{ByteBuffer, ByteStream, Endpoint, FramedConn, codec::Codec, framed};
 
-#[cfg(not(target_family = "wasm"))]
-use karyon_net::{
-    ClientLayer, tcp,
-    tls::{ClientTlsConfig, TlsLayer},
-};
+#[cfg(feature = "quic")]
+use karyon_net::quic::QuicConn;
 
 use crate::{
     Error, PeerID, Result,
+    builtin_transports::BuiltinTransports,
     codec::PeerNetMsgCodec,
     config::Config,
     conn_direction::ConnDirection,
@@ -30,31 +28,14 @@ use crate::{
     transport::TransportRef,
 };
 
-#[cfg(feature = "quic")]
-use karyon_net::{
-    StreamMux,
-    quic::{self, QuicRuntimeRef},
-};
-
-#[cfg(feature = "quic")]
-use crate::tls_config::quic_client_config;
-
-#[cfg(not(target_family = "wasm"))]
-use crate::tls_config::tls_client_config;
-
-#[cfg(not(target_family = "wasm"))]
-static DNS_NAME: &str = "karyontech.net";
-
-/// Internal dial result. Generic over the codec used to frame the
-/// resulting connection. Carries the optional cert-derived PeerID so
-/// the caller can stamp it on the QueuedConn for the application
-/// handshake to enforce.
-enum DialResult<C: Codec<ByteBuffer> + Default + Clone> {
-    /// TCP or TLS: a framed connection.
-    Channel(FramedConn<C>, Option<PeerID>),
-    /// QUIC: handshake stream + full QUIC connection.
+/// Internal dial result: the stream, not framed yet, and the peer id its
+/// certificate proves, which the handshake then enforces.
+pub(crate) enum DialResult {
+    /// TCP, TLS or a user transport: one stream.
+    Channel(Box<dyn ByteStream>, Option<PeerID>),
+    /// QUIC: the handshake stream and the QUIC connection.
     #[cfg(feature = "quic")]
-    Quic(FramedConn<C>, quic::QuicConn, Option<PeerID>),
+    Quic(Box<dyn ByteStream>, QuicConn, Option<PeerID>),
 }
 
 /// `Arc` reference to a `Connector`.
@@ -65,9 +46,8 @@ pub type ConnectorRef<C> = Arc<Connector<C>>;
 /// (TLS, retries, slots, monitor events) serves both the peer
 /// data-plane (`PeerNetMsgCodec`) and a discovery's own messages.
 pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
-    /// For the built-in TLS and QUIC configs; none on wasm.
-    #[cfg(not(target_family = "wasm"))]
-    key_pair: KeyPair,
+    /// Dials the endpoints `transport` does not support.
+    builtin: BuiltinTransports,
     task_group: TaskGroup,
     connection_slots: Semaphore,
     max_retries: usize,
@@ -78,9 +58,6 @@ pub struct Connector<C: Codec<ByteBuffer> + Default + Clone> {
     conn_queue: Option<ConnQueueRef>,
     /// Dials the endpoints it supports instead of the built-in transports.
     transport: Option<TransportRef>,
-    /// Runs the built-in QUIC (see `Config::quic_runtime`).
-    #[cfg(feature = "quic")]
-    quic_runtime: Option<QuicRuntimeRef>,
     monitor: MonitorRef,
     _codec: PhantomData<C>,
 }
@@ -114,12 +91,12 @@ where
         monitor: MonitorRef,
         ex: Executor,
     ) -> ConnectorRef<C> {
-        // No built-in TLS or QUIC on wasm, so the key pair is not kept.
-        #[cfg(target_family = "wasm")]
-        let _ = key_pair;
         Arc::new(Self {
-            #[cfg(not(target_family = "wasm"))]
-            key_pair: key_pair.clone(),
+            builtin: BuiltinTransports::new(
+                key_pair,
+                #[cfg(feature = "quic")]
+                config.quic_runtime.clone(),
+            ),
             max_retries,
             dial_timeout: Duration::from_secs(config.handshake_timeout),
             task_group: TaskGroup::with_executor(ex),
@@ -127,8 +104,6 @@ where
             connection_slots: Semaphore::new(slots),
             conn_queue,
             transport: config.transport.clone(),
-            #[cfg(feature = "quic")]
-            quic_runtime: config.quic_runtime.clone(),
             _codec: PhantomData,
         })
     }
@@ -145,12 +120,12 @@ where
         peer_id: &Option<PeerID>,
     ) -> Result<(FramedConn<C>, SemaphoreGuard)> {
         let slot = self.acquire_slot().await?;
-        let result = self.connect_internal(endpoint, peer_id).await?;
-        match result {
-            DialResult::Channel(conn, _) => Ok((conn, slot)),
+        let stream = match self.connect_internal(endpoint, peer_id).await? {
+            DialResult::Channel(stream, _) => stream,
             #[cfg(feature = "quic")]
-            DialResult::Quic(conn, _, _) => Ok((conn, slot)),
-        }
+            DialResult::Quic(stream, _, _) => stream,
+        };
+        Ok((framed(stream, C::default()), slot))
     }
 
     /// Wait for a free connection slot.
@@ -164,7 +139,7 @@ where
         &self,
         endpoint: &Endpoint,
         peer_id: &Option<PeerID>,
-    ) -> Result<DialResult<C>> {
+    ) -> Result<DialResult> {
         let mut retry = 0;
         let ex = self.task_group.executor();
         let backoff = Backoff::with_executor(500, 2000, ex.clone());
@@ -201,83 +176,25 @@ where
         Err(Error::Timeout)
     }
 
-    /// Dial, selecting transport based on endpoint type.
-    async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<DialResult<C>> {
+    /// Dial with the user transport if it supports `endpoint`, else with
+    /// the built-in ones.
+    async fn dial(&self, endpoint: &Endpoint, peer_id: &Option<PeerID>) -> Result<DialResult> {
         if let Some(transport) = self.transport.as_ref().filter(|t| t.supports(endpoint)) {
             let stream = transport.dial(endpoint).await?;
             let vpid = stream
                 .peer_certificates()
                 .as_deref()
                 .and_then(peer_id_from_certs);
-            return Ok(DialResult::Channel(framed(stream, C::default()), vpid));
+            return Ok(DialResult::Channel(stream, vpid));
         }
 
-        self.dial_builtin(endpoint, peer_id).await
-    }
-
-    /// Dial with the built-in TCP, TLS or QUIC.
-    #[cfg(not(target_family = "wasm"))]
-    async fn dial_builtin(
-        &self,
-        endpoint: &Endpoint,
-        peer_id: &Option<PeerID>,
-    ) -> Result<DialResult<C>> {
-        match endpoint {
-            Endpoint::Tcp(..) => {
-                let stream = tcp::connect(endpoint, Default::default()).await?;
-                let conn = framed(stream, C::default());
-                Ok(DialResult::Channel(conn, None))
-            }
-            Endpoint::Tls(..) => {
-                let tls_config = ClientTlsConfig {
-                    client_config: tls_client_config(&self.key_pair, peer_id.clone())?,
-                    dns_name: DNS_NAME.to_string(),
-                };
-                let stream = tcp::connect(endpoint, Default::default()).await?;
-                let tls_layer = TlsLayer::client(tls_config);
-                let tls_stream = ClientLayer::handshake(&tls_layer, stream).await?;
-                // Extract the peer cert before framing consumes the stream.
-                let vpid = tls_stream
-                    .peer_certificates()
-                    .as_deref()
-                    .and_then(peer_id_from_certs);
-                let conn = framed(tls_stream, C::default());
-                Ok(DialResult::Channel(conn, vpid))
-            }
-            #[cfg(feature = "quic")]
-            Endpoint::Quic(..) => {
-                let rustls_config = quic_client_config(&self.key_pair, peer_id.clone())?;
-                let mut client_config =
-                    quic::ClientQuicConfig::from_rustls(rustls_config, DNS_NAME)
-                        .with_executor(self.task_group.executor().clone());
-                if let Some(runtime) = &self.quic_runtime {
-                    client_config = client_config.with_runtime(runtime.clone());
-                }
-                let quic_conn = quic::QuicEndpoint::dial(endpoint, client_config).await?;
-
-                let vpid = quic_conn
-                    .peer_certificates()
-                    .as_deref()
-                    .and_then(peer_id_from_certs);
-
-                // First stream for handshake via StreamMux.
-                let stream = quic_conn.open_stream().await?;
-                let conn = framed(stream, C::default());
-
-                Ok(DialResult::Quic(conn, quic_conn, vpid))
-            }
-            _ => Err(Error::UnsupportedEndpoint(endpoint.to_string())),
+        #[cfg(feature = "quic")]
+        if endpoint.is_quic() {
+            let ex = self.task_group.executor();
+            return self.builtin.dial_quic(endpoint, peer_id, ex).await;
         }
-    }
 
-    /// wasm has no built-in transports: only `Config::transport` dials.
-    #[cfg(target_family = "wasm")]
-    async fn dial_builtin(
-        &self,
-        endpoint: &Endpoint,
-        _peer_id: &Option<PeerID>,
-    ) -> Result<DialResult<C>> {
-        Err(Error::UnsupportedEndpoint(endpoint.to_string()))
+        self.builtin.dial(endpoint, peer_id).await
     }
 }
 
@@ -318,9 +235,14 @@ impl Connector<PeerNetMsgCodec> {
         })?;
 
         let conn = match self.connect_internal(endpoint, peer_id).await? {
-            DialResult::Channel(conn, vpid) => QueuedConn::new(conn, ConnDirection::Outbound, vpid),
+            DialResult::Channel(stream, vpid) => QueuedConn::new(
+                framed(stream, PeerNetMsgCodec::new()),
+                ConnDirection::Outbound,
+                vpid,
+            ),
             #[cfg(feature = "quic")]
-            DialResult::Quic(conn, quic_conn, vpid) => {
+            DialResult::Quic(stream, quic_conn, vpid) => {
+                let conn = framed(stream, PeerNetMsgCodec::new());
                 QueuedConn::new(conn, ConnDirection::Outbound, vpid).map(|c| c.with_quic(quic_conn))
             }
         };
