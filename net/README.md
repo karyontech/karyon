@@ -99,13 +99,13 @@ karyon_net = { version = "2.5", default-features = false, features = ["tokio", "
 
 ## Core Traits and Types
 
-- **ByteStream** - byte-oriented bidirectional stream (`AsyncRead + AsyncWrite`), with `peer_endpoint`, `local_endpoint` and `peer_certificates` (TLS, QUIC)
+- **ByteStream** - byte-oriented bidirectional stream (`AsyncRead + AsyncWrite`), with `peer_endpoint`, `local_endpoint` and `peer_certificates` (TLS). For QUIC, use `QuicConn::peer_certificates`
 - **Codec\<W\>** - encodes and decodes messages from a wire type (`ByteBuffer` for byte streams, `ws::Message` for WebSocket). Built-in: `LengthCodec` (u32 length prefix), `BytesCodec` (raw bytes)
 - **ClientLayer / ServerLayer** - composable async middleware (TLS, WebSocket, SOCKS5 proxy)
 - **StreamMux** - multiplexed connection yielding multiple streams (QUIC)
 - **FramedConn\<C\>** - message connection over a byte stream and codec: `recv_msg()`, `send_msg()`, `close()`, `split()`
 - **FramedReader\<C\> / FramedWriter\<C\>** - split halves for concurrent use
-- **WsConn\<C\>** - WebSocket message connection and codec, same API as `FramedConn`
+- **WsConn\<C\>** - WebSocket message connection and codec: `recv_msg()`, `send_msg()`, `split()`
 - **WsReader\<C\> / WsWriter\<C\>** - split halves of a `WsConn`
 - **MessageRx / MessageTx** - read and write traits implemented by the framed and WebSocket halves, for code generic over both
 - **framed()** - creates a `FramedConn` from `Box<dyn ByteStream>` and a codec

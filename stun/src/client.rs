@@ -52,8 +52,8 @@ const STREAM_TIMEOUT_SECS: u64 = 5;
 /// STUN binding client. Asks a STUN server for this host's public
 /// address as seen from outside the NAT.
 ///
-/// The server endpoint must use an IP address (`udp://`, `tcp://`,
-/// `tls://` or `quic://`); hostname resolution is up to the caller.
+/// The server endpoint is `udp://`, `tcp://`, `tls://` or `quic://`.
+/// A hostname is resolved through the system DNS.
 /// TLS and QUIC need a client config, see `with_tls` and `with_quic`.
 pub struct StunClient {
     server: Endpoint,

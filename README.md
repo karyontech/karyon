@@ -39,7 +39,8 @@ features and enable the `smol` feature.
 
 You can run the crates on your own runtime and over your own transport,
 instead of tokio or smol and OS sockets. This is how they build for WASI
-(`wasm32-wasip1`/`wasip2`). All but karyon_stun do. See each crate's README.
+(`wasm32-wasip1`/`wasip2`). Every crate except karyon_stun builds for WASI.
+See each crate's README.
 
 ## Docs
 
