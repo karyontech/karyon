@@ -62,8 +62,7 @@ async {
 };
 ```
 
-The server endpoint must use an IP address. Hostname resolution is up to the caller. Over UDP,
-`discover_from(local)` binds the query socket to `local`, to learn the public mapping of that
+Over UDP, `discover_from(local)` binds the query socket to `local`, to learn the public mapping of that
 socket.
 
 TLS and QUIC take a karyon_net config on both sides. Set `StunConfig::tls_endpoint` or

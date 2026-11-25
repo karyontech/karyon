@@ -199,8 +199,10 @@ The endpoint URL passed to `ServerBuilder::new` or `ClientBuilder::new` selects 
 | `unix://` | Unix socket, Unix targets only | |
 
 TCP, TLS, WebSocket, and Unix use one framed connection per client, shared by concurrent calls
-and subscriptions. Responses are matched by request id. QUIC opens a bidirectional stream per call.
-A subscription's stream carries its notifications and its unsubscribe request.
+and subscriptions. The connection is split into a reader and a writer (`FramedReader` and
+`FramedWriter`), so requests and responses flow concurrently. Responses are matched by request id.
+QUIC opens a bidirectional stream per call through `StreamMux`. A subscription's stream carries its
+notifications and its unsubscribe request.
 
 **HTTP**
 
@@ -212,8 +214,8 @@ The client uses HTTP/1.1 by default. Set `HttpConfig { http2: true, .. }` with
 `ClientBuilder::quic_config` switches to HTTP/3 and takes priority over `http2`. `HttpConfig::host`
 sets the `Host` header for HTTP/1.1.
 
-Subscriptions work over HTTP/3 only, with notifications streamed on the open response. Over
-HTTP/1.1 and HTTP/2, `subscribe` and `unsubscribe` return `Error::UnsupportedProtocol`.
+Subscriptions work over HTTP/3 only, with notifications streamed as DATA frames on the open
+response. Over HTTP/1.1 and HTTP/2, `subscribe` returns `Error::UnsupportedProtocol`.
 
 QUIC and HTTP/3 connections run on the executor set with `with_executor`, or the global one if none
 is set. A runtime set with `with_runtime` on the QUIC config takes priority.
@@ -239,8 +241,9 @@ Server:
 
 `JsonCodec` is the default, with a 4 MB max payload. `JsonCodec::new` sets another limit.
 
-For another wire format, implement `Codec<ByteBuffer>` with `Message = serde_json::Value` and pass
-it to `ServerBuilder::new_with_codec` or `ClientBuilder::new_with_codec`. It is used for TCP, TLS,
+For another wire format, implement `Codec<ByteBuffer>` with `Message = serde_json::Value` and
+`Error = karyon_net::Error`. The type must also be `Clone + Send + Sync + 'static`, which makes it
+a `codec::JsonRpcCodec`. Pass it to `ServerBuilder::new_with_codec` or `ClientBuilder::new_with_codec`. It is used for TCP, TLS,
 Unix, QUIC, and HTTP. WebSocket endpoints use a separate codec over WebSocket messages, set with
 `with_ws_codec`. Over HTTP, set `HttpConfig::content_type` to match the codec.
 

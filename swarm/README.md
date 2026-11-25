@@ -29,7 +29,7 @@ use karyon_swarm::Swarm;
 async {
     let key_pair = KeyPair::generate(&KeyPairType::Ed25519);
 
-    // `Node::new` only dials `Config::dial_peers`; use karyon_kademlia
+    // `Node::new` only dials `Config::dial_peers`. Use karyon_kademlia
     // (`Node::with_discovery`) to find peers that share a swarm.
     let node = Node::new(&key_pair, Config::default(), global_executor());
     let swarm = Swarm::new(node, global_executor());
@@ -43,7 +43,7 @@ async {
 
     swarm.run().await.expect("run swarm");
 
-    // Send a message to all peers in the "general" chat swarm.
+    // Send a message to all peers in the chat swarm.
     // swarm.broadcast(&chat_key, msg_bytes).await;
 
     // Connected peers currently in this swarm.

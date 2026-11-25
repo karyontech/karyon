@@ -117,7 +117,7 @@ use karyon_core::async_runtime::{Executor, Runnable, Runtime, RuntimeRef, SleepF
 struct MyRuntime;
 
 impl Runtime for MyRuntime {
-    // karyon hands every task here; run it on your executor.
+    // karyon hands every task here. Run it on your executor.
     fn schedule(&self, runnable: Runnable) {
         my_spawn(move || {
             runnable.run();

@@ -15,9 +15,9 @@ pub trait ByteStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {
     fn peer_endpoint(&self) -> Option<Endpoint>;
     /// Local address, if available.
     fn local_endpoint(&self) -> Option<Endpoint>;
-    /// Peer certificate chain when the underlying transport authenticates
-    /// the peer with X.509 (TLS, QUIC). Returns `None` for plain
-    /// TCP/Unix and other unauthenticated transports.
+    /// Peer certificate chain when the stream authenticates the peer with
+    /// X.509 (TLS). Returns `None` for other streams, QUIC streams included.
+    /// For QUIC, use `QuicConn::peer_certificates`.
     #[cfg(any(feature = "tls", feature = "quic"))]
     fn peer_certificates(&self) -> Option<Vec<CertificateDer<'static>>> {
         None

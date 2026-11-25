@@ -30,7 +30,7 @@ pub struct KademliaConfig {
     ///
     /// Kademlia needs two sockets that serve different roles:
     /// - one stream endpoint for the lookup service
-    ///   (`tcp://`, `tls://`, or `quic://` when the `quic` feature is on).
+    ///   (`tcp://`, or `quic://` when the `quic` feature is on).
     ///   Handles short-lived FIND_NODE / Ping queries from other peers.
     /// - one `udp://` endpoint for the refresh service.
     ///   Handles UDP liveness pings against routing-table entries.

@@ -117,8 +117,11 @@ karyon_p2p = { version = "2.1", default-features = false, features = ["smol", "q
 karyon_p2p = { version = "2.1", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
-TLS and QUIC use a configurable rustls `CryptoProvider` (`Config::crypto_provider`), defaulting
-to aws-lc-rs, ring, or the process default. QUIC requires a provider feature, TLS does not.
+The built-in TLS and QUIC use the rustls `CryptoProvider` set in `Config::crypto_provider` (or
+`ConfigBuilder::with_crypto_provider`). When it is `None`, they use the provider of the `aws-lc-rs`
+or `ring` feature, or without either the process default (`CryptoProvider::install_default`). The
+provider must have the TLS 1.3 ChaCha20-Poly1305 suite (and AES-128-GCM for QUIC), X25519, and
+Ed25519 keys. TLS works with no provider feature, `quic` needs one of them.
 
 ## Architecture
 
