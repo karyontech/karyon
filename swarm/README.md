@@ -1,41 +1,22 @@
 # Karyon Swarm
 
-A swarm layer on top of [karyon_p2p](https://crates.io/crates/karyon_p2p)
-for protocol-aware peer groups, with BitTorrent-style swarm-keyed
-discovery.
+Protocol-aware peer groups (swarms) for [karyon_p2p](https://crates.io/crates/karyon_p2p) in Rust,
+with BitTorrent-style swarm-keyed peer discovery.
 
-Each swarm is identified by a `SwarmKey` derived from a protocol id and
-an instance name (e.g. `("ChatProto", "general")`). Peers with different
-protocol sets can coexist; peers are automatically assigned to the
-swarms they support based on their negotiated protocols.
+Each swarm is identified by a `SwarmKey`, a hash of a protocol ID and an optional instance name.
+Peers with different protocol sets can coexist, and each connected peer is added to every swarm
+whose protocol it negotiated.
+
+Use cases:
+
+- Several p2p applications or protocols on one node, each with its own peer group
+- Rooms, topics, or channels inside one protocol
+- Broadcast to the members of one group, and find them with karyon_kademlia
 
 ## Install
 
 ```bash
-$ cargo add karyon_swarm
-```
-
-## Feature Flags
-
-| Feature | Description |
-|---------|-------------|
-| `tokio` | Use tokio async runtime (default) |
-| `smol` | Use smol async runtime |
-| `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
-| `ring` | rustls crypto provider: ring. Use with `default-features = false` |
-
-```toml
-karyon_swarm = "2.0"
-```
-
-### WASI
-
-karyon_swarm builds for `wasm32-wasip1` and `wasm32-wasip2` with only
-the `tokio` feature, on a karyon_p2p node with your own runtime
-and transport (see karyon_p2p's README).
-
-```toml
-karyon_swarm = { version = "2.0", default-features = false, features = ["tokio"] }
+$ cargo add karyon_p2p karyon_swarm
 ```
 
 ## Example
@@ -72,19 +53,53 @@ async {
 };
 ```
 
+`Swarm::new(node, ex)` wraps a node. Its membership task runs on `ex`. `run` starts the node and
+tracks peer events. `shutdown` stops both.
+
+## Swarms
+
+`join` attaches a protocol and returns its key, `sha256(protocol_id)`. `join_with_instance` adds an
+instance name for sub-groups inside one protocol, such as chat rooms or topics:
+`sha256(protocol_id + ":" + instance)`. `swarm_key_from_protocol` and `compute_swarm_key` compute
+the same keys.
+
+Joining also advertises the key as `ProtocolFlags::PREFERRED` through `Node::advertise`, so a
+discovery such as karyon_kademlia picks peers that share a swarm. Peers already connected that speak
+the protocol are added right away.
+
+`broadcast` sends to the connected peers of one swarm. `peers` and `peers_len` return its members.
+`leave` drops local membership only. The protocol stays attached and the key stays advertised.
+
+## Feature Flags
+
+| Feature | Description |
+|---------|-------------|
+| `tokio` | Use tokio async runtime (default) |
+| `smol` | Use smol async runtime |
+| `aws-lc-rs` | Default rustls crypto provider: aws-lc-rs (default) |
+| `ring` | Default rustls crypto provider: ring. Use with `default-features = false` |
+
+The provider features are passed to karyon_p2p.
+
+```toml
+karyon_swarm = "2.0"
+```
+
+## WASI
+
+karyon_swarm builds for `wasm32-wasip1` and `wasm32-wasip2` with only the `tokio` feature, on a
+karyon_p2p node with your own runtime and transport (see karyon_p2p's README).
+
+```toml
+karyon_swarm = { version = "2.0", default-features = false, features = ["tokio"] }
+```
+
 ## Limitations
 
-**Late `join` does not actively reshape the connection pool.** The
-connector fills outbound slots at startup based on the local node's
-state at that moment. If you call `swarm.join(...)` *after*
-`swarm.run()`, the slots are already occupied by peers picked under the
-previous state; the new swarm only gains members as those existing
-connections churn (timeout, ping fail, explicit shutdown). On a stable
-network this can leave a freshly-joined swarm empty for a long time.
+A late `join` does not reshape the connection pool. The connector fills outbound slots based on the
+node's state at that time. If you call `join` after `run`, the slots are already taken by peers
+picked earlier, and the new swarm only gains members as those connections churn (timeout, failed
+ping, shutdown). On a stable network a late swarm can stay empty for a long time.
 
-Recommended pattern today: register every swarm via `swarm.join(...)`
-*before* calling `swarm.run()`.
-
-A future release will add proactive dialing for late joins (and
-optionally eviction of non-member peers to make room) so swarm
-membership can be reshaped at runtime without restarting the node.
+Call `join` for every swarm before `run`. Proactive dialing for late joins, and optionally evicting
+non-member peers, is planned for a future release.

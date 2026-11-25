@@ -12,10 +12,12 @@
 [![karyon_net crates.io](https://img.shields.io/crates/v/karyon_net?label=karyon_net%20crates.io)](https://crates.io/crates/karyon_net)
 [![karyon_eventemitter crates.io](https://img.shields.io/crates/v/karyon_eventemitter?label=karyon_eventemitter%20crates.io)](https://crates.io/crates/karyon_eventemitter)
 
-A set of composable Rust crates for networking, peer-to-peer systems, and decentralized software.
+Composable async Rust crates for networking, peer-to-peer (p2p) networks, JSON-RPC, and
+decentralized applications: a p2p node with Kademlia DHT discovery and swarms, STUN for NAT
+traversal, a JSON-RPC 2.0 server and client, a layered transport stack, and a typed event emitter.
 
-All crates support both tokio (default) and smol. To use smol, disable
-default features and enable the `smol` feature.
+Crates that need an async runtime support tokio (default) and smol. To use smol, disable default
+features and enable the `smol` feature.
 
 [Website](https://karyontech.net/) | [Discord](https://discord.gg/xuXRcrkz3p) | [irc](https://libera.chat/) #karyon on liberachat
 
@@ -24,20 +26,20 @@ default features and enable the `smol` feature.
 
 ## Crates
 
-- **[karyon_core](./core)**: Core utilities and shared foundational components.
+- **[karyon_core](./core)**: Async runtime abstraction (tokio, smol, or custom), executors, and shared utilities.
 - **[karyon_net](./net)**: Layered networking stack over TCP, QUIC, UDP, and Unix sockets, with composable layers for TLS, WebSocket, and SOCKS5.
 - **[karyon_p2p](./p2p)**: Extensible peer-to-peer networking stack with pluggable discovery, pluggable custom protocols, and support for TCP, TLS, and QUIC.
-- **[karyon_kademlia](./kademlia)**: Kademlia DHT discovery for the p2p layer: routing table, lookups through bootstrap peers, and UDP liveness refreshes.
-- **[karyon_swarm](./swarm)**: Builds on the p2p layer with protocol-aware swarms and BitTorrent-style swarm-keyed discovery for scalable decentralized peer coordination.
+- **[karyon_kademlia](./kademlia)**: Kademlia DHT peer discovery for the p2p layer: routing table, lookups from bootstrap peers, and liveness refreshes over UDP or the lookup protocol.
+- **[karyon_swarm](./swarm)**: Protocol-aware peer groups on top of the p2p layer, with BitTorrent-style swarm-keyed discovery.
 - **[karyon_stun](./stun)**: Minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) server and client over UDP, TCP, TLS, and QUIC (karyon extension), so peers behind NAT can discover their public address.
 - **[karyon_jsonrpc](./jsonrpc)**: Lightweight async [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation running over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets.
-- **[karyon_eventemitter](./utils/eventemitter)**: Lightweight asynchronous event emitter for strongly typed pub/sub communication.
+- **[karyon_eventemitter](./utils/eventemitter)**: Lightweight, typed async event emitter for pub/sub and message dispatch.
 
 ## Custom Runtime, Transport and WASI
 
 You can run the crates on your own runtime and over your own transport,
 instead of tokio or smol and OS sockets. This is how they build for WASI
-(`wasm32-wasip1`/`wasip2`), all but karyon_stun do. See each crate's README.
+(`wasm32-wasip1`/`wasip2`). All but karyon_stun do. See each crate's README.
 
 ## Docs
 

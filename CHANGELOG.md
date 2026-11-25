@@ -1,5 +1,14 @@
 # Changelog
 
+## karyon_core 2.0.1, karyon_net 2.5.1, karyon_async_rustls 1.2.1, karyon_jsonrpc 1.4.1, karyon_jsonrpc_macro 1.1.1, karyon_p2p 2.1.1, karyon_kademlia 0.4.2, karyon_swarm 2.0.2, karyon_stun 0.4.1, karyon_eventemitter 1.0.5, karyon_eventemitter_macro 1.0.3
+
+### Docs
+
+- **READMEs rewritten and brought up to date** (all crates): custom
+  transport and runtime, WASI, crypto provider, QUIC runtime, clean close
+  and `FramedConn::close`, and the p2p layer table (Connector and
+  Listener use `Config::transport` before the built-in transports).
+
 ## karyon_p2p 2.1.0, karyon_kademlia 0.4.1, karyon_swarm 2.0.1
 
 ### Added

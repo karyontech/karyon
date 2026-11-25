@@ -1,10 +1,18 @@
 # karyon stun
 
-A minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) server and
-client, built on [karyon_net](https://crates.io/crates/karyon_net). Lets
-peers behind NAT discover their public address. Runs over UDP, TCP, TLS
-and QUIC: the first three per RFC 5389, QUIC as a karyon extension (see
+A minimal async [STUN](https://www.rfc-editor.org/rfc/rfc5389) (RFC 5389) server and client in
+Rust, built on [karyon_net](https://crates.io/crates/karyon_net). Peers behind NAT use it to
+discover their public IP address and port.
+
+It runs over UDP, TCP, and TLS per RFC 5389, and over QUIC as a karyon extension (see
 [STUN over QUIC](#stun-over-quic)).
+
+Use cases:
+
+- Learn a node's public address before advertising it, e.g. `KademliaConfig::public_ip` in
+  karyon_kademlia
+- Run a STUN server for your own peers
+- Query standard STUN servers over UDP, TCP, or TLS
 
 ## Install
 
@@ -36,6 +44,10 @@ async {
 };
 ```
 
+The server is stateless. It replies to each Binding Request with the source address it saw.
+Endpoints left as `None` are not served. `run` binds every configured endpoint before it returns
+and serves in background tasks.
+
 ### Client
 
 ```rust,no_run
@@ -50,17 +62,18 @@ async {
 };
 ```
 
-TLS and QUIC take a karyon_net config on both sides: set
-`StunConfig::tls_endpoint` / `quic_endpoint` on the server, and call
-`StunClient::with_tls` / `with_quic` on the client.
+The server endpoint must use an IP address. Hostname resolution is up to the caller. Over UDP,
+`discover_from(local)` binds the query socket to `local`, to learn the public mapping of that
+socket.
+
+TLS and QUIC take a karyon_net config on both sides. Set `StunConfig::tls_endpoint` or
+`quic_endpoint` on the server, and call `StunClient::with_tls` or `with_quic` on the client.
 
 ## STUN over QUIC
 
-karyon_stun can also serve and query STUN over QUIC.
-
-QUIC is not part of RFC 5389/8489: it is a karyon extension (STUN
-messages on one QUIC bidirectional stream). It works between karyon
-servers and clients; standard STUN servers and clients do not speak it.
+QUIC is not part of RFC 5389 or 8489. It is a karyon extension that carries STUN messages on one
+QUIC bidirectional stream. It works between karyon servers and clients only. Standard STUN servers
+and clients do not speak it.
 
 ```rust,no_run
 # use karyon_core::async_runtime::global_executor;
@@ -96,6 +109,8 @@ println!("public address: {public_addr}");
 | `aws-lc-rs` | rustls crypto provider: aws-lc-rs (default) |
 | `ring` | rustls crypto provider: ring. Use with `default-features = false` |
 
+`quic` needs one of the provider features.
+
 ```toml
 # Default (tokio + UDP/TCP/TLS/QUIC)
 karyon_stun = "0.4"
@@ -107,14 +122,17 @@ karyon_stun = { version = "0.4", default-features = false, features = ["tokio", 
 karyon_stun = { version = "0.4", default-features = false, features = ["smol", "udp", "tcp", "tls"] }
 ```
 
+karyon_stun does not build for wasm.
+
 ## Scope
 
-Implements the useful subset of RFC 5389:
+It implements the useful subset of RFC 5389:
 
-- Binding Request / Response / Error Response
+- Binding Request, Response, and Error Response
 - XOR-MAPPED-ADDRESS (preferred) and MAPPED-ADDRESS (legacy fallback)
 - ERROR-CODE and SOFTWARE attributes
-- UDP retransmits (500ms / 1s / 2s), multiple requests per TCP, TLS
-  or QUIC stream
-- Stream connections are capped (`StunConfig::max_connections`, default
-  1024) and closed after 10s without a request
+- UDP retransmits (500ms, 1s, 2s), and multiple requests per TCP, TLS, or QUIC stream
+
+Stream connections are capped by `StunConfig::max_connections` (default 1024, UDP is not limited).
+Extra connections are dropped on accept. The server closes a connection after 10s without a
+request. The client gives up on a TCP, TLS, or QUIC query after 5s.

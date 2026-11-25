@@ -1,8 +1,18 @@
 # Karyon p2p
 
-A lightweight, extensible, and customizable peer-to-peer network stack.
-Multi-transport (TCP, TCP/TLS, QUIC) with pluggable custom protocols via the
-`Protocol` trait, and pluggable discovery.
+A lightweight, extensible, and customizable peer-to-peer (p2p) network stack for Rust.
+
+A `karyon_p2p` node listens on and dials peers over TCP, TLS, or QUIC, identifies each peer by a
+`PeerID` derived from its key pair, and runs the protocols you attach over each connection.
+Transports, async runtimes, protocols, and peer discovery are pluggable. Bring your own transport
+and runtime to run karyon in custom environments, including WASI and single-threaded executors.
+
+Use cases:
+
+- Decentralized applications and overlay networks in Rust
+- Custom message protocols between peers over TCP, TLS 1.3, or QUIC
+- Kademlia DHT peer discovery with [karyon_kademlia](../kademlia)
+- Nodes on WASI or custom single-threaded executors, using a transport you supply
 
 ## Install
 
@@ -12,8 +22,8 @@ $ cargo add karyon_p2p
 
 ## Example
 
-An echo node: it attaches a custom protocol that broadcasts back every
-message it receives.
+An echo node: it attaches a custom protocol that broadcasts every message
+it receives to all connected peers, the sender included.
 
 ```rust
 use std::sync::Arc;
@@ -68,7 +78,7 @@ async {
         ..Default::default()
     };
 
-    // Dials `dial_peers` only; see Discovery to find more peers.
+    // Dials `dial_peers` only. See Discovery to find more peers.
     let node = Node::new(&key_pair, config, global_executor());
 
     node.attach_protocol(EchoProtocol::new)
@@ -86,33 +96,28 @@ async {
 | Feature | Description |
 |---------|-------------|
 | `tokio` | Use tokio async runtime (default) |
-| `smol` | Use smol async runtime |
-| `quic` | Enable QUIC transport |
-| `serde` | Enable serde support for p2p types |
-| `aws-lc-rs` | Default rustls crypto provider: aws-lc-rs (default) |
+| `smol` | Use smol async runtime. Enable exactly one of `tokio` and `smol` |
+| `quic` | Enable the built-in QUIC transport (default). Needs `aws-lc-rs` or `ring`, not on wasm |
+| `serde` | `Serialize` / `Deserialize` for the monitor event types |
+| `aws-lc-rs` | Default rustls crypto provider: aws-lc-rs (default). Wins if `ring` is also on |
 | `ring` | Default rustls crypto provider: ring. Use with `default-features = false` |
 
 ```toml
-# Default (tokio + TCP/TLS)
-karyon_p2p = "2.0"
+# Default (tokio, TCP/TLS/QUIC, aws-lc-rs)
+karyon_p2p = "2.1"
 
-# With QUIC
-karyon_p2p = { version = "2.0", features = ["quic"] }
+# Without QUIC
+karyon_p2p = { version = "2.1", default-features = false, features = ["tokio", "aws-lc-rs"] }
 
 # With smol
-karyon_p2p = { version = "2.0", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
+karyon_p2p = { version = "2.1", default-features = false, features = ["smol", "quic", "aws-lc-rs"] }
 
 # With the ring provider instead of aws-lc-rs
 karyon_p2p = { version = "2.1", default-features = false, features = ["tokio", "quic", "ring"] }
 ```
 
-The built-in TLS and QUIC use the rustls `CryptoProvider` set in
-`Config::crypto_provider` (or `ConfigBuilder::with_crypto_provider`).
-When it is `None`, they use the provider of the `aws-lc-rs` or `ring`
-feature, or without either the process default
-(`CryptoProvider::install_default`). The provider must have the TLS 1.3
-ChaCha20-Poly1305 suite (and AES-128-GCM for QUIC), X25519 and Ed25519
-keys. TLS works with no provider feature; `quic` needs one of them.
+TLS and QUIC use a configurable rustls `CryptoProvider` (`Config::crypto_provider`), defaulting
+to aws-lc-rs, ring, or the process default. QUIC requires a provider feature, TLS does not.
 
 ## Architecture
 
@@ -131,58 +136,81 @@ Node
 
 | Part | What it does |
 |------|--------------|
-| `Node` | Public entry point. Builds and wires the parts; `attach_protocol`, `run`, `send_to`, `broadcast`, `shutdown`. |
-| Connector / Listener | Dial / accept TCP, TLS or QUIC connections, up to `outbound_slots` / `inbound_slots`, and hand them to the PeerPool. |
-| `PeerPool` | Takes connections from the queue, admits them, runs one `PeerSession` per admitted connection and removes it when it ends. |
-| Admission | The handshake (network version, protocol negotiation, the claimed `PeerID` checked against the TLS certificate, if any), then access control. |
-| `Sessions` | Map from `PeerID` to its `PeerSession`, one per peer. When two nodes dial each other, both keep the connection dialed by the smaller `PeerID`. |
-| `PeerSession` | One connection to a peer. Runs one task per negotiated protocol; ends when a protocol ends, the connection fails or the peer shuts down. |
+| `Node` | Public entry point. Builds and wires the parts. Dials `Config::dial_peers` once, then the peers the discovery yields, skipping denied endpoints and peers already connected. `attach_protocol`, `run`, `send_to`, `broadcast`, `broadcast_to`, `advertise`, `register_peer_events`, `monitor`, `shutdown`. |
+| `Connector` / `Listener` | Dial / accept through `Config::transport` for the endpoints it `supports`, else through the built-in TCP, TLS or QUIC (only the user transport on wasm). Each connection holds an `outbound_slots` / `inbound_slots` slot until it closes and is queued to the `PeerPool`. A dial retries up to `max_connect_retries` with backoff, each try bounded by `handshake_timeout`. Also public, built from a `DiscoveryContext`, for a discovery's own connections. |
+| `AccessControl` | `Config::access_control`, `AllowAll` by default. Checks the endpoint before a dial and after an accept, and the peer after the handshake. |
+| `PeerPool` | Takes connections from the queue, admits each in its own task, runs one `PeerSession` per admitted connection and removes it when it ends. |
+| Admission | The handshake (network version, protocol negotiation with every `REQUIRED` protocol present, the claimed `PeerID` checked against the peer certificate of TLS, QUIC or a user transport, if any), then `AccessControl`. |
+| `Sessions` | Map from `PeerID` to its `PeerSession`, one per peer. When two nodes dial each other, both keep the connection dialed by the smaller `PeerID`. For two connections in the same direction, both keep the one with the smaller connection key from the handshake. |
+| `PeerSession` | One connection to a peer. Opens the QUIC protocol streams, then runs one task per negotiated protocol. Ends when a protocol returns, the connection fails, the peer shuts down or another connection to the same peer replaces it. |
 | `PeerConn` | What a protocol gets: `send` / `recv` on its own protocol id, `broadcast` to every peer, `info()` (`SessionInfo`: peer id, direction, endpoint, negotiated protocols). |
 | `ProtocolRegistry` | The protocols attached with `attach_protocol`: constructor, version and flags. |
-| Peer events | Added / removed / handshake failed, sent to the monitor, the `register_peer_events` listeners and the discovery. |
+| Peer events | Added / removed / handshake failed, sent to the monitor, the `register_peer_events` listeners (`PeerEvent`) and the discovery (`PeerConnectionEvent`, which also reports failed dials). |
+| `Discovery` | Yields candidate peers to the `Node`. `Node::new` runs none. |
+| `Monitor` | Emits connection, peer pool and discovery events when `Config::enable_monitor` is on. |
 
 ### Transport
 
-Peers can listen and connect over multiple transports simultaneously.
-Configuration uses endpoint URLs (`tcp://`, `tls://`, `quic://`); TLS
-uses self-signed certs derived from the node's keypair, and QUIC
-multiplexes one stream per protocol.
+karyon supports TCP, TCP/TLS, and QUIC out of the box. A node can listen and connect over multiple
+transports simultaneously using endpoint URLs (`tcp://`, `tls://`, `quic://`).
 
-To bring your own transport, implement `karyon_net::transport::Transport`
-(re-exported as `karyon_p2p::transport`; dial and listen, both give a byte
-stream) and set it with
-`ConfigBuilder::with_transport` (or the `Config::transport` field). The node
-uses it for the endpoints it `supports` and the built-in transports for
-the others. A transport can also claim its own scheme: `Endpoint::Custom`
-(`scheme://addr`, e.g. `mem://node-a`) works in `listen_endpoints`,
-`dial_peers` and Kademlia once the transport `supports` it. If its
-streams carry the peer's karyon certificate
-(`ByteStream::peer_certificates`), the handshake checks the peer's id
-against it, as with TLS.
+TLS uses self-signed certificates derived from the node's key pair. QUIC uses a separate
+bidirectional stream for each protocol.
+
+**Custom transports**
+
+To use your own transport, implement `karyon_net::transport::Transport` (re-exported as
+`karyon_p2p::transport`) and register it through `ConfigBuilder::with_transport` or
+`Config::transport`.
+
+The trait provides `supports`, `dial` and `listen`. `dial` and `listen` produce byte streams. The
+node uses your transport for the endpoints it `supports`, built-in schemes included, and falls
+back to the built-in transports for the others. Its streams are used as is: no TLS is added, and
+all protocols share one framed connection, even on a `quic://` endpoint.
+
+Custom transports can also introduce new endpoint schemes through `Endpoint::Custom`, such as
+`mem://node-a`. These endpoints work with `listen_endpoints`, `dial_peers`, and Kademlia discovery
+once the transport `supports` them.
+
+If the transport exposes peer certificates through `ByteStream::peer_certificates`, the handshake
+verifies the peer's identity against its certificate, just as with TLS.
 
 ### Runtime
 
-karyon runs on smol or tokio, picked with a feature. To run it on your
-own executor instead (e.g. a single-threaded WASI host), implement
-`karyon_core::async_runtime::Runtime` (`schedule` a task, `sleep`) and
-pass it to the node as `Executor::from(runtime)`: the node's tasks and
-timers then run on it.
-Bring the sockets with a `Transport` (see above). See
-[examples/custom_runtime.rs](examples/custom_runtime.rs): two nodes on a
-single-thread runtime, connected through in-memory pipes.
+karyon supports both **tokio** (default) and **smol**, selected through Cargo features.
+
+You can also bring your own async runtime by implementing `karyon_core::async_runtime::Runtime`,
+which provides task scheduling (`schedule`) and timers (`sleep`).
+
+Pass your runtime to the node using `Executor::from(runtime)`. All node tasks and timers then run
+on your executor.
+
+Combined with a custom `Transport`, this allows karyon to run in environments without a built-in
+networking stack or standard async runtime.
+
+The built-in QUIC runs its tasks on the node's executor. To run it on your own I/O reactor (tasks,
+timers and UDP sockets), set `Config::quic_runtime` (or `ConfigBuilder::with_quic_runtime`).
+
+See [examples/custom_runtime.rs](examples/custom_runtime.rs) for two nodes communicating over
+in-memory pipes on a single-threaded runtime.
 
 ### WASI
 
-karyon_p2p builds for `wasm32-wasip2` (and `wasip1`) with only the
-`tokio` feature: no crypto provider and no C toolchain are needed. There
-are no built-in TCP, TLS or QUIC transports there: bring your own
-`Runtime` and `Transport` as above. The example runs under wasmtime:
+karyon_p2p builds for `wasm32-wasip2` and `wasm32-wasip1` with only the `tokio` feature. No crypto
+provider or C toolchain is required. `quic` does not build on wasm.
+
+Built-in TCP, TLS, and QUIC transports are unavailable on WASI. The node dials and listens only
+through `Config::transport`. Provide your own `Runtime` and `Transport` as described above.
+
+**Dependency:**
 
 ```toml
 karyon_p2p = { version = "2.1", default-features = false, features = ["tokio"] }
 ```
 
-```text
+**Run the custom runtime example with wasmtime:**
+
+```bash
 CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_p2p \
     --example custom_runtime --target wasm32-wasip2 \
     --no-default-features --features tokio
@@ -190,33 +218,41 @@ CARGO_TARGET_WASM32_WASIP2_RUNNER=wasmtime cargo run -p karyon_p2p \
 
 ### Discovery
 
-Implementations of the `Discovery` trait yield candidate peers; the
-Node dials them. The Node also dials `Config::dial_peers` once at start,
-with any discovery. `Node::new` runs no discovery. For a Kademlia DHT use
-[karyon_kademlia](../kademlia) through `Node::with_discovery`, or plug in
-your own (mDNS, ...) by implementing the trait: only `start` and `recv`
-are required. The closure given to `with_discovery` gets a
-`DiscoveryContext`: the node's key pair, PeerID, config, monitor and
-executor.
+Peer discovery is pluggable. Implementations of the `Discovery` trait find candidate peers, which
+the node then attempts to connect to.
+
+The node dials the peers in `Config::dial_peers` once at startup, with or without discovery.
+`Node::new` starts without discovery, so it dials only those.
+
+To enable discovery, use `Node::with_discovery` with either:
+
+- **Kademlia DHT:** Use the [karyon_kademlia](../kademlia) crate for decentralized peer discovery.
+- **Custom discovery:** Implement the `Discovery` trait for other mechanisms, such as mDNS.
+
+A custom discovery implementation only needs to implement `start` and `recv`. The optional
+`on_event` receives `PeerConnectionEvent`s from the node, and `advertise` receives the items passed
+to `Node::advertise`, including the id and flags of every attached protocol.
+
+The factory closure passed to `Node::with_discovery` receives a `DiscoveryContext`, providing
+access to the node's key pair, `PeerID`, configuration, monitor, and executor.
 
 ### Protocols
 
-A built-in `Ping` keep-alive runs on every connection; everything else
-is a custom protocol. For TCP/TLS, protocols share a single framed
-connection. For QUIC, each protocol gets its own bidirectional stream.
+A built-in `Ping` keep-alive runs on every connection. Other protocols are pluggable. `Ping` is
+`REQUIRED` and uses `Config::ping_interval` and `Config::ping_timeout`. On TCP, TLS and a user
+transport, protocols share one framed connection. The built-in QUIC uses a separate bidirectional
+stream per protocol.
 
-`Protocol::flags()` defaults to `ProtocolFlags::PREFERRED`. Override to
-`ProtocolFlags::REQUIRED` for protocols every peer must speak, or
-`ProtocolFlags::empty()` for protocols that should not be advertised.
-Flags combine with `|`. Bits from `ProtocolFlags::USER` up are free for
-user meaning; each `Discovery` implementation decides what they do.
+`Protocol::flags()` defaults to `ProtocolFlags::PREFERRED`. Use `ProtocolFlags::REQUIRED` to
+reject peers that do not speak the protocol, or `ProtocolFlags::empty()` to negotiate it without
+advertising it. Flags can be combined with `|`, and bits from `ProtocolFlags::USER` onward are
+free for user meaning. Each `Discovery` implementation decides what they do.
 
 ### Monitor
 
-Subscribe to `node.monitor()` to observe what the network is doing -
-connections opening and closing, peer add/remove, handshake failures,
-discovery events. Each topic is a separate event type
-with its own listener; every subscriber gets every event independently.
+Subscribe to `node.monitor()` to observe what the network is doing: connections opening and
+closing, peer add/remove, handshake failures and discovery events. Each topic is a separate event
+type with its own listener. Every subscriber gets every event independently.
 
 ```rust,ignore
 let listener = node.monitor().register::<ConnectionEvent>();
@@ -225,18 +261,19 @@ while let Ok(ev) = listener.recv().await {
 }
 ```
 
-Available event types: `ConnectionEvent`, `PeerPoolEvent`,
-`DiscoveryEvent`. Gated by `Config::enable_monitor`.
+Available event types: `ConnectionEvent`, `PeerPoolEvent`, `DiscoveryEvent`. Events are emitted
+only when `Config::enable_monitor` is `true` (default `false`).
 
 ### Network Security
 
-TLS is available for TCP connections. QUIC has built-in TLS 1.3. The
-p2p layer generates self-signed certificates from the node's key pair
-for mutual authentication.
+`tcp://` is plain TCP, with no encryption or authentication. `tls://` and `quic://` use TLS 1.3
+only, with mutual authentication. Each node presents a self-signed certificate whose extension
+holds its `PeerID`, signed by the node's key pair. A dial to a known `PeerID` fails if the
+certificate does not match it, and the handshake rejects a peer whose claimed `PeerID` differs
+from its certificate.
 
 ## Examples
 
-See [karyon_kademlia's examples](../kademlia/examples) for a basic peer
-node and a chat application, and
-[examples/custom_runtime.rs](examples/custom_runtime.rs) for nodes on a
-runtime and transport you supply (also on WASI).
+- [karyon_kademlia examples](../kademlia/examples): a basic peer node and a chat application.
+- [examples/custom_runtime.rs](examples/custom_runtime.rs): nodes on a runtime and transport you
+  supply, also on WASI.
