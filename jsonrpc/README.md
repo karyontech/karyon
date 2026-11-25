@@ -5,7 +5,7 @@ Rust, with pub/sub subscriptions, attribute macros for services, and pluggable c
 
 It runs over TCP, TLS, WebSocket, WSS, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets, on tokio
 or smol. Bring your own transport and runtime to run it in custom environments, including WASI and
-single-threaded executors.
+executors other than tokio and smol.
 
 Use cases:
 

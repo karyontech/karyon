@@ -5,14 +5,15 @@ A lightweight, extensible, and customizable peer-to-peer (p2p) network stack for
 A `karyon_p2p` node listens on and dials peers over TCP, TLS, or QUIC, identifies each peer by a
 `PeerID` derived from its key pair, and runs the protocols you attach over each connection.
 Transports, async runtimes, protocols, and peer discovery are pluggable. Bring your own transport
-and runtime to run karyon in custom environments, including WASI and single-threaded executors.
+and runtime to run karyon in custom environments, including WASI and executors other than
+tokio and smol.
 
 Use cases:
 
 - Decentralized applications and overlay networks in Rust
 - Custom message protocols between peers over TCP, TLS 1.3, or QUIC
 - Kademlia DHT peer discovery with [karyon_kademlia](../kademlia)
-- Nodes on WASI or custom single-threaded executors, using a transport you supply
+- Nodes on WASI or a custom executor, using a transport you supply
 
 ## Install
 
