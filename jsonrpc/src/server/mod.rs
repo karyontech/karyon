@@ -98,6 +98,7 @@ pub(crate) struct ServerConfig {
     /// transports.
     pub transport: Option<TransportRef>,
     pub services: HashMap<String, RPCServiceRef>,
+    pub methods: HashMap<String, service::RegisteredMethod>,
     pub pubsub_services: HashMap<String, PubSubRPCServiceRef>,
     /// `None` (the default) means never. Set via
     /// `ServerBuilder::read_timeout`.
