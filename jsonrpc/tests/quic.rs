@@ -415,3 +415,55 @@ fn idle_stream_closed_after_read_timeout() {
         server.shutdown().await;
     });
 }
+
+#[test]
+fn call_and_subscribe_timeout() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let (srv_cfg, cli_cfg) = test_quic_configs();
+
+        let server = ServerBuilder::new("quic://127.0.0.1:0")
+            .expect("Create server builder")
+            .service(service.clone())
+            .pubsub_service(service)
+            .quic_config(srv_cfg)
+            .expect("Set quic config")
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .set_timeout(100)
+            .build()
+            .await
+            .expect("Build client");
+
+        let call_res: Result<Value, _> = client.call("MathService.hang", ()).await;
+        assert!(
+            matches!(
+                call_res,
+                Err(Error::KaryonCore(karyon_core::error::Error::Timeout))
+            ),
+            "Expected timeout error on call, got: {call_res:?}"
+        );
+
+        let sub_res = client.subscribe("MathService.hang_subscribe", ()).await;
+        assert!(
+            matches!(
+                sub_res,
+                Err(Error::KaryonCore(karyon_core::error::Error::Timeout))
+            ),
+            "Expected timeout error on subscribe, got: {:?}",
+            sub_res.err()
+        );
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
