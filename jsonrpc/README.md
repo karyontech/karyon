@@ -177,12 +177,36 @@ It takes `&self` and a `serde_json::Value` and returns `Result<Value, RPCError>`
 `Arc<Channel>`, the method name as `String`, and the params as `Value`. `Channel::new_subscription`
 creates a subscription and `Subscription::notify` sends it a notification.
 
-Clients call methods as `<service>.<method>`. The service name defaults to the type name. Rename it
-with `#[rpc_impl(name = "calculator")]` and a method with `#[rpc_method(name = "math.add")]`.
+Clients call service methods as `<service>.<method>`. The service name defaults to the type name.
+Rename it with `#[rpc_impl(name = "calculator")]` and a method with `#[rpc_method(name = "math.add")]`.
 See [examples/server_derive.rs](examples/server_derive.rs).
 
 Register services with `ServerBuilder::service` and `ServerBuilder::pubsub_service`. Implementing
 `RPCService` by hand also works, see [examples/server.rs](examples/server.rs).
+
+### Standalone methods
+
+Use `ServerBuilder::method` to register an async handler directly. Clients use the exact registered
+name, which can be unqualified (such as `echo`) or contain dots (such as `health.ping`).
+
+```rust,no_run
+use karyon_jsonrpc::server::ServerBuilder;
+
+async {
+    let server = ServerBuilder::new("tcp://127.0.0.1:60000")
+        .expect("create server builder")
+        .method("echo", |params| async { Ok(params) })
+        .method("health.ping", |_| async { Ok(serde_json::json!("pong")) })
+        .build()
+        .await
+        .expect("build the server");
+
+    server.start_block().await.expect("start the server");
+};
+```
+
+If a standalone name also resolves to a registered RPC service method, `build()` returns an error
+before the server starts listening.
 
 ## Endpoints
 

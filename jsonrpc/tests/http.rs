@@ -14,6 +14,7 @@ use karyon_core::{
 
 use karyon_jsonrpc::{
     client::{ClientBuilder, HttpConfig},
+    error::Error,
     server::{HttpConfig as ServerHttpConfig, ServerBuilder},
 };
 use karyon_net::{
@@ -32,7 +33,7 @@ fn rpc_call() {
             .expect("Create server builder")
             .service(service)
             .method("echo", |params| async { Ok(params) })
-            .method("test.nested.echo", |params| async { Ok(params) })
+            .method("MathService.nested.echo", |params| async { Ok(params) })
             .build()
             .await
             .expect("Build server");
@@ -58,7 +59,7 @@ fn rpc_call() {
             .expect("Call add");
         assert_eq!(result, 30);
 
-        for method in ["echo", "test.nested.echo"] {
+        for method in ["echo", "MathService.nested.echo"] {
             let params = serde_json::json!({ "message": "hello" });
             let result: Value = client
                 .call(method, params.clone())
@@ -69,6 +70,29 @@ fn rpc_call() {
 
         client.stop().await;
         server.shutdown().await;
+    });
+}
+
+#[test]
+fn build_rejects_standalone_method_that_matches_a_service_method() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+        let builder = || ServerBuilder::new("http://127.0.0.1:0").expect("Create server builder");
+        let echo = |params| async { Ok(params) };
+        for builder in [
+            builder()
+                .service(service.clone())
+                .method("MathService.add", echo),
+            builder().method("MathService.add", echo).service(service),
+        ] {
+            let Err(error) = builder.build().await else {
+                panic!("building with a conflicting standalone method should fail");
+            };
+            assert!(
+                matches!(error, Error::InvalidState(ref details) if details.contains("MathService.add")),
+                "{error}"
+            );
+        }
     });
 }
 

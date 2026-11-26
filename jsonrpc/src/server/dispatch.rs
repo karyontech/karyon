@@ -107,12 +107,7 @@ impl Server {
         if let Some(method) = self.config.methods.get(&req.msg.method) {
             return Handler::Rpc(Box::new(move |params| method(params)));
         }
-        if let Some(method) = self
-            .config
-            .services
-            .get(&req.srvc_name)
-            .and_then(|s| s.get_method(&req.method_name))
-        {
+        if let Some(method) = self.config.service_method(&req.srvc_name, &req.method_name) {
             return Handler::Rpc(method);
         }
         Handler::None
