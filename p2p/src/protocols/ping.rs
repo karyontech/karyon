@@ -28,10 +28,22 @@ const PING_DEDUP_WINDOW: usize = 64;
 /// Protocol id for ping. Mandatory in every handshake.
 pub(crate) const PING_PROTO_ID: &str = "PING";
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 enum PingProtocolMsg {
     Ping([u8; 32]),
     Pong([u8; 32]),
+}
+
+/// Decode a `PingProtocolMsg` ensuring the entire payload was consumed.
+fn decode_ping_msg(payload: &[u8]) -> Result<PingProtocolMsg> {
+    let (msg, consumed) = decode::<PingProtocolMsg>(payload)?;
+    if consumed != payload.len() {
+        return Err(Error::InvalidMsg(format!(
+            "PingProtocolMsg has trailing bytes: consumed {consumed} of {} bytes",
+            payload.len()
+        )));
+    }
+    Ok(msg)
 }
 
 pub struct PingProtocol {
@@ -70,7 +82,7 @@ impl PingProtocol {
                 Err(e) => return Err(e),
             };
 
-            let (msg, _) = decode::<PingProtocolMsg>(&payload)?;
+            let msg = decode_ping_msg(&payload)?;
             match msg {
                 PingProtocolMsg::Ping(nonce) => {
                     if seen.iter().any(|n| n == &nonce) {
@@ -162,5 +174,46 @@ impl Protocol for PingProtocol {
 
     fn flags() -> ProtocolFlags {
         ProtocolFlags::REQUIRED
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_ping_msg_accepts_exact_payload() {
+        let nonce = [7u8; 32];
+
+        let ping_bytes = encode(&PingProtocolMsg::Ping(nonce)).unwrap();
+        assert_eq!(
+            decode_ping_msg(&ping_bytes).unwrap(),
+            PingProtocolMsg::Ping(nonce)
+        );
+
+        let pong_bytes = encode(&PingProtocolMsg::Pong(nonce)).unwrap();
+        assert_eq!(
+            decode_ping_msg(&pong_bytes).unwrap(),
+            PingProtocolMsg::Pong(nonce)
+        );
+    }
+
+    #[test]
+    fn decode_ping_msg_rejects_trailing_bytes() {
+        let nonce = [9u8; 32];
+
+        let mut ping_bytes = encode(&PingProtocolMsg::Ping(nonce)).unwrap();
+        ping_bytes.push(0);
+        assert!(matches!(
+            decode_ping_msg(&ping_bytes),
+            Err(Error::InvalidMsg(_))
+        ));
+
+        let mut pong_bytes = encode(&PingProtocolMsg::Pong(nonce)).unwrap();
+        pong_bytes.push(0xff);
+        assert!(matches!(
+            decode_ping_msg(&pong_bytes),
+            Err(Error::InvalidMsg(_))
+        ));
     }
 }
