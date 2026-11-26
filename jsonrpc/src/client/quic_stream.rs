@@ -1,6 +1,9 @@
 //! QUIC client mode: one stream per call, one stream per subscription.
 
-use std::sync::{Arc, atomic::Ordering};
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 use async_channel::Receiver;
 use log::{debug, info};
@@ -79,7 +82,18 @@ where
     };
 
     conn.send_msg(serde_json::to_value(request)?).await?;
-    let msg = conn.recv_msg().await?;
+    let msg = match client.config.timeout {
+        Some(t) => match client
+            .task_group
+            .executor()
+            .timeout(Duration::from_millis(t), conn.recv_msg())
+            .await
+        {
+            Ok(res) => res.map_err(Error::from)?,
+            Err(err) => return Err(Error::from(err)),
+        },
+        None => conn.recv_msg().await?,
+    };
     let response: message::Response = serde_json::from_value(msg)?;
     Ok(response)
 }
@@ -113,7 +127,18 @@ where
 
     conn.send_msg(serde_json::to_value(request)?).await?;
 
-    let msg = conn.recv_msg().await?;
+    let msg = match client.config.timeout {
+        Some(t) => match client
+            .task_group
+            .executor()
+            .timeout(Duration::from_millis(t), conn.recv_msg())
+            .await
+        {
+            Ok(res) => res.map_err(Error::from)?,
+            Err(err) => return Err(Error::from(err)),
+        },
+        None => conn.recv_msg().await?,
+    };
     let response: message::Response = serde_json::from_value(msg)?;
 
     if let Some(error) = response.error {

@@ -36,6 +36,11 @@ impl MathService {
     async fn error_method(&self, _params: Value) -> Result<Value, RPCError> {
         Err(RPCError::CustomError(500, "something went wrong".into()))
     }
+
+    async fn hang(&self, _params: Value) -> Result<Value, RPCError> {
+        std::future::pending::<()>().await;
+        unreachable!()
+    }
 }
 
 #[rpc_pubsub_impl]
@@ -100,6 +105,16 @@ impl MathService {
         let sub_id: SubscriptionID = serde_json::from_value(params)?;
         let success = chan.remove_subscription(&sub_id).await.is_ok();
         Ok(serde_json::json!(success))
+    }
+
+    async fn hang_subscribe(
+        &self,
+        _chan: ChannelRef,
+        _method: String,
+        _params: Value,
+    ) -> Result<Value, RPCError> {
+        std::future::pending::<()>().await;
+        unreachable!()
     }
 }
 
