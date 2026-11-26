@@ -1,13 +1,13 @@
 [package]
 name = "karyon_eventemitter_macro"
-description = "Procedural macros for karyon_eventemitter."
-version = "1.0.3"
+description = "Derive macro for karyon_eventemitter event types."
+version = "1.0.4"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-keywords = ["eventemitter", "events", "karyon"]
+keywords = ["eventemitter", "events", "pubsub", "derive", "macro"]
 categories = ["development-tools"]
 
 [lib]

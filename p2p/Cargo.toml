@@ -1,13 +1,13 @@
 [package]
 name = "karyon_p2p"
-description = "A lightweight, extensible, and customizable p2p network stack."
-version = "2.1.1"
+description = "A lightweight, extensible, and customizable p2p network stack for Rust: peers over TCP, TLS, or QUIC, key-based peer IDs, custom protocols, and pluggable transports, discovery, and async runtimes (tokio or smol)."
+version = "2.1.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-keywords = ["p2p", "networking", "peer-to-peer", "decentralized"]
+keywords = ["p2p", "peer-to-peer", "networking", "decentralized", "quic"]
 categories = ["network-programming", "asynchronous"]
 
 

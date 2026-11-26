@@ -1,14 +1,14 @@
 [package]
 name = "karyon_jsonrpc"
-description = "A fast and lightweight async JSON-RPC 2.0 implementation over TCP, TLS, WebSocket, QUIC, HTTP, and Unix sockets, with pub/sub and custom codecs."
-version = "1.4.1"
+description = "A lightweight async JSON-RPC 2.0 server and client library for Rust over TCP, TLS, WebSocket, QUIC, HTTP/1.1, HTTP/2, HTTP/3, and Unix sockets, with pub/sub subscriptions, service macros, and custom codecs, on tokio or smol."
+version = "1.4.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
 readme = "README.md"
-keywords = ["jsonrpc", "rpc", "json", "async", "networking"]
+keywords = ["jsonrpc", "json-rpc", "rpc", "pubsub", "websocket"]
 categories = ["network-programming", "asynchronous"]
 
 

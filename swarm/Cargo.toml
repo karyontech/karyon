@@ -1,14 +1,14 @@
 [package]
 name = "karyon_swarm"
-description = "Swarm layer for protocol-aware peer groups on top of karyon_p2p."
-version = "2.0.2"
+description = "Protocol-aware peer groups (swarms) for karyon_p2p in Rust: join swarms by protocol, discover peers per swarm, and broadcast to them."
+version = "2.0.3"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
 readme = "README.md"
-keywords = ["p2p", "swarm", "protocol", "broadcast", "karyon"]
+keywords = ["p2p", "swarm", "peer-to-peer", "peer-groups", "broadcast"]
 categories = ["network-programming", "asynchronous"]
 
 [features]

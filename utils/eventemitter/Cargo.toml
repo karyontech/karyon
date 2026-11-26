@@ -1,14 +1,14 @@
 [package]
 name = "karyon_eventemitter"
-description = "A lightweight, asynchronous event emitter for Rust"
-version = "1.0.5"
+description = "A lightweight, typed async event emitter (pub/sub) for Rust that works with any async runtime."
+version = "1.0.6"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
 readme = "README.md"
-keywords = ["events", "pubsub", "emitter", "async", "dispatcher"]
+keywords = ["events", "pubsub", "emitter", "async", "event-bus"]
 categories = ["asynchronous"]
 
 [dependencies]
