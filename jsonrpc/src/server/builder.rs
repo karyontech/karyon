@@ -16,16 +16,13 @@ use karyon_net::quic::ServerQuicConfig;
 
 use crate::{
     codec::{JsonCodec, JsonRpcCodec},
-    error::{RPCResult, Result},
+    error::{Error, RPCResult, Result},
     message::{JSONRPC_VERSION, Notification, NotificationResult},
     server::PubSubRPCServiceRef,
     server::RPCServiceRef,
     server::WsCodec,
     server::channel::NewNotification,
 };
-
-#[cfg(any(feature = "tcp", feature = "tls", feature = "quic"))]
-use crate::error::Error;
 
 #[cfg(feature = "http")]
 use super::HttpConfig;
@@ -82,8 +79,10 @@ where
 
     /// Add an async RPC method under its exact wire name.
     ///
-    /// The name can be unqualified or include a namespace. An existing
-    /// registration with the same name is replaced. Pubsub handlers still take priority.
+    /// The name can be unqualified or contain dots. Registering the same standalone
+    /// name again replaces its handler. If the name matches a regular RPC service
+    /// method, [`Self::build`] returns [`Error::InvalidState`].
+    /// PubSub handlers still take priority.
     pub fn method<F, Fut>(mut self, name: impl Into<String>, handler: F) -> Self
     where
         F: Fn(Value) -> Fut + Send + Sync + 'static,
@@ -217,6 +216,16 @@ where
 
     /// Build the server.
     pub async fn build(self) -> Result<ServerRef> {
+        for name in self.config.methods.keys() {
+            if let Some((service, method)) = name.split_once('.')
+                && self.config.service_method(service, method).is_some()
+            {
+                return Err(Error::InvalidState(format!(
+                    "standalone RPC method '{name}' conflicts with a registered service method"
+                )));
+            }
+        }
+
         Server::init(self.config, self.executor, self.byte_codec, self.ws_codec).await
     }
 }

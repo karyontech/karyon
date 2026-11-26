@@ -114,6 +114,12 @@ pub(crate) struct ServerConfig {
     pub http_config: HttpConfig,
 }
 
+impl ServerConfig {
+    fn service_method(&self, service: &str, method: &str) -> Option<RPCMethod<'_>> {
+        self.services.get(service)?.get_method(method)
+    }
+}
+
 /// One variant per backend family. Stream-based transports share
 /// a single `AsyncAcceptor`; QUIC and HTTP have their own loops.
 enum ServerBackend {
