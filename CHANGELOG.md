@@ -1,5 +1,16 @@
 # Changelog
 
+## karyon_jsonrpc 1.5.0, karyon_jsonrpc_macro 1.1.3
+
+### Added
+
+- **Standalone methods** (`karyon_jsonrpc`): `ServerBuilder::method`
+  registers an async handler under its exact wire name, unqualified
+  (`echo`) or dotted (`health.ping`), without an `RPCService`. `build()`
+  returns `Error::InvalidState` when the name also resolves to a
+  registered service method. A pubsub method with the same name takes
+  priority.
+
 ## karyon_core 2.0.2, karyon_async_rustls 1.2.2, karyon_jsonrpc 1.4.2, karyon_jsonrpc_macro 1.1.2, karyon_p2p 2.1.2, karyon_kademlia 0.4.3, karyon_swarm 2.0.3, karyon_stun 0.4.2, karyon_eventemitter 1.0.6, karyon_eventemitter_macro 1.0.4
 
 ### Docs
