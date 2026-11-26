@@ -18,7 +18,7 @@ use crate::{
     error::{Error, Result},
     message,
     server::{
-        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, ServerRef, accept_backoff,
+        CHANNEL_SUBSCRIPTION_BUFFER_SIZE, Server, ServerRef,
         channel::Channel,
         dispatch::{Handler, SanityCheckResult, run_handler, sanity_check},
     },
@@ -46,7 +46,7 @@ pub(crate) struct QuicServer<C> {
 impl<C: JsonRpcCodec> QuicAcceptor for QuicServer<C> {
     async fn accept_loop(&self, server: Arc<Server>) -> Result<()> {
         // Back off on accept errors, so the loop does not spin.
-        let backoff = accept_backoff(server.task_group.executor());
+        let backoff = server.accept_backoff();
         loop {
             match self.endpoint.accept_incoming().await {
                 Ok(incoming) => {

@@ -2,11 +2,21 @@
 mod positional;
 mod shared;
 
-use std::sync::Arc;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use serde_json::Value;
 
-use karyon_core::testing::run_test;
+use karyon_core::{
+    async_runtime::{lock::Semaphore, spawn},
+    async_util::sleep,
+    testing::run_test,
+};
 
 use karyon_jsonrpc::{client::ClientBuilder, error::Error, server::ServerBuilder};
 
@@ -263,6 +273,83 @@ fn custom_notification_format() {
             .expect("Parse notification");
         assert_eq!(msg1, 1);
         assert_eq!(msg2, 2);
+
+        client.stop().await;
+        server.shutdown().await;
+    });
+}
+
+#[test]
+fn max_concurrent_requests_bounds_in_flight_requests() {
+    run_test(10, async {
+        let gate = Arc::new(Semaphore::new(1));
+        let hold = gate.acquire().await.expect("acquire gate");
+
+        let started = Arc::new(AtomicUsize::new(0));
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+
+        let server = ServerBuilder::new("tcp://127.0.0.1:0")
+            .expect("Create server builder")
+            .max_concurrent_requests(2)
+            .method("slow", {
+                let gate = gate.clone();
+                let started = started.clone();
+                let active = active.clone();
+                let max_active = max_active.clone();
+                move |params| {
+                    let gate = gate.clone();
+                    let started = started.clone();
+                    let active = active.clone();
+                    let max_active = max_active.clone();
+                    async move {
+                        let now = active.fetch_add(1, Ordering::SeqCst) + 1;
+                        max_active.fetch_max(now, Ordering::SeqCst);
+                        started.fetch_add(1, Ordering::SeqCst);
+                        let _permit = gate.acquire().await.expect("acquire gate");
+                        active.fetch_sub(1, Ordering::SeqCst);
+                        Ok(params)
+                    }
+                }
+            })
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .build()
+            .await
+            .expect("Build client");
+
+        let mut tasks = Vec::new();
+        for i in 0..4usize {
+            let client = client.clone();
+            tasks.push(spawn(
+                async move { client.call::<_, usize>("slow", i).await },
+            ));
+        }
+
+        while started.load(Ordering::SeqCst) < 2 {
+            sleep(Duration::from_millis(5)).await;
+        }
+        sleep(Duration::from_millis(30)).await;
+        assert_eq!(started.load(Ordering::SeqCst), 2);
+        assert_eq!(max_active.load(Ordering::SeqCst), 2);
+
+        drop(hold);
+
+        for (i, task) in tasks.into_iter().enumerate() {
+            let res = task
+                .await
+                .expect("join rpc call task")
+                .expect("slow rpc succeeds");
+            assert_eq!(res, i);
+        }
+        assert_eq!(max_active.load(Ordering::SeqCst), 2);
 
         client.stop().await;
         server.shutdown().await;

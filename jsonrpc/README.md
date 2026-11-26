@@ -258,6 +258,10 @@ Server:
   subscribers idle by design.
 - `handshake_timeout`: drop a client that does not finish the TLS or WebSocket handshake in time.
   Defaults to 10 seconds.
+- `max_concurrent_requests`: maximum concurrent in-flight requests per message connection.
+  Defaults to 64.
+- `accept_backoff_base`: initial retry delay after a failed accept. Defaults to 10 ms.
+- `accept_backoff_max`: maximum retry delay after a failed accept. Defaults to 1000 ms.
 - `with_notification_encoder`: send notifications in a custom format. A karyon client then needs the
   matching `with_notification_decoder`.
 

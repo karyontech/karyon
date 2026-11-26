@@ -70,18 +70,15 @@ pub const UNSUPPORTED_JSONRPC_VERSION: &str = "Unsupported jsonrpc version";
 
 const CHANNEL_SUBSCRIPTION_BUFFER_SIZE: usize = 100;
 
-/// Max requests handled at once per message connection. The reader waits
-/// for a free slot before reading the next request.
-// TODO: make this configurable.
-const MAX_CONCURRENT_REQUESTS: usize = 64;
+/// Default max requests handled at once per message connection. The reader
+/// waits for a free slot before reading the next request.
+pub(super) const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 64;
 
-/// First retry delay after a failed accept, e.g. when out of file
-/// descriptors, in milliseconds.
-// TODO: make this configurable.
-const ACCEPT_BACKOFF_BASE: u64 = 10;
-/// Max retry delay after a failed accept, in milliseconds.
-// TODO: make this configurable.
-const ACCEPT_BACKOFF_MAX: u64 = 1000;
+/// Default initial retry delay after a failed accept, e.g. when out of file
+/// descriptors.
+pub(super) const DEFAULT_ACCEPT_BACKOFF_BASE: Duration = Duration::from_millis(10);
+/// Default maximum retry delay after a failed accept.
+pub(super) const DEFAULT_ACCEPT_BACKOFF_MAX: Duration = Duration::from_millis(1000);
 
 /// Bound on the per-connection outbound response queue.
 const RESPONSE_QUEUE_SIZE: usize = 256;
@@ -112,6 +109,12 @@ pub(crate) struct ServerConfig {
     /// Set via `ServerBuilder::http_config`.
     #[cfg(feature = "http")]
     pub http_config: HttpConfig,
+    /// Set via `ServerBuilder::max_concurrent_requests`.
+    pub max_concurrent_requests: usize,
+    /// Set via `ServerBuilder::accept_backoff_base`.
+    pub accept_backoff_base: Duration,
+    /// Set via `ServerBuilder::accept_backoff_max`.
+    pub accept_backoff_max: Duration,
 }
 
 impl ServerConfig {
@@ -155,7 +158,7 @@ impl Server {
 
     async fn accept_loop(self: &Arc<Self>) -> Result<()> {
         // Back off on accept errors, so the loop does not spin.
-        let backoff = accept_backoff(self.task_group.executor());
+        let backoff = self.accept_backoff();
         match &self.backend {
             ServerBackend::StreamAcceptor(acceptor) => loop {
                 match acceptor.accept().await {
@@ -200,6 +203,20 @@ impl Server {
 
     pub async fn shutdown(&self) {
         self.task_group.cancel().await;
+    }
+
+    pub(super) fn accept_backoff(&self) -> Backoff {
+        let base_ms = self
+            .config
+            .accept_backoff_base
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        let max_ms = self
+            .config
+            .accept_backoff_max
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        Backoff::with_executor(base_ms, max_ms, self.task_group.executor().clone())
     }
 
     /// Handle a split message connection (framed byte stream or
@@ -479,7 +496,7 @@ async fn stream_reader_task<R>(
 where
     R: MessageRx<Message = serde_json::Value> + Send,
 {
-    let permits = Semaphore::new(MAX_CONCURRENT_REQUESTS);
+    let permits = Semaphore::new(server.config.max_concurrent_requests);
     let ex = server.task_group.executor().clone();
     loop {
         // Wait for a free slot, so one client cannot start an unbounded
@@ -520,6 +537,124 @@ async fn request_task(
     Ok(())
 }
 
-pub(super) fn accept_backoff(ex: &Executor) -> Backoff {
-    Backoff::with_executor(ACCEPT_BACKOFF_BASE, ACCEPT_BACKOFF_MAX, ex.clone())
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use std::future::pending;
+
+    use async_trait::async_trait;
+    use karyon_core::testing::run_test;
+    use karyon_net::{
+        ByteStream,
+        transport::{Transport, TransportListener},
+    };
+
+    use super::*;
+
+    struct DummyTransport;
+
+    #[async_trait]
+    impl Transport for DummyTransport {
+        fn supports(&self, endpoint: &Endpoint) -> bool {
+            matches!(endpoint, Endpoint::Custom { scheme, .. } if scheme == "mem")
+        }
+
+        async fn dial(&self, _endpoint: &Endpoint) -> karyon_net::Result<Box<dyn ByteStream>> {
+            Err(karyon_net::Error::IO(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "dial unused in unit test",
+            )))
+        }
+
+        async fn listen(
+            &self,
+            endpoint: &Endpoint,
+        ) -> karyon_net::Result<Box<dyn TransportListener>> {
+            Ok(Box::new(DummyListener(endpoint.clone())))
+        }
+    }
+
+    struct DummyListener(Endpoint);
+
+    #[async_trait]
+    impl TransportListener for DummyListener {
+        async fn accept(&self) -> karyon_net::Result<Box<dyn ByteStream>> {
+            pending().await
+        }
+
+        fn local_endpoint(&self) -> karyon_net::Result<Endpoint> {
+            Ok(self.0.clone())
+        }
+    }
+
+    fn test_builder() -> ServerBuilder<crate::codec::JsonCodec, crate::codec::JsonCodec> {
+        ServerBuilder::new("mem://test")
+            .unwrap()
+            .with_transport(Arc::new(DummyTransport))
+    }
+
+    #[test]
+    fn server_limits_use_defaults_and_custom_values() {
+        run_test(10, async {
+            let default_srv = test_builder().build().await.unwrap();
+            assert_eq!(default_srv.config.max_concurrent_requests, 64);
+            assert_eq!(
+                default_srv.config.accept_backoff_base,
+                Duration::from_millis(10)
+            );
+            assert_eq!(
+                default_srv.config.accept_backoff_max,
+                Duration::from_millis(1000)
+            );
+            let default_backoff = default_srv.accept_backoff();
+            assert_eq!(default_backoff.sleep().await, 10);
+            default_srv.shutdown().await;
+
+            let custom_srv = test_builder()
+                .max_concurrent_requests(4)
+                .accept_backoff_base(Duration::from_millis(2))
+                .accept_backoff_max(Duration::from_millis(6))
+                .build()
+                .await
+                .unwrap();
+            assert_eq!(custom_srv.config.max_concurrent_requests, 4);
+            let custom_backoff = custom_srv.accept_backoff();
+            assert_eq!(custom_backoff.sleep().await, 2);
+            assert_eq!(custom_backoff.sleep().await, 4);
+            assert_eq!(custom_backoff.sleep().await, 6);
+            assert_eq!(custom_backoff.sleep().await, 6);
+            custom_srv.shutdown().await;
+        });
+    }
+
+    #[test]
+    fn build_rejects_invalid_server_limits() {
+        run_test(10, async {
+            assert!(matches!(
+                test_builder().max_concurrent_requests(0).build().await,
+                Err(Error::InvalidState(_))
+            ));
+            assert!(matches!(
+                test_builder()
+                    .accept_backoff_base(Duration::ZERO)
+                    .build()
+                    .await,
+                Err(Error::InvalidState(_))
+            ));
+            assert!(matches!(
+                test_builder()
+                    .accept_backoff_base(Duration::from_millis(500))
+                    .accept_backoff_max(Duration::from_millis(100))
+                    .build()
+                    .await,
+                Err(Error::InvalidState(_))
+            ));
+            assert!(matches!(
+                test_builder()
+                    .accept_backoff_max(Duration::MAX)
+                    .build()
+                    .await,
+                Err(Error::InvalidState(_))
+            ));
+        });
+    }
 }

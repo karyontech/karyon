@@ -26,7 +26,10 @@ use crate::{
 
 #[cfg(feature = "http")]
 use super::HttpConfig;
-use super::{Server, ServerConfig, ServerRef};
+use super::{
+    DEFAULT_ACCEPT_BACKOFF_BASE, DEFAULT_ACCEPT_BACKOFF_MAX, DEFAULT_MAX_CONCURRENT_REQUESTS,
+    Server, ServerConfig, ServerRef,
+};
 
 #[cfg(any(feature = "tls", feature = "ws"))]
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -192,6 +195,34 @@ where
         self
     }
 
+    /// Set the maximum number of concurrent in-flight requests per message
+    /// connection. The reader waits for a free slot before reading the next
+    /// request. Defaults to 64.
+    ///
+    /// If set to `0`, [`Self::build`] returns [`Error::InvalidState`].
+    pub fn max_concurrent_requests(mut self, max: usize) -> Self {
+        self.config.max_concurrent_requests = max;
+        self
+    }
+
+    /// Set the initial retry delay after a failed accept. Defaults to 10 ms.
+    ///
+    /// [`Self::build`] returns [`Error::InvalidState`] if the delay is less
+    /// than 1 ms, exceeds `u64::MAX` ms, or exceeds `accept_backoff_max`.
+    pub fn accept_backoff_base(mut self, delay: Duration) -> Self {
+        self.config.accept_backoff_base = delay;
+        self
+    }
+
+    /// Set the maximum retry delay after a failed accept. Defaults to 1000 ms.
+    ///
+    /// [`Self::build`] returns [`Error::InvalidState`] if the delay exceeds
+    /// `u64::MAX` ms or is smaller than `accept_backoff_base`.
+    pub fn accept_backoff_max(mut self, delay: Duration) -> Self {
+        self.config.accept_backoff_max = delay;
+        self
+    }
+
     /// Set a custom notification encoder. A karyon client then needs the
     /// matching `ClientBuilder::with_notification_decoder`.
     pub fn with_notification_encoder(
@@ -216,6 +247,26 @@ where
 
     /// Build the server.
     pub async fn build(self) -> Result<ServerRef> {
+        if self.config.max_concurrent_requests == 0 {
+            return Err(Error::InvalidState(
+                "max_concurrent_requests must be greater than 0".into(),
+            ));
+        }
+
+        let base_ms =
+            duration_to_backoff_ms("accept_backoff_base", self.config.accept_backoff_base)?;
+        if base_ms == 0 {
+            return Err(Error::InvalidState(
+                "accept_backoff_base must be at least 1 ms".into(),
+            ));
+        }
+        let max_ms = duration_to_backoff_ms("accept_backoff_max", self.config.accept_backoff_max)?;
+        if base_ms > max_ms {
+            return Err(Error::InvalidState(format!(
+                "accept_backoff_base ({base_ms} ms) cannot exceed accept_backoff_max ({max_ms} ms)"
+            )));
+        }
+
         for name in self.config.methods.keys() {
             if let Some((service, method)) = name.split_once('.')
                 && self.config.service_method(service, method).is_some()
@@ -258,6 +309,9 @@ impl<B: JsonRpcCodec> ServerBuilder<B, JsonCodec> {
                 read_timeout: None,
                 #[cfg(any(feature = "tls", feature = "ws"))]
                 handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
+                max_concurrent_requests: DEFAULT_MAX_CONCURRENT_REQUESTS,
+                accept_backoff_base: DEFAULT_ACCEPT_BACKOFF_BASE,
+                accept_backoff_max: DEFAULT_ACCEPT_BACKOFF_MAX,
             },
             byte_codec: codec,
             ws_codec: JsonCodec::default(),
@@ -271,6 +325,11 @@ impl ServerBuilder<JsonCodec, JsonCodec> {
     pub fn new(endpoint: impl ToEndpoint) -> Result<ServerBuilder<JsonCodec, JsonCodec>> {
         Self::new_with_codec(endpoint, JsonCodec::default())
     }
+}
+
+fn duration_to_backoff_ms(name: &str, duration: Duration) -> Result<u64> {
+    u64::try_from(duration.as_millis())
+        .map_err(|_| Error::InvalidState(format!("{name} exceeds maximum duration")))
 }
 
 fn default_notification_encoder(nt: NewNotification) -> Notification {
