@@ -1,13 +1,13 @@
 [package]
 name = "karyon_kademlia"
-description = "Kademlia DHT discovery for karyon_p2p: finds peers with a routing table, lookups and liveness refreshes."
-version = "0.4.2"
+description = "Kademlia DHT peer discovery for karyon_p2p in Rust: routing table, lookups from bootstrap peers, and liveness refresh."
+version = "0.4.3"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-keywords = ["p2p", "kademlia", "dht", "discovery", "karyon"]
+keywords = ["kademlia", "dht", "p2p", "peer-discovery", "distributed"]
 categories = ["network-programming", "asynchronous"]
 
 [features]

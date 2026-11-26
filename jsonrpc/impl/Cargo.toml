@@ -1,13 +1,13 @@
 [package]
 name = "karyon_jsonrpc_macro"
-description = "Procedural macros for karyon_jsonrpc."
-version = "1.1.1"
+description = "Attribute macros for karyon_jsonrpc that turn Rust impl blocks into JSON-RPC 2.0 services."
+version = "1.1.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-keywords = ["jsonrpc", "rpc", "karyon"]
+keywords = ["jsonrpc", "json-rpc", "rpc", "macro", "proc-macro"]
 categories = ["development-tools"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

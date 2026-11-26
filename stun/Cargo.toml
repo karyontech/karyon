@@ -1,13 +1,13 @@
 [package]
 name = "karyon_stun"
 description = "Minimal async STUN (RFC 5389) server and client over UDP, TCP, TLS and QUIC (karyon extension), built on karyon_net."
-version = "0.4.1"
+version = "0.4.2"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 authors.workspace = true
-keywords = ["stun", "nat", "quic", "networking", "karyon"]
+keywords = ["stun", "nat", "nat-traversal", "rfc5389", "networking"]
 categories = ["network-programming", "asynchronous"]
 
 [features]

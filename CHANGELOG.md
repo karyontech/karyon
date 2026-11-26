@@ -1,5 +1,13 @@
 # Changelog
 
+## karyon_core 2.0.2, karyon_async_rustls 1.2.2, karyon_jsonrpc 1.4.2, karyon_jsonrpc_macro 1.1.2, karyon_p2p 2.1.2, karyon_kademlia 0.4.3, karyon_swarm 2.0.3, karyon_stun 0.4.2, karyon_eventemitter 1.0.6, karyon_eventemitter_macro 1.0.4
+
+### Docs
+
+- **crates.io descriptions and keywords** (all crates except `karyon_net`):
+  clearer descriptions and search keywords for crates.io, docs.rs, and
+  search tools.
+
 ## karyon_core 2.0.1, karyon_net 2.5.1, karyon_async_rustls 1.2.1, karyon_jsonrpc 1.4.1, karyon_jsonrpc_macro 1.1.1, karyon_p2p 2.1.1, karyon_kademlia 0.4.2, karyon_swarm 2.0.2, karyon_stun 0.4.1, karyon_eventemitter 1.0.5, karyon_eventemitter_macro 1.0.3
 
 ### Docs
