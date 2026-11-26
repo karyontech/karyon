@@ -30,7 +30,7 @@ pub(super) enum Handler<'a> {
 }
 
 /// Parse and validate a raw JSON-RPC request.
-pub(super) fn sanity_check(request: serde_json::Value) -> SanityCheckResult {
+pub(super) fn sanity_check(server: &Server, request: serde_json::Value) -> SanityCheckResult {
     let rpc_msg = match serde_json::from_value::<message::Request>(request) {
         Ok(m) => m,
         Err(_) => return err_res(None, message::PARSE_ERROR_CODE, FAILED_TO_PARSE_ERROR_MSG),
@@ -46,20 +46,23 @@ pub(super) fn sanity_check(request: serde_json::Value) -> SanityCheckResult {
 
     debug!("<-- {rpc_msg}");
 
-    let srvc_method: Vec<&str> = rpc_msg.method.split('.').collect();
-    if srvc_method.len() < 2 {
-        return err_res(
-            Some(rpc_msg.id),
-            message::INVALID_REQUEST_ERROR_CODE,
-            INVALID_REQUEST_ERROR_MSG,
-        );
-    }
+    let (srvc_name, method_name) = match rpc_msg.method.split_once('.') {
+        Some(names) => names,
+        None if server.config.methods.contains_key(&rpc_msg.method) => {
+            ("", rpc_msg.method.as_str())
+        }
+        None => {
+            return err_res(
+                Some(rpc_msg.id),
+                message::INVALID_REQUEST_ERROR_CODE,
+                INVALID_REQUEST_ERROR_MSG,
+            );
+        }
+    };
 
-    let srvc_name = srvc_method[0].to_string();
-    let method_name = srvc_method[1..].join(".");
     SanityCheckResult::NewReq(NewRequest {
-        srvc_name,
-        method_name,
+        srvc_name: srvc_name.to_owned(),
+        method_name: method_name.to_owned(),
         msg: rpc_msg,
     })
 }
@@ -91,26 +94,24 @@ fn method_not_found(id: Option<serde_json::Value>) -> message::Response {
 impl Server {
     /// Resolve a request to its handler. Pubsub handlers take priority.
     /// If `allow_pubsub` is false, only regular RPC services are checked.
-    pub(super) fn resolve_handler(
-        &self,
-        srvc_name: &str,
-        method_name: &str,
-        allow_pubsub: bool,
-    ) -> Handler<'_> {
+    pub(super) fn resolve_handler(&self, req: &NewRequest, allow_pubsub: bool) -> Handler<'_> {
         if allow_pubsub
             && let Some(method) = self
                 .config
                 .pubsub_services
-                .get(srvc_name)
-                .and_then(|s| s.get_pubsub_method(method_name))
+                .get(&req.srvc_name)
+                .and_then(|s| s.get_pubsub_method(&req.method_name))
         {
             return Handler::Pubsub(method);
+        }
+        if let Some(method) = self.config.methods.get(&req.msg.method) {
+            return Handler::Rpc(Box::new(move |params| method(params)));
         }
         if let Some(method) = self
             .config
             .services
-            .get(srvc_name)
-            .and_then(|s| s.get_method(method_name))
+            .get(&req.srvc_name)
+            .and_then(|s| s.get_method(&req.method_name))
         {
             return Handler::Rpc(method);
         }
@@ -124,11 +125,11 @@ impl Server {
         channel: Option<ChannelRef>,
         msg: serde_json::Value,
     ) -> message::Response {
-        let req = match sanity_check(msg) {
+        let req = match sanity_check(self, msg) {
             SanityCheckResult::NewReq(req) => req,
             SanityCheckResult::ErrRes(res) => return res,
         };
-        let handler = self.resolve_handler(&req.srvc_name, &req.method_name, channel.is_some());
+        let handler = self.resolve_handler(&req, channel.is_some());
         run_handler(handler, req.msg, channel).await
     }
 }

@@ -31,6 +31,8 @@ fn rpc_call() {
         let server = ServerBuilder::new("http://127.0.0.1:0")
             .expect("Create server builder")
             .service(service)
+            .method("echo", |params| async { Ok(params) })
+            .method("test.nested.echo", |params| async { Ok(params) })
             .build()
             .await
             .expect("Build server");
@@ -55,6 +57,15 @@ fn rpc_call() {
             .await
             .expect("Call add");
         assert_eq!(result, 30);
+
+        for method in ["echo", "test.nested.echo"] {
+            let params = serde_json::json!({ "message": "hello" });
+            let result: Value = client
+                .call(method, params.clone())
+                .await
+                .expect("Call echo");
+            assert_eq!(result, params);
+        }
 
         client.stop().await;
         server.shutdown().await;

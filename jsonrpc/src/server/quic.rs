@@ -144,7 +144,7 @@ async fn handle_quic_stream<C: JsonRpcCodec>(
         None => conn.recv_msg().await?,
     };
 
-    let req = match sanity_check(msg) {
+    let req = match sanity_check(&server, msg) {
         SanityCheckResult::NewReq(req) => req,
         SanityCheckResult::ErrRes(res) => {
             conn.send_msg(serde_json::json!(res)).await?;
@@ -153,7 +153,7 @@ async fn handle_quic_stream<C: JsonRpcCodec>(
     };
 
     // Pubsub handlers need a dedicated stream for streaming notifications.
-    let handler = server.resolve_handler(&req.srvc_name, &req.method_name, true);
+    let handler = server.resolve_handler(&req, true);
     if let Handler::Pubsub(_) = handler {
         return handle_quic_subscription(&server, conn, handler, req.msg, peer).await;
     }

@@ -194,7 +194,7 @@ async fn handle_h3_request<C: JsonRpcCodec>(
         }
     };
 
-    let req = match sanity_check(msg) {
+    let req = match sanity_check(&server, msg) {
         SanityCheckResult::NewReq(req) => req,
         SanityCheckResult::ErrRes(res) => {
             let body = encode_response(&codec, &res)?;
@@ -203,7 +203,7 @@ async fn handle_h3_request<C: JsonRpcCodec>(
     };
 
     // Pubsub is detected by the resolved handler, not the method name.
-    let handler = server.resolve_handler(&req.srvc_name, &req.method_name, true);
+    let handler = server.resolve_handler(&req, true);
     if let Handler::Pubsub(_) = handler {
         return handle_h3_subscription(&server, handler, req.msg, send, reader, peer, codec).await;
     }

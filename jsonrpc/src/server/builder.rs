@@ -1,6 +1,7 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, future::Future, time::Duration};
 
 use karyon_core::async_runtime::Executor;
+use serde_json::Value;
 
 use karyon_net::{ToEndpoint, transport::TransportRef};
 
@@ -15,7 +16,7 @@ use karyon_net::quic::ServerQuicConfig;
 
 use crate::{
     codec::{JsonCodec, JsonRpcCodec},
-    error::Result,
+    error::{RPCResult, Result},
     message::{JSONRPC_VERSION, Notification, NotificationResult},
     server::PubSubRPCServiceRef,
     server::RPCServiceRef,
@@ -76,6 +77,22 @@ where
     /// Add an RPC service.
     pub fn service(mut self, service: RPCServiceRef) -> Self {
         self.config.services.insert(service.name(), service);
+        self
+    }
+
+    /// Add an async RPC method under its exact wire name.
+    ///
+    /// The name can be unqualified or include a namespace. An existing
+    /// registration with the same name is replaced. Pubsub handlers still take priority.
+    pub fn method<F, Fut>(mut self, name: impl Into<String>, handler: F) -> Self
+    where
+        F: Fn(Value) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = RPCResult<Value>> + Send + Sync + 'static,
+    {
+        self.config.methods.insert(
+            name.into(),
+            Box::new(move |params| Box::pin(handler(params))),
+        );
         self
     }
 
@@ -218,6 +235,7 @@ impl<B: JsonRpcCodec> ServerBuilder<B, JsonCodec> {
                 endpoint,
                 transport: None,
                 services: HashMap::new(),
+                methods: HashMap::new(),
                 pubsub_services: HashMap::new(),
                 #[cfg(feature = "tcp")]
                 tcp_config: Default::default(),
