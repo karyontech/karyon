@@ -1,5 +1,3 @@
-use chrono::Utc;
-
 use karyon_net::Endpoint;
 
 use karyon_p2p::{
@@ -71,7 +69,7 @@ impl From<DiscoveryKind> for DiscoveryEvent {
             size: event.get_size(),
             peer_id: event.get_peer_id().cloned(),
             event: event.variant_name().to_string(),
-            date: Utc::now().timestamp(),
+            date: crate::unix_timestamp(),
         }
     }
 }

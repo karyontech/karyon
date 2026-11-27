@@ -79,7 +79,7 @@ impl Bucket {
             status: PENDING_ENTRY,
             entry: entry.clone(),
             failures: 0,
-            last_seen: chrono::Utc::now().timestamp(),
+            last_seen: crate::unix_timestamp(),
         })
     }
 
@@ -120,7 +120,7 @@ impl Bucket {
             }
 
             if !e.is_unreachable() {
-                e.last_seen = chrono::Utc::now().timestamp();
+                e.last_seen = crate::unix_timestamp();
             }
         }
     }

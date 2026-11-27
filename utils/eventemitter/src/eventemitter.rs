@@ -3,10 +3,10 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     sync::{Arc, Weak},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use async_channel::{Receiver, Sender};
-use chrono::{DateTime, Utc};
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::trace;
 use parking_lot::Mutex;
@@ -337,7 +337,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Event {
     /// The time at which the event was created.
-    created_at: DateTime<Utc>,
+    created_at: SystemTime,
     /// The value of the Event.
     value: AsEventValueRef,
 }
@@ -346,7 +346,7 @@ impl Event {
     /// Creates a new Event.
     pub fn new(value: AsEventValueRef) -> Self {
         Self {
-            created_at: Utc::now(),
+            created_at: SystemTime::now(),
             value,
         }
     }
@@ -354,7 +354,17 @@ impl Event {
 
 impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}: {:?}", self.created_at, self.value)
+        let since_epoch = self
+            .created_at
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        write!(
+            f,
+            "{}.{:03}: {:?}",
+            since_epoch.as_secs(),
+            since_epoch.subsec_millis(),
+            self.value
+        )
     }
 }
 
