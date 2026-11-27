@@ -25,7 +25,6 @@ karyon_net = { workspace = true, features = ["tcp", "tls", "udp"] }
 karyon_p2p = { workspace = true }
 
 log = { workspace = true }
-chrono = { workspace = true }
 rand = { workspace = true }
 siphasher = { workspace = true }
 parking_lot = { workspace = true }

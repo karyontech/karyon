@@ -16,7 +16,6 @@ karyon_eventemitter_macro = { workspace = true, optional = true }
 
 log = { workspace = true }
 rand = { workspace = true }
-chrono = { workspace = true }
 
 async-channel = { workspace = true }
 futures-util = { workspace = true, features = [

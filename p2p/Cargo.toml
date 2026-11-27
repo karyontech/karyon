@@ -32,7 +32,6 @@ karyon_eventemitter = { workspace = true, features = ["derive"] }
 
 
 log = { workspace = true }
-chrono = { workspace = true }
 rand = { workspace = true }
 thiserror = { workspace = true }
 semver = { workspace = true }

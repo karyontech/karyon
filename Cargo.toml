@@ -39,7 +39,6 @@ karyon_eventemitter_macro = { path = "./utils/eventemitter/derive", version = "1
 
 log = "0.4"
 thiserror = "2.0"
-chrono = "0.4"
 rand = "0.10"
 url = "2.5"
 parking_lot = "0.13"

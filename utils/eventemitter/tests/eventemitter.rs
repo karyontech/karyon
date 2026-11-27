@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::{Duration, timeout};
 
-use karyon_eventemitter::{AsEventValue, EventEmitter, EventTopic, EventValue};
+use karyon_eventemitter::{AsEventValue, Event, EventEmitter, EventTopic, EventValue};
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 enum Topic {
@@ -519,4 +519,21 @@ async fn test_event_id_uniqueness() {
     assert_eq!(AEvent::event_id(), "AEvent");
     assert_eq!(StatusEvent::event_id(), "StatusEvent");
     assert_eq!(PingEvent::event_id(), "PingEvent");
+}
+
+#[test]
+fn test_event_display_unix_timestamp() {
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let display = Event::new(Arc::new(AEvent { value: 1 })).to_string();
+
+    let (timestamp, value) = display.split_once(": ").expect("timestamp prefix");
+    let (secs, millis) = timestamp.split_once('.').expect("fractional seconds");
+    let secs: u64 = secs.parse().expect("unix seconds");
+    assert!(secs >= before && secs <= before + 5, "{display}");
+    assert_eq!(millis.len(), 3, "{display}");
+    assert!(millis.parse::<u16>().is_ok(), "{display}");
+    assert_eq!(value, "AEvent { value: 1 }");
 }
