@@ -74,6 +74,45 @@ fn rpc_call() {
 }
 
 #[test]
+fn rpc_call_after_stop() {
+    run_test(10, async {
+        let service = Arc::new(MathService {});
+
+        let server = ServerBuilder::new("http://127.0.0.1:0")
+            .expect("Create server builder")
+            .service(service)
+            .build()
+            .await
+            .expect("Build server");
+
+        let endpoint = server.local_endpoint().expect("Get local endpoint");
+        server.clone().start();
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .build()
+            .await
+            .expect("Build client");
+
+        let result: String = client
+            .call("MathService.ping", ())
+            .await
+            .expect("Call ping");
+        assert_eq!(result, "pong");
+
+        client.stop().await;
+
+        let result: Result<String, _> = client.call("MathService.ping", ()).await;
+        assert!(
+            matches!(result, Err(Error::ClientDisconnected)),
+            "{result:?}"
+        );
+
+        server.shutdown().await;
+    });
+}
+
+#[test]
 fn build_rejects_standalone_method_that_matches_a_service_method() {
     run_test(10, async {
         let service = Arc::new(MathService {});
