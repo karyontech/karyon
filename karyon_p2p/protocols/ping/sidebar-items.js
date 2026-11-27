@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_FAILURES","PING_DEDUP_WINDOW","PING_PROTO_ID"],"enum":["PingProtocolMsg"],"fn":["decode_ping_msg"],"struct":["PingProtocol"]};

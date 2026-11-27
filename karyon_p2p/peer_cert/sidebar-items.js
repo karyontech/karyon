@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BAD_ENCODING_ERR","BAD_SIGNATURE_ERR","PEER_ID_EXT_OID"],"fn":["parse_cert","peer_id_from_certs","verify_cert","verify_cert_signature"]};

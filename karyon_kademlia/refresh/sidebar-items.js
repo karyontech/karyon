@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_FAILURES","REFRESH_PER_BUCKET"],"fn":["ping_conn"],"mod":["udp"],"struct":["RefreshService"],"type":["RefreshServiceRef"]};

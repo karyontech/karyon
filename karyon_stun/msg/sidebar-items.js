@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HEADER_SIZE","MAGIC_COOKIE"],"enum":["MessageType"],"struct":["StunMessage","TransactionId"]};

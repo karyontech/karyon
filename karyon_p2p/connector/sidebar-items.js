@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DialResult"],"struct":["Connector"],"type":["ConnectorRef"]};
