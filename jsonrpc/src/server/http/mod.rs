@@ -25,7 +25,7 @@ use crate::{
     codec::{DEFAULT_CONTENT_TYPE, JsonRpcCodec, encode_msg},
     error::{Error, Result},
     message,
-    server::{FAILED_TO_PARSE_ERROR_MSG, Server, accept_backoff},
+    server::{FAILED_TO_PARSE_ERROR_MSG, Server},
 };
 
 /// HTTP settings for `http://` endpoints, set with
@@ -116,11 +116,11 @@ impl<C: JsonRpcCodec> HttpAcceptor for HttpServer<C> {
     async fn accept_loop(&self, server: Arc<Server>) -> Result<()> {
         let codec = &self.codec;
         // Back off on accept errors, so the loop does not spin.
-        let tcp_backoff = accept_backoff(server.task_group.executor());
+        let tcp_backoff = server.accept_backoff();
 
         #[cfg(feature = "http3")]
         if let Some(ref quic_ep) = self.quic_endpoint {
-            let quic_backoff = accept_backoff(server.task_group.executor());
+            let quic_backoff = server.accept_backoff();
             loop {
                 select(
                     h1h2::accept_tcp(&server, &self.tcp_listener, codec, &tcp_backoff),
