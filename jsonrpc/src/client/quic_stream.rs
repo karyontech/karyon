@@ -1,9 +1,6 @@
 //! QUIC client mode: one stream per call, one stream per subscription.
 
-use std::{
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use async_channel::Receiver;
 use log::{debug, info};
@@ -66,10 +63,6 @@ where
     W: WsCodec,
     T: Serialize + DeserializeOwned,
 {
-    if client.disconnect.load(Ordering::Relaxed) {
-        return Err(Error::ClientDisconnected);
-    }
-
     let stream = quic_conn.open_stream().await?;
     let mut conn = framed(stream, client.codec.clone());
 
@@ -110,10 +103,6 @@ where
     W: WsCodec,
     T: Serialize + DeserializeOwned,
 {
-    if client.disconnect.load(Ordering::Relaxed) {
-        return Err(Error::ClientDisconnected);
-    }
-
     let stream = quic_conn.open_stream().await?;
     let mut conn = framed(stream, client.codec.clone());
 

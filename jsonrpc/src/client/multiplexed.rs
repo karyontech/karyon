@@ -293,9 +293,6 @@ where
         params: Some(json!(params)),
     };
 
-    if client.disconnect.load(Ordering::Relaxed) {
-        return Err(Error::ClientDisconnected);
-    }
     let req = serde_json::to_value(request)?;
 
     let rx = message_dispatcher.register(id).await;

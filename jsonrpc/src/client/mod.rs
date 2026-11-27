@@ -10,7 +10,10 @@ mod quic_stream;
 
 use std::{
     marker::PhantomData,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use async_channel::{Receiver, Sender};
@@ -148,6 +151,7 @@ where
         method: &str,
         params: T,
     ) -> Result<V> {
+        self.check_connected()?;
         let response = match &self.backend {
             #[cfg(feature = "http")]
             ClientBackend::Http { http_backend, .. } => {
@@ -176,6 +180,7 @@ where
         method: &str,
         params: T,
     ) -> Result<SubscriptionRef> {
+        self.check_connected()?;
         match &self.backend {
             #[cfg(all(feature = "http", not(feature = "http3")))]
             ClientBackend::Http { .. } => Err(Error::UnsupportedProtocol(
@@ -221,6 +226,7 @@ where
                 stream_unsubscribe(subscriptions, method, sub_id).await
             }
             ClientBackend::Multiplexed { subscriptions, .. } => {
+                self.check_connected()?;
                 let response = multiplexed::send_request(self, method, sub_id).await?;
                 subscriptions.unsubscribe(&sub_id).await;
                 match response.error {
@@ -233,7 +239,15 @@ where
 
     /// Disconnect the client.
     pub async fn stop(&self) {
+        self.disconnect.store(true, Ordering::Relaxed);
         self.task_group.cancel().await;
+    }
+
+    fn check_connected(&self) -> Result<()> {
+        if self.disconnect.load(Ordering::Relaxed) {
+            return Err(Error::ClientDisconnected);
+        }
+        Ok(())
     }
 
     /// Pick the right backend based on endpoint kind, then build the
