@@ -266,35 +266,30 @@ where
     B: JsonRpcCodec,
     W: WsCodec,
 {
+    async fn with_timeout<F, T>(&self, fut: F) -> Result<T>
+    where
+        F: Future<Output = Result<T>>,
+    {
+        match self.config.timeout {
+            Some(t) => {
+                self.task_group
+                    .executor()
+                    .timeout(Duration::from_millis(t), fut)
+                    .await?
+            }
+            None => fut.await,
+        }
+    }
+
     pub(super) async fn http_call<T: Serialize + DeserializeOwned>(
         &self,
         http_backend: &HttpClientBackend,
         method: &str,
         params: T,
     ) -> Result<message::Response> {
-        let id: RequestID = random_32();
-        let request = message::Request {
-            jsonrpc: message::JSONRPC_VERSION.to_string(),
-            id: json!(id),
-            method: method.to_string(),
-            params: Some(json!(params)),
-        };
-        let msg = serde_json::to_value(request)?;
-
-        let response = match self.config.timeout {
-            Some(t) => {
-                self.task_group
-                    .executor()
-                    .timeout(
-                        Duration::from_millis(t),
-                        http_backend.send_request(msg, &self.codec),
-                    )
-                    .await?
-            }
-            None => http_backend.send_request(msg, &self.codec).await,
-        }?;
-
-        Ok(response)
+        let msg = encode_request(method, params)?;
+        self.with_timeout(http_backend.send_request(msg, &self.codec))
+            .await
     }
 
     /// Subscribe over HTTP/3.
@@ -309,16 +304,11 @@ where
             return Err(Error::InvalidState("not in HTTP mode".into()));
         };
 
-        let id: RequestID = random_32();
-        let request = message::Request {
-            jsonrpc: message::JSONRPC_VERSION.to_string(),
-            id: json!(id),
-            method: method.to_string(),
-            params: Some(json!(params)),
-        };
-        let msg = serde_json::to_value(request)?;
+        let msg = encode_request(method, params)?;
 
-        let (response, send, reader) = http_backend.subscribe_h3(msg, &self.codec).await?;
+        let (response, send, reader) = self
+            .with_timeout(http_backend.subscribe_h3(msg, &self.codec))
+            .await?;
 
         if let Some(error) = response.error {
             return Err(Error::SubscribeError(error.code, error.message));
@@ -347,4 +337,15 @@ where
 
         Ok(sub)
     }
+}
+
+fn encode_request<T: Serialize>(method: &str, params: T) -> Result<serde_json::Value> {
+    let id: RequestID = random_32();
+    let request = message::Request {
+        jsonrpc: message::JSONRPC_VERSION.to_string(),
+        id: json!(id),
+        method: method.to_string(),
+        params: Some(json!(params)),
+    };
+    Ok(serde_json::to_value(request)?)
 }
