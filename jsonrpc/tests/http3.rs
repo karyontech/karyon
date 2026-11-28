@@ -16,6 +16,7 @@ use karyon_core::{async_runtime::spawn, async_util::timeout, testing::run_test};
 
 use karyon_jsonrpc::{
     client::ClientBuilder,
+    error::Error,
     server::{ServerBuilder, ServerRef},
 };
 use karyon_net::{
@@ -521,5 +522,43 @@ fn subscription_closes_when_stream_ends() {
         assert!(closed.is_ok(), "subscription did not close");
 
         client.stop().await;
+    });
+}
+
+#[test]
+fn call_and_subscribe_timeout() {
+    run_test(10, async {
+        let (server, endpoint, cli_cfg) = start_server().await;
+
+        let client = ClientBuilder::new(endpoint.to_string())
+            .expect("Create client builder")
+            .quic_config(cli_cfg)
+            .expect("Set quic config")
+            .set_timeout(100)
+            .build()
+            .await
+            .expect("Build client");
+
+        let call_res: Result<Value, _> = client.call("MathService.hang", ()).await;
+        assert!(
+            matches!(
+                call_res,
+                Err(Error::KaryonCore(karyon_core::error::Error::Timeout))
+            ),
+            "Expected timeout error on call, got: {call_res:?}"
+        );
+
+        let sub_res = client.subscribe("MathService.hang_subscribe", ()).await;
+        assert!(
+            matches!(
+                sub_res,
+                Err(Error::KaryonCore(karyon_core::error::Error::Timeout))
+            ),
+            "Expected timeout error on subscribe, got: {:?}",
+            sub_res.err()
+        );
+
+        client.stop().await;
+        server.shutdown().await;
     });
 }
